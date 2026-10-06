@@ -14,7 +14,7 @@ import threading
 from collections.abc import Iterable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -403,15 +403,99 @@ class Store:
                 (_token_hash(token), user_id, method, utcnow().isoformat(), expires_at.isoformat()),
             )
 
-    def session_user(self, token: str) -> str | None:
-        """The user a session token belongs to, if it is neither expired nor revoked."""
+    def session_user(
+        self, token: str, *, method: str | None = None, idle_minutes: float | None = None
+    ) -> str | None:
+        """The user a session token belongs to, if it is not expired, revoked, idle for too long,
+        or opened by a different kind of front end than the one presenting it."""
+        key = _token_hash(token)
         rows = self._all(
-            "SELECT user_id, expires_at FROM sessions WHERE token_hash=? AND revoked_at IS NULL",
-            (_token_hash(token),),
+            "SELECT user_id, expires_at, method, created_at, last_seen_at FROM sessions "
+            "WHERE token_hash=? AND revoked_at IS NULL",
+            (key,),
         )
-        if not rows or datetime.fromisoformat(rows[0][1]) <= utcnow():
+        now = utcnow()
+        if not rows or datetime.fromisoformat(rows[0][1]) <= now:
             return None
+        if method is not None and rows[0][2] != method:
+            return None
+        seen = datetime.fromisoformat(rows[0][4] or rows[0][3])
+        if idle_minutes is not None and (now - seen).total_seconds() > idle_minutes * 60:
+            return None
+        if (now - seen).total_seconds() > 20:  # not on every request: it is a write
+            with self._tx() as con:
+                con.execute(
+                    "UPDATE sessions SET last_seen_at=? WHERE token_hash=?", (now.isoformat(), key)
+                )
         return str(rows[0][0])
+
+    # ── failed sign-ins, lock-out and the second factor ──────────────────────
+    def auth_state(self, user_id: str) -> dict[str, Any]:
+        rows = self._all(
+            "SELECT failures, locked_until, totp_secret, totp_pending, totp_last_step "
+            "FROM auth_state WHERE user_id=?",
+            (user_id,),
+        )
+        if not rows:
+            return {
+                "failures": 0,
+                "locked_until": None,
+                "totp_secret": None,
+                "totp_pending": None,
+                "totp_last_step": 0,
+            }
+        failures, locked, secret, pending, step = rows[0]
+        return {
+            "failures": int(failures),
+            "locked_until": datetime.fromisoformat(locked) if locked else None,
+            "totp_secret": secret,
+            "totp_pending": pending,
+            "totp_last_step": int(step or 0),
+        }
+
+    def set_auth_state(self, user_id: str, **values: Any) -> None:
+        allowed = {
+            "failures",
+            "last_failure_at",
+            "locked_until",
+            "totp_secret",
+            "totp_pending",
+            "totp_last_step",
+        }
+        if not values or set(values) - allowed:
+            raise ValueError(f"unknown auth_state column(s): {sorted(set(values) - allowed)}")
+        stored = {k: (v.isoformat() if isinstance(v, datetime) else v) for k, v in values.items()}
+        with self._tx() as con:
+            con.execute("INSERT OR IGNORE INTO auth_state(user_id) VALUES (?)", (user_id,))
+            con.execute(
+                f"UPDATE auth_state SET {', '.join(f'{k}=?' for k in stored)} WHERE user_id=?",  # noqa: S608
+                (*stored.values(), user_id),
+            )
+
+    def record_auth_failure(
+        self, user_id: str, *, threshold: int, lock_minutes: float
+    ) -> datetime | None:
+        """Count a failed attempt. Returns when the lock ends if this attempt caused one."""
+        now = utcnow()
+        with self._tx() as con:
+            con.execute("INSERT OR IGNORE INTO auth_state(user_id) VALUES (?)", (user_id,))
+            con.execute(
+                "UPDATE auth_state SET failures=failures+1, last_failure_at=? WHERE user_id=?",
+                (now.isoformat(), user_id),
+            )
+            failures = int(
+                con.execute(
+                    "SELECT failures FROM auth_state WHERE user_id=?", (user_id,)
+                ).fetchone()[0]
+            )
+            if failures < threshold:
+                return None
+            until = now + timedelta(minutes=lock_minutes)
+            con.execute(
+                "UPDATE auth_state SET locked_until=?, failures=0 WHERE user_id=?",
+                (until.isoformat(), user_id),
+            )
+            return until
 
     def revoke_session(self, token: str) -> int:
         with self._tx() as con:

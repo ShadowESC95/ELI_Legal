@@ -74,7 +74,7 @@ def _confirmed(args: argparse.Namespace, what: str) -> Iterator[str]:
 
     actor = _actor(args)
     phrase = _read_secret(args, f"Passphrase for {actor} (to {what}): ")
-    _services(args).users.authenticate(actor, phrase)
+    _services(args).users.confirm(actor, phrase)
     with authn.stepped_up():
         yield actor
 
@@ -129,7 +129,21 @@ def cmd_login(args: argparse.Namespace) -> int:
     sv = _services(args)
     settings = Settings()
     phrase = _read_secret(args, f"Passphrase for {args.user_id}: ")
-    token = sv.users.login(args.user_id, phrase, method="cli-session", hours=settings.session_hours)
+    from eli_legal.domain.errors import SecondFactorRequired
+
+    try:
+        token = sv.users.login(
+            args.user_id, phrase, method="cli-session", hours=settings.session_hours
+        )
+    except SecondFactorRequired:
+        code = (
+            sys.stdin.readline().strip()
+            if getattr(args, "passphrase_stdin", False)
+            else input("Code from your authenticator: ").strip()
+        )
+        token = sv.users.login(
+            args.user_id, phrase, method="cli-session", hours=settings.session_hours, code=code
+        )
     path = _session_file()
     path.parent.mkdir(parents=True, exist_ok=True)
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
@@ -179,6 +193,36 @@ def cmd_gui(args: argparse.Namespace) -> int:
             f"the desktop application needs PySide6: pip install 'eli-legal[gui]'  ({exc})"
         ) from exc
     return int(gui_main([]))
+
+
+def cmd_serve(args: argparse.Namespace) -> int:
+    from eli_legal.api.serve import run
+
+    return run(args)
+
+
+def cmd_second_factor(args: argparse.Namespace) -> int:
+    sv = _services(args)
+    if args.factor_cmd == "setup":
+        with _confirmed(args, "set up a second factor") as actor:
+            secret, uri = sv.users.second_factor_begin(actor_id=actor)
+        print(f"Add this key to your authenticator app:\n  {secret}\n  {uri}")
+        code = input("Then enter the code it shows: ").strip()
+        sv.users.second_factor_confirm(actor_id=actor, code=code)
+        print("second factor enabled; you will be asked for a code at every sign-in")
+    elif args.factor_cmd == "remove":
+        target = args.user_id or _actor(args)
+        with _confirmed(args, f"remove the second factor of {target}") as actor:
+            sv.users.second_factor_remove(actor_id=actor, user_id=target)
+        print(f"second factor removed for {target}; their sessions have been ended")
+    return 0
+
+
+def cmd_unlock(args: argparse.Namespace) -> int:
+    with _confirmed(args, f"unlock {args.user_id}") as actor:
+        _services(args).users.unlock(actor_id=actor, user_id=args.user_id)
+    print(f"unlocked {args.user_id}")
+    return 0
 
 
 def cmd_doctor(args: argparse.Namespace) -> int:
@@ -747,6 +791,19 @@ def build_parser() -> argparse.ArgumentParser:
     p = add("passphrase", cmd_passphrase, "change your passphrase, or set another user's")
     p.add_argument("user_id", nargs="?")
     add("gui", cmd_gui, "open the desktop application")
+    p = add("serve", cmd_serve, "start the server and browser application")
+    from eli_legal.api.serve import add_arguments as _serve_arguments
+
+    _serve_arguments(p)
+    p = add("second-factor", cmd_second_factor, "set up or remove an authenticator code")
+    s = p.add_subparsers(dest="factor_cmd", required=True)
+    s.add_parser("setup", help="set up your own")
+    s.add_parser("remove", help="remove yours, or (administrator) someone else's").add_argument(
+        "user_id", nargs="?"
+    )
+    add("unlock", cmd_unlock, "unlock an account locked after failed sign-ins").add_argument(
+        "user_id"
+    )
     add("doctor", cmd_doctor, "check the installation")
     add("show-policy", cmd_show_policy, "print the runtime policy")
     add("jurisdictions", cmd_jurisdictions, "list jurisdiction packs")

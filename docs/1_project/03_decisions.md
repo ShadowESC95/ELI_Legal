@@ -21,7 +21,7 @@ identically standalone and hosted.
 
 **D-08 ELI Legal's own parser, not the host's.** Locators are needed for every finding.
 
-**D-09 No decision through a conversational assistant.** See `04_ELI_V3_INTEGRATION.md`.
+**D-09 No decision through a conversational assistant.** See `../3_architecture/03_eli_v3_integration.md`.
 
 **D-10 Legal systems are data.** A jurisdiction pack holds structure and citation grammar, never
 rules of law, and ships unvalidated.

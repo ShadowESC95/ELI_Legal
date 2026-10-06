@@ -14,6 +14,18 @@ class AuthenticationFailed(EliLegalError):
     pass
 
 
+class StepUpRequired(AuthenticationFailed):
+    """Signed in, but this decision needs the passphrase again."""
+
+
+class AccountLocked(AuthenticationFailed):
+    """Too many failed attempts. The account is refused until the lock expires or is lifted."""
+
+
+class SecondFactorRequired(AuthenticationFailed):
+    """The passphrase was right; the code from the person's authenticator is still needed."""
+
+
 class VerificationGateFailed(EliLegalError):
     pass
 

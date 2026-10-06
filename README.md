@@ -65,23 +65,32 @@ Ireland, England and Wales, the EU, US federal law, Germany, France, internation
 instruments, and a generic fallback. They hold structure and citation grammar only, contain no
 rules of law, and are marked unvalidated until a lawyer qualified in that jurisdiction signs them
 off. The law itself always comes from an approved source. See
-[docs/17_JURISDICTION_PACKS.md](docs/17_JURISDICTION_PACKS.md).
+[docs/3_architecture/05_jurisdiction_packs.md](docs/3_architecture/05_jurisdiction_packs.md).
 
-## Quick start
+## Install and try it
+
+Installers are in `dist/installers` after a build (`packaging/linux/build.sh`); see
+[Installation](docs/6_manuals/01_installation.md). From a source checkout:
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
-pip install -e '.[dev,gui]'
+pip install -e '.[dev,all]'
 eli-legal demo                      # a synthetic dispute, start to finish, narrated
 ./eli_legal.sh                      # the desktop application
+eli-legal serve                     # the server and browser application, on this machine
 ```
 
-## The desktop application
+## Three ways to use it
 
-`eli-legal gui` opens an application in the style of the ELI desktop, containing only legal and
-governance functions: **Matter · Evidence · Chat · DAG · Agents · Findings · Review · Audit Trail
-· Governance · Sources · Settings**. You sign in with your own passphrase, and a decision asks
-for it again. See [docs/18_DESKTOP_APPLICATION.md](docs/18_DESKTOP_APPLICATION.md).
+| | Start with | For |
+|---|---|---|
+| Desktop application | `eli-legal-gui` | One person at their own machine |
+| Server and browser application | `eli-legal serve` | A chambers, firm or tribunal, over HTTPS |
+| Command line | `eli-legal` | Administration and scripted use |
+
+All three show the same eleven screens or commands over the same services: **Matter · Evidence ·
+Chat · DAG · Agents · Findings · Review · Audit Trail · Governance · Sources · Settings**. There
+is no general assistant, no shell and no web access in any of them.
 
 ## Identity
 
@@ -90,11 +99,22 @@ be them. No front end acts on a typed name:
 
 | Front end | You prove who you are with | A decision also needs |
 |---|---|---|
-| Desktop application | your passphrase at sign-in | your passphrase again |
+| Desktop application | your passphrase, and a code if you have set up a second factor | your passphrase again |
+| Browser | the same; a second factor is required when the server is reachable from other machines | your passphrase again |
 | Command line | `eli-legal login` (a session that expires) | your passphrase again |
-| HTTP API | a bearer token | your passphrase in `X-ELI-Passphrase` |
+| API | a bearer token issued to a named user | that user's passphrase with the request |
 
-Every audit event records how the actor's identity was established.
+Five wrong attempts lock an account. Every audit event records how the actor's identity was
+established.
+
+## The server
+
+`eli-legal serve` listens on this machine only. To let others connect it must have TLS
+(`--tls-cert`/`--tls-key`, or `--self-signed`), and it refuses to start otherwise. It checks the
+host name, origin, size and rate of every request before any route runs; uses a cookie scripts
+cannot read plus a CSRF value; sends a strict content-security policy; shows all matter content
+as text; and cannot be made to read the machine or call out. See
+[Server security](docs/4_security/04_server_security.md).
 
 ## The command line
 
@@ -116,12 +136,8 @@ eli-legal ingest $M ./bundle --party "A Ltd"
 eli-legal run start $M              # then: holds, tasks, verify, hold, run resume, review, release
 ```
 
-`eli-legal --help` lists every command. A model is optional: without one, facts are selected by
-rule and no arguments are drafted. Choose a local model in Settings, or set
-`ELI_LEGAL_INFERENCE=openai_compat`, `ELI_LEGAL_INFERENCE_URL` (any OpenAI-compatible endpoint on
-this machine, such as Ollama or llama.cpp) and `ELI_LEGAL_INFERENCE_MODEL`.
-
-The HTTP API exposes the same services: `uvicorn --factory eli_legal.api.app:create_app`.
+Every command is in the [command-line reference](docs/6_manuals/07_command_line_reference.md).
+A model is optional: without one, facts are selected by rule and no arguments are drafted.
 
 ## Loading it into ELI v3
 
@@ -129,7 +145,7 @@ ELI Legal is a separate package that presents itself in the shape ELI v3's editi
 defines: a manifest, three policy hooks and its capabilities, advertised through the
 `eli.editions` entry point. While it is active, every other host action except conversation and
 status is refused, no decision can be taken through the assistant, and capability output carries
-no matter content. See [docs/04_ELI_V3_INTEGRATION.md](docs/04_ELI_V3_INTEGRATION.md).
+no matter content. See [docs/3_architecture/03_eli_v3_integration.md](docs/3_architecture/03_eli_v3_integration.md).
 
 ```bash
 eli-legal edition verify --eli-root /path/to/ELI_v3.0     # read-only check against a checkout
@@ -140,14 +156,17 @@ eli-legal edition verify --eli-root /path/to/ELI_v3.0     # read-only check agai
 - **Not legal advice and not a decision-maker.** It prepares; a named, qualified person decides.
 - **Not conformity-assessed.** Used by or for a court or tribunal, or similarly in ADR, a system
   like this is listed as high-risk in EU AI Act Annex III point 8(a). The registers under
-  `governance/` map requirements to controls and say plainly which duties are organisational and
+  `src/eli_legal/governance/registers` map requirements to controls and say plainly which duties are organisational and
   remain undone. They are aids, to be checked against the official texts, not legal advice.
 - **Not validated on real matters.** The evaluation matter is synthetic. Accuracy thresholds on
   representative real matters must be set and met before anyone relies on it.
 - **No live legal database.** The one working connector reads a corpus you load yourself. Whether
   a case is still good law is only as reliable as the status data in that corpus.
 - **No encryption at rest and no OCR.** Use an encrypted volume; convert scans before ingestion.
-- **Passphrase only.** No second factor and no lockout after repeated failed sign-ins.
+- **No licence yet.** The repository has no licence file; all rights are reserved until one is chosen.
+- **Unsigned installers; Windows and macOS builds untested.** Only the Linux installers have been built and run.
+- **No single sign-on or hardware keys.** Passphrase, lock-out and one-time codes only.
+- **Not penetration-tested.** Keep the server on an internal network.
 
 ## Layout
 
@@ -160,8 +179,11 @@ eli-legal edition verify --eli-root /path/to/ELI_v3.0     # read-only check agai
 | `src/eli_legal/application` | services: the only thing a front end calls |
 | `src/eli_legal/adapters` | parsers, vault, ledger, network guard, sources, inference, ELI v3 |
 | `src/eli_legal/gui` | the desktop application |
+| `src/eli_legal/api` | the server: security layer, sign-in, routes |
+| `src/eli_legal/web` | the browser application |
 | `src/eli_legal/edition` | the ELI v3 edition pack |
 | `src/eli_legal/config` | default policy, workflow and jurisdiction packs |
 | `src/eli_legal/governance/registers` | control, risk and requirement registers, checked against the code in CI |
-| `docs/` | architecture, standards, runbook, instructions for use |
-| `tests/` | unit, security, integration, evaluation, edition contract, API |
+| `docs/` | [the documentation](docs/README.md): project, requirements, architecture, security, legal and compliance, manuals |
+| `packaging/`, `install.sh`, `install.ps1` | installers |
+| `tests/` | unit, security, integration, evaluation, edition contract, server, browser, desktop |

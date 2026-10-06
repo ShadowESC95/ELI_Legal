@@ -351,7 +351,7 @@ class WorkflowTab(Tab):
         if phrase is None:
             return
         try:
-            self.sv.users.authenticate(self.actor, phrase)
+            self.sv.users.confirm(self.actor, phrase)
         except Exception:
             self.session.decide_with(self, "", lambda: None)
             return

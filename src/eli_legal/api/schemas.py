@@ -1,76 +1,175 @@
+"""What the server accepts. Unknown fields are refused and every string has a limit."""
+
 from __future__ import annotations
 
 from datetime import date
+from typing import Annotated
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+
+Name = Annotated[str, StringConstraints(min_length=1, max_length=200)]
+Short = Annotated[str, StringConstraints(max_length=200)]
+Long = Annotated[str, StringConstraints(max_length=20_000)]
+Secret = Annotated[str, StringConstraints(min_length=1, max_length=1024)]
+Ident = Annotated[
+    str, StringConstraints(min_length=1, max_length=80, pattern=r"^[A-Za-z0-9_.@:-]+$")
+]
 
 
-class HealthResponse(BaseModel):
+class Strict(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class HealthResponse(Strict):
     status: str
-    mode: str
-    network_default: str
     version: str
 
 
-class PartyIn(BaseModel):
-    name: str
-    role: str
+class LoginIn(Strict):
+    user_id: Ident
+    passphrase: Secret
+    code: Annotated[str, StringConstraints(max_length=12)] | None = None
 
 
-class MatterCreate(BaseModel):
-    name: str
-    purpose: str
-    jurisdiction: str
-    profile: str
-    governing_law: str | None = None
-    forum: str = ""
-    procedural_rules: str = ""
+class PassphraseChange(Strict):
+    current: Secret
+    new: Secret
+
+
+class NewPassphrase(Strict):
+    new: Secret
+
+
+class CodeIn(Strict):
+    code: Annotated[str, StringConstraints(min_length=6, max_length=12)]
+
+
+class LabelIn(Strict):
+    label: Short = ""
+
+
+class UserCreate(Strict):
+    user_id: Ident
+    display_name: Name
+    roles: list[Ident] = Field(default_factory=list, max_length=20)
+    passphrase: Secret | None = None
+
+
+class PartyIn(Strict):
+    name: Name
+    role: Name
+
+
+class MatterCreate(Strict):
+    name: Name
+    purpose: Long
+    jurisdiction: Ident
+    profile: Ident
+    governing_law: Short | None = None
+    forum: Short = ""
+    procedural_rules: Short = ""
     relevant_date: date | None = None
-    parties: list[PartyIn] = Field(default_factory=list)
-    stated_issues: list[str] = Field(default_factory=list)
-    represented_party: str | None = None
+    parties: list[PartyIn] = Field(default_factory=list, max_length=100)
+    stated_issues: list[Long] = Field(default_factory=list, max_length=100)
+    represented_party: Short | None = None
 
 
-class IdList(BaseModel):
-    ids: list[str]
+class MatterUpdate(Strict):
+    relevant_date: date | None = None
+    stated_issues: list[Long] | None = Field(default=None, max_length=100)
+    forum: Short | None = None
+    procedural_rules: Short | None = None
+    add_parties: list[PartyIn] = Field(default_factory=list, max_length=100)
 
 
-class Reasoned(BaseModel):
-    reason: str
+class IdList(Strict):
+    ids: list[Ident] = Field(max_length=200)
 
 
-class ResumeIn(BaseModel):
-    reason: str
-    from_step: str | None = None
+class Reasoned(Strict):
+    reason: Long
 
 
-class HoldResolveIn(BaseModel):
-    action: str
-    reason: str
+class CloseIn(Strict):
+    purge_content: bool = False
+    reason: Long
 
 
-class VerificationIn(BaseModel):
-    check: str
-    result: str
-    reason: str
+class ResumeIn(Strict):
+    reason: Long
+    from_step: Ident | None = None
 
 
-class ReviewIn(BaseModel):
-    decision: str
-    reasons: str
-    report_hash: str = ""
-    acknowledged: list[str] = Field(default_factory=list)
+class HoldResolveIn(Strict):
+    action: Ident
+    reason: Long
 
 
-class RecipientIn(BaseModel):
-    recipient_id: str
-    display_name: str
-    address: str
+class VerificationIn(Strict):
+    check: Ident
+    result: Ident
+    reason: Long
 
 
-class ReleaseIn(BaseModel):
-    recipients: list[RecipientIn]
+class ReviewIn(Strict):
+    decision: Ident
+    reasons: Long
+    report_hash: Short = ""
+    acknowledged: list[Short] = Field(default_factory=list, max_length=200)
 
 
-class SendIn(BaseModel):
-    confirmed_recipient_ids: list[str]
+class RecipientIn(Strict):
+    recipient_id: Ident
+    display_name: Name
+    address: Short
+
+
+class ReleaseIn(Strict):
+    recipients: list[RecipientIn] = Field(min_length=1, max_length=100)
+
+
+class SendIn(Strict):
+    confirmed_recipient_ids: list[Ident] = Field(max_length=100)
+
+
+class ChatIn(Strict):
+    question: Annotated[str, StringConstraints(min_length=1, max_length=4000)]
+    run_id: Ident | None = None
+    use_model: bool = False
+
+
+class IncidentIn(Strict):
+    category: Name
+    detail: Long
+    severity: Ident = "medium"
+    run_id: Ident | None = None
+
+
+class IncidentClose(Strict):
+    containment: Long
+    reason: Long
+
+
+class SourceIn(Strict):
+    source_id: Ident
+    name: Name
+    jurisdictions: list[Ident] = Field(min_length=1, max_length=50)
+    source_types: list[Short] = Field(default_factory=list, max_length=20)
+    authority_owner: Short = ""
+    licence: Long = ""
+    terms_reviewed: bool = False
+    freshness: Short = ""
+    treatment_semantics: Long = ""
+    authoritative_for: list[Short] = Field(default_factory=list, max_length=20)
+    inspection: Long = ""
+
+
+class ImportIn(Strict):
+    directory: Annotated[str, StringConstraints(min_length=1, max_length=500)]
+
+
+class ModelIn(Strict):
+    backend: Ident
+    url: Short = ""
+    model: Short = ""
+    verifier_model: Short = ""

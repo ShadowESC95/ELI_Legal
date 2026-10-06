@@ -6,7 +6,9 @@
 application, which does the same on first run. Back up the audit key separately from the
 databases. Sign in (`eli-legal login <id>`), create users and roles, set each user's first
 passphrase (`eli-legal passphrase <user>`), register and approve sources, `eli-legal doctor`.
-Every step below can be done in the desktop application instead.
+Every step below can be done in the desktop application or the browser application instead.
+For users, sources, the model, backups and the server, see the
+[Administrator manual](04_administrator_manual.md).
 
 ## Before a run
 

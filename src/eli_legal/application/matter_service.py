@@ -9,10 +9,17 @@ from datetime import date, timedelta
 
 from eli_legal.application.container import AppContext
 from eli_legal.domain.enums import ActorType, MatterStatus, Profile
-from eli_legal.domain.errors import AuthenticationFailed, InvalidInput, InvalidState, PolicyDenied
+from eli_legal.domain.errors import (
+    AccountLocked,
+    AuthenticationFailed,
+    InvalidInput,
+    InvalidState,
+    PolicyDenied,
+    SecondFactorRequired,
+)
 from eli_legal.domain.models import Chunk, Document, Matter, Party, User, utcnow
 from eli_legal.domain.profiles import OVERSIGHT_ROLES, profile_spec
-from eli_legal.security import authn
+from eli_legal.security import authn, totp
 from eli_legal.security.rbac import DEFAULT_ROLE_ACTIONS
 
 _PBKDF2_ITERATIONS = 240_000
@@ -38,6 +45,10 @@ def verify_passphrase(passphrase: str, stored: str) -> bool:
     except ValueError:
         return False
     return hmac.compare_digest(digest.hex(), expected)
+
+
+# Checked against when the user does not exist, so that costs the same as when they do.
+_DUMMY_HASH = f"pbkdf2_sha256${_PBKDF2_ITERATIONS}${'00' * 16}${'00' * 32}"
 
 
 @dataclass(slots=True)
@@ -160,35 +171,160 @@ class UserService:
             object_type="user",
         )
 
-    def authenticate(self, user_id: str, passphrase: str) -> User:
-        """Sign a person in to the desktop application. Every attempt is recorded."""
+    def _passphrase_checked(self, user_id: str, passphrase: str) -> User:
+        """The user, if the passphrase is right and the account is not locked. Wrong attempts
+        are counted; enough of them in a row lock the account for a while."""
         user = self.ctx.store.get_user(user_id)
-        ok = (
-            user is not None
-            and user.active
-            and bool(user.passphrase_hash)
-            and verify_passphrase(passphrase, user.passphrase_hash)
-        )
-        self._sign_in_event(user_id, "signed_in" if ok else "sign_in_refused")
-        if not ok or user is None:
+        known = user is not None and user.active and bool(user.passphrase_hash)
+        state = self.ctx.store.auth_state(user_id) if known else None
+        locked = state["locked_until"] if state else None
+        if locked is not None and locked > utcnow():
+            self._sign_in_event(user_id, "refused_locked")
+            raise AccountLocked(
+                f"too many failed attempts; this account is locked until {locked:%H:%M} UTC. "
+                "An administrator can unlock it."
+            )
+        # An unknown user costs the same work as a known one, so timing does not reveal who exists.
+        ok = verify_passphrase(passphrase, user.passphrase_hash if known and user else _DUMMY_HASH)
+        if not (known and ok) or user is None:
+            self._failed(user_id if known else None, user_id)
             raise AuthenticationFailed("unknown user or wrong passphrase")
         return user
 
-    def login(self, user_id: str, passphrase: str, *, method: str, hours: float = 8.0) -> str:
-        """Verify the passphrase and open a session. The token is returned once; only its hash
+    def _failed(self, known_user_id: str | None, attempted: str) -> None:
+        self._sign_in_event(attempted, "sign_in_refused")
+        if known_user_id is None:
+            return
+        s = self.ctx.settings
+        until = self.ctx.store.record_auth_failure(
+            known_user_id, threshold=s.lockout_threshold, lock_minutes=s.lockout_minutes
+        )
+        if until is not None:
+            self._sign_in_event(known_user_id, "account_locked")
+
+    def authenticate(self, user_id: str, passphrase: str, *, code: str | None = None) -> User:
+        """Sign a person in: the passphrase, and the code from their authenticator if they have
+        set one up. Every attempt is recorded."""
+        user = self._passphrase_checked(user_id, passphrase)
+        state = self.ctx.store.auth_state(user_id)
+        if state["totp_secret"]:
+            if not code:
+                self._sign_in_event(user_id, "second_factor_required")
+                raise SecondFactorRequired("enter the code from your authenticator app")
+            step = totp.verify(state["totp_secret"], code, last_step=state["totp_last_step"])
+            if step is None:
+                self._failed(user_id, user_id)
+                raise AuthenticationFailed("that code is not correct, or has already been used")
+            self.ctx.store.set_auth_state(user_id, totp_last_step=step)
+        if state["failures"]:
+            self.ctx.store.set_auth_state(user_id, failures=0)
+        self._sign_in_event(
+            user_id, "signed_in_two_factor" if state["totp_secret"] else "signed_in"
+        )
+        return user
+
+    def confirm(self, user_id: str, passphrase: str) -> User:
+        """The passphrase again, at the moment of a decision, from someone already signed in."""
+        user = self._passphrase_checked(user_id, passphrase)
+        if self.ctx.store.auth_state(user_id)["failures"]:
+            self.ctx.store.set_auth_state(user_id, failures=0)
+        return user
+
+    def login(
+        self,
+        user_id: str,
+        passphrase: str,
+        *,
+        method: str,
+        hours: float = 8.0,
+        code: str | None = None,
+    ) -> str:
+        """Verify the credentials and open a session. The token is returned once; only its hash
         is stored, and the session ends on its own after ``hours``."""
-        user = self.authenticate(user_id, passphrase)
+        user = self.authenticate(user_id, passphrase, code=code)
         token = "els_" + secrets.token_urlsafe(32)
         self.ctx.store.add_session(token, user.user_id, method, utcnow() + timedelta(hours=hours))
         return token
 
-    def session_user(self, token: str) -> User:
-        """The user behind a session token. Refuses an expired, revoked or orphaned session."""
-        user_id = self.ctx.store.session_user(token) if token else None
+    def session_user(
+        self, token: str, *, method: str | None = None, idle_minutes: float | None = None
+    ) -> User:
+        """The user behind a session token. Refuses an expired, idle, revoked or orphaned
+        session, and one opened by a different kind of front end."""
+        user_id = (
+            self.ctx.store.session_user(token, method=method, idle_minutes=idle_minutes)
+            if token
+            else None
+        )
         user = self.ctx.store.get_user(user_id) if user_id else None
         if user is None or not user.active:
             raise AuthenticationFailed("not signed in, or the session has ended; sign in again")
         return user
+
+    # ── the second factor ────────────────────────────────────────────────────
+    def has_second_factor(self, user_id: str) -> bool:
+        return bool(self.ctx.store.auth_state(user_id)["totp_secret"])
+
+    def second_factor_begin(self, *, actor_id: str) -> tuple[str, str]:
+        """Start setting up an authenticator. Returns the secret and the address an app reads.
+        Nothing changes at sign-in until a code from the app has been confirmed."""
+        authn.require_step_up(actor_id, "set up a second factor")
+        secret = totp.new_secret()
+        self.ctx.store.set_auth_state(actor_id, totp_pending=secret)
+        return secret, totp.provisioning_uri(secret, actor_id)
+
+    def second_factor_confirm(self, *, actor_id: str, code: str) -> None:
+        authn.require(actor_id)
+        state = self.ctx.store.auth_state(actor_id)
+        pending = state["totp_pending"]
+        step = totp.verify(pending, code) if pending else None
+        if step is None:
+            raise AuthenticationFailed(
+                "that code does not match; check the time on your device and try again"
+            )
+        self.ctx.store.set_auth_state(
+            actor_id, totp_secret=pending, totp_pending=None, totp_last_step=step
+        )
+        self._user_event(actor_id, actor_id, "second_factor_enabled")
+
+    def second_factor_remove(self, *, actor_id: str, user_id: str) -> None:
+        """Remove a second factor: your own, or (as an administrator) someone else's who has
+        lost their device. Either way it needs the passphrase again and is recorded."""
+        authn.require_step_up(actor_id, "remove a second factor")
+        if actor_id != user_id:
+            self.ctx.authorizer().require_global(actor_id, "user.manage")
+        self.ctx.user(user_id)
+        self.ctx.store.set_auth_state(
+            user_id, totp_secret=None, totp_pending=None, totp_last_step=0
+        )
+        self.ctx.store.revoke_sessions(user_id)
+        self._user_event(actor_id, user_id, "second_factor_removed")
+
+    def unlock(self, *, actor_id: str, user_id: str) -> None:
+        authn.require_step_up(actor_id, "unlock an account")
+        self.ctx.authorizer().require_global(actor_id, "user.manage")
+        self.ctx.user(user_id)
+        self.ctx.store.set_auth_state(user_id, failures=0, locked_until=None)
+        self._user_event(actor_id, user_id, "account_unlocked")
+
+    def account_status(self, user_id: str) -> dict[str, object]:
+        state = self.ctx.store.auth_state(user_id)
+        locked = state["locked_until"]
+        return {
+            "second_factor": bool(state["totp_secret"]),
+            "locked_until": locked.isoformat() if locked and locked > utcnow() else None,
+        }
+
+    def _user_event(self, actor_id: str, user_id: str, outcome: str) -> None:
+        self.ctx.log(
+            "user_security",
+            actor_id=actor_id,
+            matter_id="-",
+            action="user.security",
+            subject_id=user_id,
+            outcome=outcome,
+            object_type="user",
+        )
 
     def logout(self, token: str) -> None:
         user_id = self.ctx.store.session_user(token)

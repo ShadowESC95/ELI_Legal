@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 
 from eli_legal import __version__
 from eli_legal.application.services import Services, build_services
-from eli_legal.domain.errors import EliLegalError
+from eli_legal.domain.errors import AccountLocked, EliLegalError, SecondFactorRequired
 from eli_legal.gui import theme
 from eli_legal.gui.main_window import MainWindow
 from eli_legal.gui.session import Session
@@ -107,8 +107,12 @@ class SignInDialog(QDialog):
                 self.user.addItem(user.user_id)
         self.phrase = QLineEdit()
         self.phrase.setEchoMode(QLineEdit.EchoMode.Password)
+        self.code = QLineEdit()
+        self.code.setPlaceholderText("only if you have set up an authenticator")
+        self.code.setMaxLength(8)
         form.addRow("User", self.user)
         form.addRow("Passphrase", self.phrase)
+        form.addRow("Code", self.code)
         form.addRow(
             label(
                 "Everything you do is recorded under your name. A decision will ask for your passphrase again.",
@@ -161,12 +165,17 @@ def main(argv: list[str] | None = None) -> int:
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return 0
         try:
-            session.sign_in(dialog.user.currentText().strip(), dialog.phrase.text())
+            session.sign_in(
+                dialog.user.currentText().strip(), dialog.phrase.text(), dialog.code.text().strip()
+            )
+        except (AccountLocked, SecondFactorRequired) as exc:
+            QMessageBox.warning(None, "Sign in", str(exc)[:1].upper() + str(exc)[1:] + ".")
+            continue
         except EliLegalError:
             QMessageBox.warning(
                 None,
                 "Sign in",
-                "Unknown user or wrong passphrase.\n\nIf you have no passphrase yet, an administrator must set your first one.",
+                "Unknown user, wrong passphrase or wrong code.\n\nIf you have no passphrase yet, an administrator must set your first one.",
             )
             continue
         window = MainWindow(session)

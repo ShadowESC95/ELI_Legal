@@ -1,0 +1,29 @@
+ELI Legal
+
+Governed legal case preparation: decision support for qualified legal
+professionals. It prepares; a named, qualified person decides. It renders no
+verdict, award or settlement terms, and it is not legal advice.
+
+What this installer does
+  - Puts the program in the folder you choose.
+  - Adds a menu entry and the commands "eli-legal" and "eli-legal-gui".
+  - Touches nothing else. It does not start a service, open a network port or
+    contact any server.
+
+Where your data is kept
+  Matters, the audit ledger and its key are kept in your own user data folder,
+  separate from the program:
+    Linux    ~/.local/share/eli-legal
+    Windows  %LOCALAPPDATA%\ELI Legal
+    macOS    ~/Library/Application Support/ELI Legal
+  Removing the program never removes that folder. Back it up, and keep a copy
+  of the audit key somewhere else: without the key the ledger cannot be
+  verified.
+
+Before using it on a real matter
+  Read docs/README.md, in particular the legal and compliance folder. This
+  software has not been conformity-assessed, validated on real matters, or
+  checked by a lawyer qualified in your jurisdiction.
+
+Third-party software included with this program is listed, with its licences,
+in THIRD_PARTY_NOTICES.md in the installation folder.

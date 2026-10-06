@@ -20,6 +20,8 @@
 | Chat, agents, sign-in | `tests/integration/test_chat_agents_signin.py` | grounded chat; agent mandates; passphrases; governed model change |
 | Desktop application | `tests/gui/test_gui.py` | the window driven headlessly as a signed-in person |
 | Registers | `tests/governance/test_registers.py` | registers match code and tests |
-| API | `tests/api/test_api.py` | authentication; same rules as other front ends |
+| Server, rules | `tests/api/test_api.py` | same rules as other front ends; no route without credentials; the whole lifecycle over HTTP |
+| Server, protection | `tests/api/test_server_security.py` | cookie and CSRF; host, origin, size and rate checks; headers; lock-out; second factor; TLS rules; no path or network disclosure |
+| Browser application | `tests/web/test_web_app.py` | a real browser engine against a real TLS server: sign-in, every screen, a decision with step-up |
 
 Set `ELI_V3_ROOT` to a real ELI v3 checkout to add a contract check against its own loader.

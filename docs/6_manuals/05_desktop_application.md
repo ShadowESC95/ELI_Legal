@@ -44,7 +44,8 @@ someone else: a decision needs the signed-in person's own passphrase.
 
 ## Limits
 
-A passphrase proves knowledge of a secret, not presence. There is no second factor and no
-lockout after repeated failures; both belong on the roadmap before use on real matters. The
+A passphrase proves knowledge of a secret, not presence. Set up a second factor (Settings, You)
+so that a code from your phone is needed as well. Five wrong attempts lock an account until an
+administrator unlocks it. The
 application shows matter content on screen: use it on a machine and in a place appropriate to
 that content.

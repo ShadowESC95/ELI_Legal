@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "eli-legal"
-version = "0.3.0"
+version = "0.4.0"
 description = "Governed legal case preparation: evidence in, verified source-linked analysis out, a named human decides"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -28,6 +28,18 @@ dev = [
 
 gui = [
   "PySide6>=6.6",
+]
+# Lets the server make its own certificate when none is supplied (OpenSSL is used otherwise).
+server = [
+  "cryptography>=42",
+]
+# What an installed copy ships with.
+all = [
+  "PySide6>=6.6",
+  "cryptography>=42",
+]
+build = [
+  "pyinstaller>=6.10",
 ]
 
 [project.scripts]
@@ -54,6 +66,8 @@ eli_legal = [
   "governance/registers/*.csv",
   "governance/templates/*.md",
   "gui/assets/*.png",
+  "web/*.html",
+  "web/assets/*",
 ]
 
 [tool.pytest.ini_options]

@@ -26,6 +26,7 @@ from eli_legal.gui import theme
 from eli_legal.gui.tabs.base import Tab
 from eli_legal.gui.widgets import button, card, fill, fit, label, row, selected_id, table
 from eli_legal.security.rbac import DEFAULT_ROLE_ACTIONS
+from eli_legal.settings import ENV_FILE
 
 
 def new_passphrase(parent: QWidget, who: str) -> str | None:
@@ -374,7 +375,7 @@ class SettingsTab(Tab):
                 url=url,
                 model=model if backend != "none" else "",
                 verifier_model=verifier if backend != "none" else "",
-                persist_to=Path(".env"),
+                persist_to=ENV_FILE,
             ),
         )
 

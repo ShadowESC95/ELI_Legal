@@ -13,7 +13,13 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-from eli_legal.domain.enums import AccessScope, ClaimKind, ClaimStatus, DocumentStatus
+from eli_legal.domain.enums import (
+    AccessScope,
+    ClaimKind,
+    ClaimStatus,
+    DocumentStatus,
+    Profile,
+)
 from eli_legal.domain.models import (
     Authority,
     AuthorityPassage,
@@ -28,6 +34,7 @@ from eli_legal.domain.models import (
 )
 from eli_legal.domain.profiles import profile_spec
 from eli_legal.governance.gates import effective_results
+from eli_legal.legal.citations import normalise_citation
 from eli_legal.legal.evidence_mapper import IssueEvidence, PotentialConflict
 from eli_legal.legal.issue_mapper import stems
 from eli_legal.legal.jurisdictions import JurisdictionPack
@@ -156,6 +163,18 @@ class LegalReportBuilder:
             return "; ".join(parts)
 
         verified = [c for c in claims if c.status is ClaimStatus.VERIFIED]
+        # An authority the system found that no party cited is new to the dispute. Whoever
+        # decides must not rely on it without the parties having had the chance to address it.
+        party_cited = {
+            normalise_citation(c.citation)
+            for c in claims
+            if c.kind is ClaimKind.PARTY_AUTHORITY and c.citation
+        }
+        not_cited = (
+            "**No**: found by research only"
+            if spec.profile is Profile.PARTY_REPRESENTATIVE
+            else "**No**: put it to the parties before relying on it"
+        )
         not_relied = [c for c in claims if c.status is not ClaimStatus.VERIFIED and c.material]
         warnings = self._warnings(ctx, claims, withheld, verified)
         approved = bool(ctx.approved_by)
@@ -284,7 +303,14 @@ class LegalReportBuilder:
             add("**Authorities located in the approved sources**")
             add("")
             lines += _table(
-                ["Ref", "Authority", "Passage (verbatim)", "Where", "Status check"],
+                [
+                    "Ref",
+                    "Authority",
+                    "Passage (verbatim)",
+                    "Where",
+                    "Status check",
+                    "Cited by a party",
+                ],
                 [
                     [
                         ref[c.claim_id],
@@ -292,6 +318,7 @@ class LegalReportBuilder:
                         f"“{c.text}”",
                         "; ".join(e.locator for e in c.evidence if e.target_type == "authority"),
                         self._check_detail(results_by_claim.get(c.claim_id, []), "current_law"),
+                        "yes" if normalise_citation(c.citation or "") in party_cited else not_cited,
                     ]
                     for c in props
                 ],

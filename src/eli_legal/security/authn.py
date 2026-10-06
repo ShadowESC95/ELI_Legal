@@ -25,7 +25,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 
-from eli_legal.domain.errors import AuthenticationFailed
+from eli_legal.domain.errors import AuthenticationFailed, StepUpRequired
 
 UNAUTHENTICATED = "unauthenticated"
 
@@ -84,7 +84,7 @@ def require_step_up(actor_id: str, what: str) -> Principal:
     """Refuse a decision unless the person confirmed their passphrase for it."""
     principal = require(actor_id)
     if not principal.step_up:
-        raise AuthenticationFailed(
+        raise StepUpRequired(
             f"to {what}, confirm your passphrase: a decision recorded in your name needs it again"
         )
     return principal

@@ -25,3 +25,10 @@ demo:
 
 doctor:
 	python -m eli_legal.cli doctor
+
+.PHONY: installers docs-reference
+installers:
+	packaging/linux/build.sh
+
+docs-reference:
+	python scripts/generate_reference_docs.py

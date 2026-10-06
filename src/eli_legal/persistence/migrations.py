@@ -111,4 +111,17 @@ MIGRATIONS: list[str] = [
     );
     CREATE INDEX IF NOT EXISTS ix_sessions_user ON sessions(user_id);
     """,
+    # 3 — idle time-out for sessions; failed sign-ins and lock-out; the second factor.
+    """
+    ALTER TABLE sessions ADD COLUMN last_seen_at TEXT;
+    CREATE TABLE IF NOT EXISTS auth_state (
+        user_id TEXT PRIMARY KEY,
+        failures INTEGER NOT NULL DEFAULT 0,
+        last_failure_at TEXT,
+        locked_until TEXT,
+        totp_secret TEXT,
+        totp_pending TEXT,
+        totp_last_step INTEGER NOT NULL DEFAULT 0
+    );
+    """,
 ]

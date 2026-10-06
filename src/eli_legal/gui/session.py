@@ -55,8 +55,8 @@ class Session(QObject):
         self._jobs: list[_Job] = []
 
     # ── identity ─────────────────────────────────────────────────────────────
-    def sign_in(self, user_id: str, passphrase: str) -> User:
-        user = self.sv.users.authenticate(user_id, passphrase)
+    def sign_in(self, user_id: str, passphrase: str, code: str = "") -> User:
+        user = self.sv.users.authenticate(user_id, passphrase, code=code or None)
         authn.establish(user.user_id, AUTH_METHOD)
         self.user_id, self.matter_id, self.run_id = user.user_id, "", ""
         matters = self.sv.matters.list_for(self.user_id)
@@ -143,7 +143,7 @@ class Session(QObject):
 
     def decide_with(self, parent: QWidget, phrase: str, work: Callable[[], T]) -> T | None:
         try:
-            self.sv.users.authenticate(self.user_id, phrase)
+            self.sv.users.confirm(self.user_id, phrase)
         except EliLegalError:
             QMessageBox.warning(
                 parent, "Refused", "That passphrase is not correct. Nothing was recorded."
