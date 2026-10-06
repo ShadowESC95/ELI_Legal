@@ -21,7 +21,7 @@ against code.
 **Before anyone else runs it.**
 
 - Choose a licence and write the customer terms.
-- Run the release workflow: build and test the Windows and macOS installers; sign all three.
+- Sign the installers, and have a person use the Windows and macOS builds.
 - The EU AI Act provider work: classification decision, quality management system, Annex IV
   documentation, conformity assessment. See `docs/5_legal_and_compliance/02_eu_ai_act.md`.
 - An independent penetration test of the server, and an accessibility audit of both interfaces.

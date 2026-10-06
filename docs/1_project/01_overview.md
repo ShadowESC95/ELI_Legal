@@ -94,7 +94,7 @@ signs it off, and every report says so.
 |---|---|
 | Whole lifecycle, three profiles, eight packs | Built and tested |
 | Desktop application, server, browser application, command line | Built and tested on Linux |
-| Installers | Linux built and tested (AppImage, `.run`, `.deb`); Windows and macOS scripted, not yet built |
+| Installers | Published on the GitHub releases page for Linux (AppImage, `.run`, `.deb`), Windows and macOS. Unsigned; Windows and macOS not yet used by a person |
 | Identity: passphrase, lock-out, second factor, step-up for decisions | Built and tested |
 | Accuracy on real matters | **Not measured.** Only a synthetic matter has been evaluated |
 | Live legal database connector | **None.** One connector reads a corpus you load yourself |

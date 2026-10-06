@@ -5,8 +5,8 @@
 | System | Packaged installer | From source |
 |---|---|---|
 | Linux x86-64 (developed and tested on a current Ubuntu) | Built and tested | Tested |
-| Windows 10 / 11, x64 | Build script written; **not yet built or tested** | Expected to work; **not tested** |
-| macOS 13 or later, Intel and Apple silicon | Build script written; **not yet built or tested** | Expected to work; **not tested** |
+| Windows 10 / 11, x64 | Built by the release workflow, which installs, starts and uninstalls it; **not yet used by a person** | The test suite passes; not otherwise tried |
+| macOS, Intel and Apple silicon | Built by the release workflow, which runs the synthetic dispute with it; **not yet used by a person** | The test suite passes; not otherwise tried |
 
 A packaged Linux build runs on the system it was built on and newer ones, not older. Release
 builds are made on Ubuntu 22.04 so that they run there and on anything later.

@@ -6,12 +6,13 @@
 |---|---|---|
 | Linux (x86-64), nothing to install | `ELI_Legal-<version>-linux-x86_64.AppImage`: one file, run it | Built and tested |
 | Linux (Ubuntu, Debian and others, x86-64) | `ELI_Legal-<version>-linux-x86_64.run`, or the `.deb` on Debian and Ubuntu | Built and tested |
-| Windows 10 or 11 (64-bit) | `ELI_Legal-<version>-windows-x64-setup.exe` | Build script written; **not yet built or tested** |
-| macOS 13 or later | `ELI_Legal-<version>-macos-<arch>.dmg` | Build script written; **not yet built or tested** |
+| Windows 10 or 11 (64-bit) | `ELI_Legal-<version>-windows-x64-setup.exe` | Built and smoke-tested by the release workflow; not yet opened by a person |
+| macOS, Apple silicon or Intel | `ELI_Legal-<version>-macos-arm64.dmg` or `-x86_64.dmg` | Built and smoke-tested by the release workflow; not yet opened by a person |
 | Anything with Python 3.10 or newer | `install.sh` or `install.ps1` from the source tree | `install.sh` tested on Linux; `install.ps1` not yet run |
 
-The packaged installers need nothing else: Python and the graphical toolkit are included. To
-build them, see `packaging/README.md`.
+Download them from the [releases page](https://github.com/ShadowESC95/ELI_Legal/releases). They
+need nothing else: Python and the graphical toolkit are included. To build them yourself, see
+`packaging/README.md`.
 
 **The builds are not signed.** Windows SmartScreen and macOS Gatekeeper will warn. Always check a
 download against the published `SHA256SUMS` before running it.

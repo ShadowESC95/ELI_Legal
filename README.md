@@ -71,8 +71,8 @@ off. The law itself always comes from an approved source. See
 
 ## Install and try it
 
-Installers (an AppImage, a `.run` installer and a `.deb`) are in `dist/installers` after a build
-(`packaging/linux/build.sh`); see
+Installers for Linux (AppImage, `.run`, `.deb`), Windows and macOS are on the
+[releases page](https://github.com/ShadowESC95/ELI_Legal/releases); see
 [Installation](docs/6_manuals/01_installation.md). From a source checkout:
 
 ```bash
@@ -168,7 +168,7 @@ eli-legal edition verify --eli-root /path/to/ELI_v3.0     # read-only check agai
   a case is still good law is only as reliable as the status data in that corpus.
 - **No encryption at rest and no OCR.** Use an encrypted volume; convert scans before ingestion.
 - **No licence yet.** The repository has no licence file; all rights are reserved until one is chosen.
-- **Unsigned installers; Windows and macOS builds untested.** Only the Linux installers have been built and run.
+- **Unsigned installers.** The Windows and macOS builds are made and smoke-tested by the release workflow but have not been used by a person.
 - **No single sign-on or hardware keys.** Passphrase, lock-out and one-time codes only.
 - **Not penetration-tested.** Keep the server on an internal network.
 

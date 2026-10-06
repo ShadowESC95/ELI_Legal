@@ -3,12 +3,14 @@
 | Target | Build with | Produces (in `dist/installers`) | Built and tested |
 |---|---|---|---|
 | Linux | `packaging/linux/build.sh` | `ELI_Legal-<v>-linux-<arch>.AppImage`, `.run` (installer), `eli-legal_<v>_<arch>.deb`, `.tar.gz` | Yes, on the development machine |
-| Windows | `packaging\windows\build.ps1` | `ELI_Legal-<v>-windows-x64-setup.exe` (Inno Setup) | **No.** Written, not yet run |
-| macOS | `packaging/macos/build.sh` | `ELI_Legal-<v>-macos-<arch>.dmg` | **No.** Written, not yet run |
+| Windows | `packaging\windows\build.ps1` | `ELI_Legal-<v>-windows-x64-setup.exe` (Inno Setup) | By the release workflow: silent install, start, uninstall. Not used by a person |
+| macOS | `packaging/macos/build.sh` | `ELI_Legal-<v>-macos-<arch>.dmg` | By the release workflow: the program runs the synthetic dispute. Not used by a person |
 | Any, from source | `./install.sh` or `install.ps1` | a private Python environment and launchers | `install.sh` on Linux; `install.ps1` not yet run |
 
-`.github/workflows/release.yml` builds all of them on a version tag and attaches them to a
-draft release. Until that workflow has run green, treat the Windows and macOS builds as untested.
+`.github/workflows/release.yml` builds and tests all of them. Run by hand it publishes nothing;
+on a version tag (`git tag -a v1.2.3 -m ... && git push origin v1.2.3`) it attaches them, with
+checksums and notes from `packaging/release_notes.md`, to a draft release for a person to
+publish.
 
 All packaged builds use `packaging/pyinstaller/eli_legal.spec`: one folder holding two programs,
 `eli-legal` (command line and server) and `eli-legal-gui` (desktop application).
