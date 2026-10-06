@@ -33,7 +33,7 @@ _DISPOSITIVE = re.compile(
 )
 # Wording that evaluates who should win. Permitted only for a party's own lawyers.
 _EVALUATIVE = re.compile(
-    r"\b(?:should|must|will|ought to|is likely to|are likely to|is bound to)\s+"
+    r"\b(?:should|must|will|ought to|is likely to|are likely to|is bound to)\s+(?:\w+\s+){0,2}?"
     r"(?:succeed|fail|win|lose|prevail|be (?:dismissed|allowed|upheld|granted|refused|struck out))\b|"
     r"\b(?:claim|defence|defense|appeal|application|counterclaim)\s+(?:must|should|will)\s+"
     r"(?:be\s+)?(?:fail|succeed|dismissed|allowed|upheld|granted|refused)\b|"

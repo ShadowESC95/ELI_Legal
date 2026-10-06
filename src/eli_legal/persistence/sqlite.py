@@ -14,6 +14,7 @@ import threading
 from collections.abc import Iterable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -389,6 +390,43 @@ class Store:
             return int(
                 con.execute(
                     "UPDATE api_tokens SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL",
+                    (utcnow().isoformat(), user_id),
+                ).rowcount
+            )
+
+    # ── signed-in sessions (only hashes are stored) ──────────────────────────
+    def add_session(self, token: str, user_id: str, method: str, expires_at: datetime) -> None:
+        with self._tx() as con:
+            con.execute(
+                "INSERT INTO sessions(token_hash, user_id, method, created_at, expires_at) "
+                "VALUES (?,?,?,?,?)",
+                (_token_hash(token), user_id, method, utcnow().isoformat(), expires_at.isoformat()),
+            )
+
+    def session_user(self, token: str) -> str | None:
+        """The user a session token belongs to, if it is neither expired nor revoked."""
+        rows = self._all(
+            "SELECT user_id, expires_at FROM sessions WHERE token_hash=? AND revoked_at IS NULL",
+            (_token_hash(token),),
+        )
+        if not rows or datetime.fromisoformat(rows[0][1]) <= utcnow():
+            return None
+        return str(rows[0][0])
+
+    def revoke_session(self, token: str) -> int:
+        with self._tx() as con:
+            return int(
+                con.execute(
+                    "UPDATE sessions SET revoked_at=? WHERE token_hash=? AND revoked_at IS NULL",
+                    (utcnow().isoformat(), _token_hash(token)),
+                ).rowcount
+            )
+
+    def revoke_sessions(self, user_id: str) -> int:
+        with self._tx() as con:
+            return int(
+                con.execute(
+                    "UPDATE sessions SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL",
                     (utcnow().isoformat(), user_id),
                 ).rowcount
             )

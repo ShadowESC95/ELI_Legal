@@ -13,6 +13,7 @@ from eli_legal.adapters.local.network import NetworkGuard
 from eli_legal.application.services import Services, build_services
 from eli_legal.demo import build_demo_workspace
 from eli_legal.demo_run import ARBITRATOR, SECRETARY, demo_settings, run_demo, setup_demo
+from eli_legal.security import authn
 
 
 class FakeInference:
@@ -51,7 +52,13 @@ def _no_ambient_settings(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Ite
         if name.startswith("ELI_LEGAL_"):
             monkeypatch.delenv(name)
     monkeypatch.chdir(tmp_path)
+    # Tests call the services directly as several people. The harness vouches for each name
+    # and is what the ledger records; tests of authentication itself remove it.
+    authn.clear()
+    authn.install_harness("test-harness")
     yield
+    authn.remove_harness()
+    authn.clear()
     NetworkGuard().uninstall()
 
 

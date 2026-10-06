@@ -13,6 +13,7 @@ from typing import Any
 
 from eli_legal.domain.errors import AuditIntegrityError, MissingAuditKey
 from eli_legal.domain.models import AuditEvent, utcnow
+from eli_legal.security import authn
 
 GENESIS = "ELI-LEGAL-AUDIT-GENESIS"
 AUDIT_SCHEMA_VERSION = 3
@@ -65,6 +66,10 @@ class Checkpoint:
     def from_json(cls, raw: str) -> Checkpoint:
         d = json.loads(raw)
         return cls(int(d["count"]), d["head_sig"], d["key_id"], d["created_at"], d["mac"])
+
+
+def _auth_label(actor_id: str) -> str:
+    return "system" if actor_id == "system" else authn.method_for(actor_id)
 
 
 def key_id_of(key: bytes) -> str:
@@ -220,6 +225,8 @@ class HmacAuditLedger:
 
     # ── append / verify ──────────────────────────────────────────────────────
     def append(self, event: AuditEvent) -> int:
+        # Who acted is only evidence together with how they proved it.
+        event.payload = {"auth": _auth_label(event.actor_id), **event.payload}
         _check_payload(event.payload)
         event_json = self._canonical_event(event)
         with self._lock:

@@ -1,23 +1,52 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
 import secrets
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 
 from eli_legal.application.container import AppContext
 from eli_legal.domain.enums import ActorType, MatterStatus, Profile
-from eli_legal.domain.errors import InvalidInput, InvalidState, PolicyDenied
+from eli_legal.domain.errors import AuthenticationFailed, InvalidInput, InvalidState, PolicyDenied
 from eli_legal.domain.models import Document, Matter, Party, User, utcnow
 from eli_legal.domain.profiles import OVERSIGHT_ROLES, profile_spec
+from eli_legal.security import authn
 from eli_legal.security.rbac import DEFAULT_ROLE_ACTIONS
+
+_PBKDF2_ITERATIONS = 240_000
+MIN_PASSPHRASE_LENGTH = 10
+
+
+def hash_passphrase(passphrase: str) -> str:
+    if len(passphrase) < MIN_PASSPHRASE_LENGTH:
+        raise InvalidInput(f"a passphrase needs at least {MIN_PASSPHRASE_LENGTH} characters")
+    salt = secrets.token_bytes(16)
+    digest = hashlib.pbkdf2_hmac("sha256", passphrase.encode("utf-8"), salt, _PBKDF2_ITERATIONS)
+    return f"pbkdf2_sha256${_PBKDF2_ITERATIONS}${salt.hex()}${digest.hex()}"
+
+
+def verify_passphrase(passphrase: str, stored: str) -> bool:
+    try:
+        scheme, iterations, salt, expected = stored.split("$")
+        if scheme != "pbkdf2_sha256":
+            return False
+        digest = hashlib.pbkdf2_hmac(
+            "sha256", passphrase.encode("utf-8"), bytes.fromhex(salt), int(iterations)
+        )
+    except ValueError:
+        return False
+    return hmac.compare_digest(digest.hex(), expected)
 
 
 @dataclass(slots=True)
 class UserService:
     ctx: AppContext
 
-    def bootstrap_admin(self, user_id: str, display_name: str = "") -> User:
+    def bootstrap_admin(
+        self, user_id: str, display_name: str = "", passphrase: str | None = None
+    ) -> User:
         """Create the first administrator. Only possible while no user exists."""
         if self.ctx.store.list_users():
             raise PolicyDenied("users already exist; use an administrator account to add more")
@@ -26,6 +55,8 @@ class UserService:
             display_name=display_name or user_id,
             roles={"legal_admin", "system_admin"},
         )
+        if passphrase is not None:
+            user.passphrase_hash = hash_passphrase(passphrase)
         self.ctx.store.put_user(user)
         self.ctx.log(
             "user_created",
@@ -48,6 +79,7 @@ class UserService:
         roles: Iterable[str],
         actor_type: ActorType = ActorType.HUMAN,
     ) -> User:
+        authn.require_step_up(actor_id, "create a user or change their roles")
         self.ctx.authorizer().require_global(actor_id, "user.manage")
         role_set = set(roles)
         unknown = role_set - set(DEFAULT_ROLE_ACTIONS)
@@ -83,6 +115,7 @@ class UserService:
         user.active = False
         self.ctx.store.put_user(user)
         self.ctx.store.revoke_tokens(user_id)
+        self.ctx.store.revoke_sessions(user_id)
         self.ctx.log(
             "user_deactivated",
             actor_id=actor_id,
@@ -93,8 +126,93 @@ class UserService:
             object_type="user",
         )
 
+    def set_passphrase(
+        self, *, actor_id: str, user_id: str, new: str, current: str | None = None
+    ) -> None:
+        """Set a user's sign-in passphrase. A user changes their own by giving the current one;
+        an administrator may reset someone else's. Only a salted hash is stored."""
+        user = self.ctx.user(user_id)
+        if actor_id == user_id:
+            # Knowing the current passphrase is the proof. An account that has none yet cannot
+            # be claimed by whoever asks first: an administrator sets the initial one.
+            if not user.passphrase_hash or not verify_passphrase(
+                current or "", user.passphrase_hash
+            ):
+                self._sign_in_event(user_id, "passphrase_change_refused")
+                raise AuthenticationFailed(
+                    "the current passphrase is not correct"
+                    if user.passphrase_hash
+                    else "no passphrase is set for this user; an administrator must set the first one"
+                )
+        else:
+            authn.require_step_up(actor_id, "set another user's passphrase")
+            self.ctx.authorizer().require_global(actor_id, "user.manage")
+        user.passphrase_hash = hash_passphrase(new)
+        self.ctx.store.put_user(user)
+        self.ctx.store.revoke_sessions(user_id)  # a changed passphrase ends every open session
+        self.ctx.log(
+            "passphrase_set",
+            actor_id=actor_id,
+            matter_id="-",
+            action="user.manage",
+            subject_id=user_id,
+            outcome="ok",
+            object_type="user",
+        )
+
+    def authenticate(self, user_id: str, passphrase: str) -> User:
+        """Sign a person in to the desktop application. Every attempt is recorded."""
+        user = self.ctx.store.get_user(user_id)
+        ok = (
+            user is not None
+            and user.active
+            and bool(user.passphrase_hash)
+            and verify_passphrase(passphrase, user.passphrase_hash)
+        )
+        self._sign_in_event(user_id, "signed_in" if ok else "sign_in_refused")
+        if not ok or user is None:
+            raise AuthenticationFailed("unknown user or wrong passphrase")
+        return user
+
+    def login(self, user_id: str, passphrase: str, *, method: str, hours: float = 8.0) -> str:
+        """Verify the passphrase and open a session. The token is returned once; only its hash
+        is stored, and the session ends on its own after ``hours``."""
+        user = self.authenticate(user_id, passphrase)
+        token = "els_" + secrets.token_urlsafe(32)
+        self.ctx.store.add_session(token, user.user_id, method, utcnow() + timedelta(hours=hours))
+        return token
+
+    def session_user(self, token: str) -> User:
+        """The user behind a session token. Refuses an expired, revoked or orphaned session."""
+        user_id = self.ctx.store.session_user(token) if token else None
+        user = self.ctx.store.get_user(user_id) if user_id else None
+        if user is None or not user.active:
+            raise AuthenticationFailed("not signed in, or the session has ended; sign in again")
+        return user
+
+    def logout(self, token: str) -> None:
+        user_id = self.ctx.store.session_user(token)
+        if self.ctx.store.revoke_session(token) and user_id:
+            self._sign_in_event(user_id, "signed_out")
+
+    def needs_passphrase(self, user_id: str) -> bool:
+        user = self.ctx.store.get_user(user_id)
+        return user is not None and user.active and not user.passphrase_hash
+
+    def _sign_in_event(self, user_id: str, outcome: str) -> None:
+        self.ctx.log(
+            "sign_in",
+            actor_id=user_id[:60],
+            matter_id="-",
+            action="sign_in",
+            subject_id=user_id[:60],
+            outcome=outcome,
+            object_type="user",
+        )
+
     def issue_token(self, *, actor_id: str, user_id: str, label: str = "") -> str:
         """Create an API token. It is shown once; only its hash is stored."""
+        authn.require_step_up(actor_id, "issue an API token")
         if actor_id != user_id:
             self.ctx.authorizer().require_global(actor_id, "user.manage")
         self.ctx.user(user_id)
@@ -192,6 +310,7 @@ class MatterService:
         return self.ctx.matter_for(matter_id, actor_id, "matter.read")
 
     def list_for(self, actor_id: str) -> list[Matter]:
+        authn.require(actor_id)
         authz = self.ctx.authorizer()
         return [
             m for m in self.ctx.store.list_matters() if authz.can_matter(m, actor_id, "matter.read")
@@ -302,6 +421,7 @@ class MatterService:
         Accountability records (runs, reviews, releases, holds, incidents and the audit ledger)
         are kept. They hold identifiers, hashes and decisions, not document content.
         """
+        authn.require_step_up(actor_id, "close a matter")
         matter = self.ctx.matter_for(matter_id, actor_id, "matter.close")
         if not reason.strip():
             raise InvalidInput("a reason is required to close a matter")

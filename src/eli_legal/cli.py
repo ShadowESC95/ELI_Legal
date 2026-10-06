@@ -1,15 +1,18 @@
 """Command-line front end. Every command goes through the application services; none touches
-the store directly. The acting user is ``--as USER`` or ``ELI_LEGAL_ACTOR``."""
+the store directly. You act as whoever signed in with ``eli-legal login``; a decision asks for
+your passphrase again."""
 
 from __future__ import annotations
 
 import argparse
+import getpass
 import json
 import os
 import secrets
 import sys
 import tempfile
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -30,14 +33,58 @@ from eli_legal.settings import Settings
 def _services(args: argparse.Namespace) -> Any:
     from eli_legal.application.services import build_services
 
-    return build_services(Settings())
+    if getattr(args, "_services", None) is None:
+        args._services = build_services(Settings())
+    return args._services
+
+
+def _session_file() -> Path:
+    """Where this operating-system user's sign-in is kept: beside the audit key, owner-only."""
+    return Path(Settings().audit_key_file).parent / f".session_{getpass.getuser()}"
+
+
+def _read_secret(args: argparse.Namespace, prompt: str) -> str:
+    """A passphrase from the terminal, or one line of standard input for scripted use."""
+    if getattr(args, "passphrase_stdin", False):
+        return sys.stdin.readline().rstrip("\r\n")
+    return getpass.getpass(prompt)
 
 
 def _actor(args: argparse.Namespace) -> str:
-    actor = getattr(args, "actor", None) or Settings().actor
-    if not actor:
-        raise SystemExit("no acting user: pass --as USER or set ELI_LEGAL_ACTOR")
-    return str(actor)
+    """The signed-in user. Identity comes from a session opened with a passphrase, never from
+    a name typed on the command line."""
+    from eli_legal.security import authn
+
+    if getattr(args, "_actor", None):
+        return str(args._actor)
+    path = _session_file()
+    token = path.read_text(encoding="ascii").strip() if path.is_file() else ""
+    if not token:
+        raise SystemExit("not signed in: run  eli-legal login USER")
+    user = _services(args).users.session_user(token)
+    authn.establish(user.user_id, "cli-session")
+    args._actor = user.user_id
+    return str(user.user_id)
+
+
+@contextmanager
+def _confirmed(args: argparse.Namespace, what: str) -> Iterator[str]:
+    """A decision: ask for the passphrase again, and act with it confirmed."""
+    from eli_legal.security import authn
+
+    actor = _actor(args)
+    phrase = _read_secret(args, f"Passphrase for {actor} (to {what}): ")
+    _services(args).users.authenticate(actor, phrase)
+    with authn.stepped_up():
+        yield actor
+
+
+def _new_passphrase(args: argparse.Namespace, who: str) -> str:
+    first = _read_secret(args, f"New passphrase for {who}: ")
+    if not getattr(args, "passphrase_stdin", False):
+        if getpass.getpass("Repeat it: ") != first:
+            raise SystemExit("the two passphrases differ; nothing was changed")
+    return first
 
 
 def _out(value: Any) -> None:
@@ -71,10 +118,67 @@ def cmd_init(args: argparse.Namespace) -> int:
         print(f"created audit key: {key}  (back it up separately from the database)")
     sv = _services(args)
     if args.admin:
-        sv.users.bootstrap_admin(args.admin, args.name or args.admin)
-        print(f"created first administrator: {args.admin}")
+        phrase = _new_passphrase(args, args.admin)
+        sv.users.bootstrap_admin(args.admin, args.name or args.admin, passphrase=phrase)
+        print(f"created first administrator: {args.admin}  (now: eli-legal login {args.admin})")
     print(f"store: {settings.db_path}   audit ledger: {settings.audit_db_path}")
     return 0
+
+
+def cmd_login(args: argparse.Namespace) -> int:
+    sv = _services(args)
+    settings = Settings()
+    phrase = _read_secret(args, f"Passphrase for {args.user_id}: ")
+    token = sv.users.login(args.user_id, phrase, method="cli-session", hours=settings.session_hours)
+    path = _session_file()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="ascii") as fh:
+        fh.write(token)
+    print(f"signed in as {args.user_id} for {settings.session_hours:g} hours")
+    return 0
+
+
+def cmd_logout(args: argparse.Namespace) -> int:
+    path = _session_file()
+    if path.is_file():
+        _services(args).users.logout(path.read_text(encoding="ascii").strip())
+        path.unlink()
+    print("signed out")
+    return 0
+
+
+def cmd_whoami(args: argparse.Namespace) -> int:
+    user = _services(args).ctx.user(_actor(args))
+    print(f"{user.user_id}  {user.display_name}  roles: {', '.join(sorted(user.roles)) or 'none'}")
+    return 0
+
+
+def cmd_passphrase(args: argparse.Namespace) -> int:
+    sv = _services(args)
+    target = args.user_id or _actor(args)
+    if target == _actor(args):
+        current = _read_secret(args, "Current passphrase: ")
+        sv.users.set_passphrase(
+            actor_id=target, user_id=target, new=_new_passphrase(args, target), current=current
+        )
+    else:
+        with _confirmed(args, f"set the passphrase of {target}") as actor:
+            sv.users.set_passphrase(
+                actor_id=actor, user_id=target, new=_new_passphrase(args, target)
+            )
+    print(f"passphrase set for {target}; their open sessions are ended")
+    return 0
+
+
+def cmd_gui(args: argparse.Namespace) -> int:
+    try:
+        from eli_legal.gui.app import main as gui_main
+    except ImportError as exc:
+        raise SystemExit(
+            f"the desktop application needs PySide6: pip install 'eli-legal[gui]'  ({exc})"
+        ) from exc
+    return int(gui_main([]))
 
 
 def cmd_doctor(args: argparse.Namespace) -> int:
@@ -146,15 +250,20 @@ def cmd_user(args: argparse.Namespace) -> int:
                 f"{u.user_id:20s} {u.display_name:26s} {u.actor_type.value:7s} {state:9s} {', '.join(sorted(u.roles))}"
             )
     elif args.user_cmd == "add":
-        sv.users.add_user(
-            actor_id=_actor(args),
-            user_id=args.user_id,
-            display_name=args.name or args.user_id,
-            roles=args.role,
-        )
+        with _confirmed(args, f"create or change user {args.user_id}") as actor:
+            sv.users.add_user(
+                actor_id=actor,
+                user_id=args.user_id,
+                display_name=args.name or args.user_id,
+                roles=args.role,
+            )
         print(f"user {args.user_id}: {', '.join(args.role)}")
+        if sv.users.needs_passphrase(args.user_id):
+            print(f"  set their first passphrase with: eli-legal passphrase {args.user_id}")
     elif args.user_cmd == "token":
-        print(sv.users.issue_token(actor_id=_actor(args), user_id=args.user_id, label=args.label))
+        with _confirmed(args, f"issue an API token for {args.user_id}") as actor:
+            token = sv.users.issue_token(actor_id=actor, user_id=args.user_id, label=args.label)
+        print(token)
         print("store this token now; it cannot be shown again", file=sys.stderr)
     elif args.user_cmd == "deactivate":
         sv.users.deactivate(actor_id=_actor(args), user_id=args.user_id)
@@ -191,7 +300,8 @@ def cmd_source(args: argparse.Namespace) -> int:
         )
         print(f"registered {args.source_id} (not yet approved)")
     elif args.source_cmd == "approve":
-        sv.sources.approve(args.source_id, actor_id=_actor(args))
+        with _confirmed(args, f"approve the legal source {args.source_id}") as actor:
+            sv.sources.approve(args.source_id, actor_id=actor)
         print(f"approved {args.source_id}")
     elif args.source_cmd == "revoke":
         sv.sources.revoke(args.source_id, actor_id=_actor(args))
@@ -269,9 +379,10 @@ def cmd_matter(args: argparse.Namespace) -> int:
             add_parties=[tuple(_pair(p, 2, "NAME:ROLE")) for p in args.party or []],
         )
     elif c == "close":
-        counts = sv.matters.close(
-            args.matter, actor_id=actor, purge_content=args.purge, reason=args.reason
-        )
+        with _confirmed(args, "close this matter"):
+            counts = sv.matters.close(
+                args.matter, actor_id=actor, purge_content=args.purge, reason=args.reason
+            )
         print(f"closed {args.matter}" + (f"; deleted {counts}" if args.purge else ""))
     return 0
 
@@ -339,9 +450,10 @@ def cmd_run(args: argparse.Namespace) -> int:
     if c == "start":
         run = sv.runs.start(args.matter, actor_id=actor)
     elif c == "resume":
-        run = sv.runs.resume(
-            args.matter, args.run, actor_id=actor, reason=args.reason, from_step=args.from_step
-        )
+        with _confirmed(args, "restart this run"):
+            run = sv.runs.resume(
+                args.matter, args.run, actor_id=actor, reason=args.reason, from_step=args.from_step
+            )
     elif c == "stop":
         run = sv.runs.stop(args.matter, args.run, actor_id=actor, reason=args.reason)
     elif c == "list":
@@ -383,9 +495,10 @@ def cmd_holds(args: argparse.Namespace) -> int:
 
 def cmd_hold(args: argparse.Namespace) -> int:
     sv = _services(args)
-    hold = sv.holds.resolve(
-        args.matter, args.hold, actor_id=_actor(args), action=args.action, reason=args.reason
-    )
+    with _confirmed(args, f"{args.action} this hold") as actor:
+        hold = sv.holds.resolve(
+            args.matter, args.hold, actor_id=actor, action=args.action, reason=args.reason
+        )
     print(f"{hold.hold_id}: {hold.resolution.value if hold.resolution else ''}")
     return 0
 
@@ -406,14 +519,15 @@ def cmd_tasks(args: argparse.Namespace) -> int:
 
 def cmd_verify(args: argparse.Namespace) -> int:
     sv = _services(args)
-    result = sv.verification.record_human_result(
-        args.matter,
-        args.claim,
-        actor_id=_actor(args),
-        verification_type=args.check,
-        status=VerificationStatus(args.result),
-        reason=args.reason,
-    )
+    with _confirmed(args, f"record this check as {args.result}") as actor:
+        result = sv.verification.record_human_result(
+            args.matter,
+            args.claim,
+            actor_id=actor,
+            verification_type=args.check,
+            status=VerificationStatus(args.result),
+            reason=args.reason,
+        )
     print(
         f"{result.verification_id}: {result.status.value}"
         + (" (override)" if result.override else "")
@@ -456,15 +570,16 @@ def cmd_review(args: argparse.Namespace) -> int:
         "reject": ReviewDecision.REJECT,
         "return": ReviewDecision.RETURN_FOR_CORRECTION,
     }[args.decision]
-    review = sv.reviews.decide(
-        args.matter,
-        args.run,
-        actor_id=actor,
-        decision=decision,
-        reasons=args.reasons,
-        report_hash=args.report_hash or "",
-        acknowledged=acknowledged,
-    )
+    with _confirmed(args, f"{args.decision} this report"):
+        review = sv.reviews.decide(
+            args.matter,
+            args.run,
+            actor_id=actor,
+            decision=decision,
+            reasons=args.reasons,
+            report_hash=args.report_hash or "",
+            acknowledged=acknowledged,
+        )
     after = sv.runs.summary(args.matter, args.run, actor_id=actor)
     print(f"{review.review_id}: {review.decision.value}; run is {after['status']}")
     if after["report"]:
@@ -484,9 +599,10 @@ def cmd_release(args: argparse.Namespace) -> int:
                 f"  {r.recipient_id:36s} {'entitled' if r.authorised_for_matter else 'NOT ENTITLED'}"
             )
     else:
-        receipts = sv.delivery.distribute(
-            args.matter, args.release, actor_id=actor, confirmed_recipient_ids=args.confirm
-        )
+        with _confirmed(args, "release this report to the confirmed recipients"):
+            receipts = sv.delivery.distribute(
+                args.matter, args.release, actor_id=actor, confirmed_recipient_ids=args.confirm
+            )
         for r in receipts:
             print(f"{r.recipient_id}: {r.status}  {r.detail}")
     return 0
@@ -568,7 +684,7 @@ def cmd_monitor(args: argparse.Namespace) -> int:
 def cmd_governance(args: argparse.Namespace) -> int:
     from eli_legal.governance.registers import check_registers
 
-    problems = check_registers(Path(args.root))
+    problems = check_registers(Path(args.root))  # --root is a source checkout, for test names
     for p in problems:
         print(f"  PROBLEM: {p}")
     print("governance registers: " + ("OK" if not problems else f"{len(problems)} problem(s)"))
@@ -608,7 +724,11 @@ def build_parser() -> argparse.ArgumentParser:
         prog="eli-legal", description="Governed legal case preparation"
     )
     parser.add_argument("--version", action="version", version=__version__)
-    parser.add_argument("--as", dest="actor", help="acting user id (or set ELI_LEGAL_ACTOR)")
+    parser.add_argument(
+        "--passphrase-stdin",
+        action="store_true",
+        help="read passphrases from standard input instead of prompting (for scripts)",
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     def add(
@@ -621,6 +741,12 @@ def build_parser() -> argparse.ArgumentParser:
     p = add("init", cmd_init, "create directories, the audit key and the first administrator")
     p.add_argument("--admin")
     p.add_argument("--name")
+    add("login", cmd_login, "sign in with your passphrase").add_argument("user_id")
+    add("logout", cmd_logout, "end your session")
+    add("whoami", cmd_whoami, "show who is signed in")
+    p = add("passphrase", cmd_passphrase, "change your passphrase, or set another user's")
+    p.add_argument("user_id", nargs="?")
+    add("gui", cmd_gui, "open the desktop application")
     add("doctor", cmd_doctor, "check the installation")
     add("show-policy", cmd_show_policy, "print the runtime policy")
     add("jurisdictions", cmd_jurisdictions, "list jurisdiction packs")

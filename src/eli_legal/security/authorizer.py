@@ -3,11 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from eli_legal.domain.enums import MatterStatus
-from eli_legal.domain.errors import MatterAccessDenied, PolicyDenied
+from eli_legal.domain.errors import AuthenticationFailed, MatterAccessDenied, PolicyDenied
 from eli_legal.domain.models import AuditEvent, Matter
 from eli_legal.domain.policy import RuntimePolicy
 from eli_legal.domain.profiles import OVERSIGHT_ROLES, profile_spec
 from eli_legal.ports.audit import AuditPort
+from eli_legal.security import authn
 from eli_legal.security.matter_guard import require_matter_access
 from eli_legal.security.rbac import RoleBindings
 
@@ -46,7 +47,21 @@ class MatterAuthorizer:
             )
         raise exc
 
+    def _require_identity(self, user_id: str, action: str, matter_id: str) -> None:
+        """A name is not proof. The identity must have been established by a front end."""
+        try:
+            authn.require(user_id)
+        except AuthenticationFailed as exc:
+            self._deny(
+                exc,
+                user_id=user_id,
+                action=action,
+                matter_id=matter_id,
+                reason="identity_not_established",
+            )
+
     def require_global(self, user_id: str, action: str) -> None:
+        self._require_identity(user_id, action, "-")
         if self.policy is not None and not self.policy.permits(action):
             self._deny(
                 PolicyDenied(f"action is not authorised by policy: {action}"),
@@ -66,6 +81,7 @@ class MatterAuthorizer:
 
     def require_matter(self, matter: Matter, user_id: str, action: str) -> None:
         mid = matter.matter_id
+        self._require_identity(user_id, action, mid)
         if self.policy is not None and not self.policy.permits(action):
             self._deny(
                 PolicyDenied(f"action is not authorised by policy: {action}"),

@@ -32,6 +32,7 @@
     "source.retrieve_approved",
     "source.manage",
     "user.manage",
+    "config.manage",
     "facts.extract",
     "issues.map",
     "evidence.map",

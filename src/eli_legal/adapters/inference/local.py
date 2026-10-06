@@ -59,10 +59,12 @@ class OpenAICompatInference:
         self.base_url = base_url.rstrip("/")
         self.host = parsed.hostname
         self.loopback = _is_loopback_host(self.host)
-        if not self.loopback and network is None:
+        # A model server on another machine would receive matter content. It is accepted only
+        # if its host has been approved, and is then reached through the guard's window.
+        approved: frozenset[str] = getattr(network, "approved_hosts", frozenset)()
+        if not self.loopback and (network is None or self.host.lower() not in approved):
             raise NetworkDenied(
-                f"inference host {self.host} is not local; it must be approved and reached "
-                "through the network guard"
+                f"inference host {self.host} is not on this machine and is not an approved host"
             )
         self.model = model
         self.model_id = f"{model}@{self.host}"
@@ -113,3 +115,16 @@ class OpenAICompatInference:
             return str(payload["choices"][0]["message"]["content"] or "")
         except (KeyError, IndexError, TypeError) as exc:
             raise InferenceUnavailable("inference endpoint returned an unexpected shape") from exc
+
+
+def list_local_models(base_url: str, *, timeout: float = 4.0) -> list[str]:
+    """Models offered by an OpenAI-compatible server on this machine. Loopback only."""
+    parsed = urlparse(base_url)
+    if not parsed.hostname or not _is_loopback_host(parsed.hostname):
+        raise NetworkDenied("models can only be listed from a server on this machine")
+    try:
+        with urllib.request.urlopen(f"{base_url.rstrip('/')}/models", timeout=timeout) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, TimeoutError, ValueError) as exc:
+        raise InferenceUnavailable(f"no model server answered at {base_url}") from exc
+    return sorted(str(m.get("id")) for m in payload.get("data", []) if m.get("id"))

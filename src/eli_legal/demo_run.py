@@ -31,6 +31,7 @@ from eli_legal.domain.enums import (
 from eli_legal.domain.errors import EliLegalError
 from eli_legal.legal.source_registry import RegisteredSource
 from eli_legal.ports.inference import InferencePort
+from eli_legal.security import authn
 from eli_legal.settings import Settings
 from eli_legal.workflows.case_preparation import warning_id
 
@@ -139,6 +140,26 @@ def run_demo(
     inference: InferencePort | None = None,
     verifier: InferencePort | None = None,
     install_network_guard: bool = True,
+) -> DemoResult:
+    # The demonstration plays several people from one script. It runs under a harness that
+    # vouches for each name, and every audit event it writes says so ("demo-harness").
+    with authn.harness("demo-harness"):
+        return _run_demo(
+            root,
+            say=say,
+            inference=inference,
+            verifier=verifier,
+            install_network_guard=install_network_guard,
+        )
+
+
+def _run_demo(
+    root: str | Path,
+    *,
+    say: Callable[[str], None],
+    inference: InferencePort | None,
+    verifier: InferencePort | None,
+    install_network_guard: bool,
 ) -> DemoResult:
     base = Path(root)
     workspace = build_demo_workspace(base / "demo")

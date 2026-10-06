@@ -27,6 +27,7 @@ from eli_legal.domain.models import (
 )
 from eli_legal.governance.completeness import verification_digest
 from eli_legal.governance.gates import apply_decision, effective_results, evaluate_claim
+from eli_legal.security import authn
 from eli_legal.security.redaction import content_hash
 
 # Which permission lets a person decide each kind of check.
@@ -85,6 +86,7 @@ class VerificationService:
         is an override: it needs the separate override permission and is shown in the report.
         """
         ctx = self.ctx
+        authn.require_step_up(actor_id, "record a verification result")
         action = _ACTION_FOR_CHECK.get(verification_type)
         if action is None:
             raise InvalidState(f"{verification_type!r} is not a check a person can decide")
@@ -238,6 +240,7 @@ class HoldService:
         by removing the document from the analysis.
         """
         ctx = self.ctx
+        authn.require_step_up(actor_id, "resolve a hold")
         matter = ctx.matter_for(matter_id, actor_id, "hold.resolve")
         if ctx.user(actor_id).actor_type is not ActorType.HUMAN:
             raise PolicyDenied("only a human user may resolve a hold")

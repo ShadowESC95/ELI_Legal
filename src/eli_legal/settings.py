@@ -39,8 +39,8 @@ class Settings(BaseSettings):
     verifier_model: str = ""  # a different model, used only to check propositions
     inference_timeout: float = 300.0
 
-    # Identity of the local operator for CLI use. API callers authenticate with a token.
-    actor: str = ""
+    # How long a command-line sign-in lasts before the passphrase is needed again.
+    session_hours: float = 8.0
 
 
 settings = Settings()

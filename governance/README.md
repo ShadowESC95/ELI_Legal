@@ -1,5 +1,9 @@
 # Governance workspace
 
+The registers and templates ship inside the package, so the desktop application can show them
+wherever it is installed: `src/eli_legal/governance/registers/` and
+`src/eli_legal/governance/templates/`.
+
 | File | What it is |
 |---|---|
 | `requirements_register.csv` | Each legal or standards requirement, in plain words, the controls that address it, and what remains for the organisation. Status is `implemented` (a tested control does it), `partial` (the software supports it; an organisational step is still needed) or `organisational` (software cannot do it). |

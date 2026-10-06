@@ -177,3 +177,19 @@ def test_a_date_does_not_vouch_for_a_bare_number():
         "2023-04-04",
         "€6,000.00",
     ]
+
+
+def test_an_adverb_does_not_hide_an_outcome():
+    for text in (
+        "The Claimant should therefore succeed.",
+        "The defence must in consequence fail.",
+        "The appeal will clearly be dismissed.",
+    ):
+        assert outcome_language(text, Profile.ADJUDICATOR), text
+    assert (
+        outcome_language(
+            "The Supplier shall deliver the goods and must then notify the Buyer.",
+            Profile.ADJUDICATOR,
+        )
+        is None
+    )

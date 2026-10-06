@@ -31,6 +31,7 @@ from eli_legal import __version__
 from eli_legal.domain.errors import EliLegalError, EntitlementDenied
 from eli_legal.edition import policy
 from eli_legal.edition.capabilities import CAPABILITIES, dispatch
+from eli_legal.security import authn
 
 EDITION_NAME = "legal"
 CONTRACT_VERSION = 1
@@ -85,7 +86,7 @@ def register(
     ``host`` is whatever object ELI passes (unused beyond presence). ``services`` lets a host
     or a test supply prebuilt services; otherwise they are built with ELI's model as the
     inference backend. ``actor_resolver(args)`` maps a capability call to the acting ELI Legal
-    user id; by default the call must carry ``user_id`` or ``ELI_LEGAL_ACTOR`` must be set.
+    user id; by default the call must carry the ``user_id`` the host authenticated.
     """
     check_entitlement(entitled)
     if services is None:
@@ -98,7 +99,7 @@ def register(
     def resolve_actor(args: Mapping[str, Any]) -> str:
         if actor_resolver is not None:
             return str(actor_resolver(args))
-        actor = str(args.get("user_id") or services.ctx.settings.actor or "").strip()
+        actor = str(args.get("user_id") or "").strip()
         if not actor:
             raise EliLegalError("no ELI Legal user is identified for this request")
         return actor
@@ -111,7 +112,10 @@ def register(
             except EliLegalError as exc:
                 text = f"Refused: {exc}"
                 return {"ok": False, "error": "no_actor", "content": text, "response": text}
-            return dispatch(services, name, actor, args)
+            # The host authenticated this user; ELI Legal still applies its own roles. No
+            # step-up is given, so nothing that is a decision could run even if it were exposed.
+            with authn.established(actor, "eli-host"):
+                return dispatch(services, name, actor, args)
 
         return handler
 

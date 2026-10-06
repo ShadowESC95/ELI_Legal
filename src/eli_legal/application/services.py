@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from eli_legal.adapters.local.outbox import OutboxDeliveryAdapter
+from eli_legal.application.chat_service import ChatService
+from eli_legal.application.config_service import ConfigService
 from eli_legal.application.container import AppContext, build_context
 from eli_legal.application.delivery_service import DeliveryService
 from eli_legal.application.incident_service import IncidentService
@@ -39,6 +41,8 @@ class Services:
     delivery: DeliveryService
     incidents: IncidentService
     monitoring: MonitoringService
+    chat: ChatService
+    config: ConfigService
 
     def evidence_pack(
         self, matter_id: str, run_id: str, *, actor_id: str, out_dir: str | Path | None = None
@@ -81,4 +85,6 @@ def build_services(
         ),
         incidents=IncidentService(ctx),
         monitoring=MonitoringService(ctx),
+        chat=ChatService(ctx),
+        config=ConfigService(ctx),
     )

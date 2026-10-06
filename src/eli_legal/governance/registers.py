@@ -25,21 +25,43 @@ def _ids(cell: str) -> list[str]:
     return [part.strip() for part in cell.split(";") if part.strip()]
 
 
-def check_registers(root: Path) -> list[str]:
-    """Problems found, as plain sentences. Empty means the registers match the code."""
-    governance, source, tests = root / "governance", root / "src" / "eli_legal", root / "tests"
+REGISTER_DIR = Path(__file__).resolve().parent / "registers"
+REGISTER_FILES = {
+    "requirements": "requirements_register.csv",
+    "controls": "control_register.csv",
+    "risks": "risk_register.csv",
+    "responsibilities": "provider_deployer_matrix.csv",
+}
+
+
+def load_register(name: str) -> list[dict[str, str]]:
+    """One of the shipped registers as rows: requirements, controls, risks, responsibilities."""
+    return _rows(REGISTER_DIR / REGISTER_FILES[name])
+
+
+def check_registers(root: Path | None = None) -> list[str]:
+    """Problems found, as plain sentences. Empty means the registers match the code.
+
+    The registers and the code they point at ship in the package. ``root`` is a source checkout;
+    when it has a ``tests`` directory, every test a control names must exist there. Without a
+    checkout (an installed copy) the test names cannot be checked and that part is skipped.
+    """
+    governance = REGISTER_DIR
+    source = Path(__file__).resolve().parents[1]
+    tests = (root / "tests") if root is not None and (root / "tests").is_dir() else None
     problems: list[str] = []
     for name in ("control_register.csv", "risk_register.csv", "requirements_register.csv"):
         if not (governance / name).is_file():
-            problems.append(f"missing register: governance/{name}")
+            problems.append(f"missing register: {name}")
     if problems:
         return problems
 
     defined_tests: set[str] = set()
-    for path in tests.rglob("test_*.py"):
-        defined_tests.update(
-            re.findall(r"^def (test_\w+)\(", path.read_text(encoding="utf-8"), re.M)
-        )
+    if tests is not None:
+        for path in tests.rglob("test_*.py"):
+            defined_tests.update(
+                re.findall(r"^def (test_\w+)\(", path.read_text(encoding="utf-8"), re.M)
+            )
 
     controls = _rows(governance / "control_register.csv")
     control_ids = [c["control_id"] for c in controls]
@@ -57,7 +79,7 @@ def check_registers(root: Path) -> list[str]:
         if not named:
             problems.append(f"{cid} has no test")
         for test in named:
-            if test not in defined_tests:
+            if tests is not None and test not in defined_tests:
                 problems.append(f"{cid} names test {test}, which does not exist")
         if control["type"] not in {"prevent", "detect", "respond"}:
             problems.append(f"{cid} has unknown type {control['type']!r}")

@@ -10,6 +10,7 @@ from eli_legal.domain.models import Run
 from eli_legal.domain.release import DeliveryReceipt, ReleaseApproval, ReleasePackage
 from eli_legal.governance.release_gate import ReleaseGate
 from eli_legal.ports.delivery import DeliveryPort
+from eli_legal.security import authn
 
 
 @dataclass(slots=True)
@@ -28,6 +29,7 @@ class DeliveryService:
     ) -> list[DeliveryReceipt]:
         """A named person confirms the exact recipient list; only then is anything staged."""
         ctx = self.ctx
+        authn.require_step_up(actor_id, "release a report")
         matter = ctx.matter_for(matter_id, actor_id, "report.send")
         mid = matter.matter_id
         package = ctx.store.get(ReleasePackage, mid, release_id)

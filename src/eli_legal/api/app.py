@@ -1,7 +1,8 @@
 """HTTP API. A thin shell over the application services.
 
 Every route except ``/health`` and ``/boundaries`` requires a bearer token that maps to a named
-user; what that user may do is decided by the same services the CLI uses. Start it with::
+user; what that user may do is decided by the same services the CLI uses. A route that records a
+decision also requires that person's passphrase in the ``X-ELI-Passphrase`` header. Start it with::
 
     uvicorn --factory eli_legal.api.app:create_app
 """
@@ -35,6 +36,7 @@ from eli_legal.domain.errors import (
     VerificationGateFailed,
 )
 from eli_legal.persistence import codec
+from eli_legal.security import authn
 
 from . import schemas
 
@@ -60,16 +62,40 @@ def create_app(services: Services | None = None) -> FastAPI:
         code = next((status for kind, status in _STATUS if isinstance(exc, kind)), 400)
         return JSONResponse({"error": type(exc).__name__, "detail": str(exc)}, status_code=code)
 
-    def user(authorization: Annotated[str | None, Header()] = None) -> str:
+    async def user(authorization: Annotated[str | None, Header()] = None) -> str:
+        """Identify the caller from a bearer token and establish that identity for the request."""
+        authn.clear()
         if not authorization or not authorization.lower().startswith("bearer "):
             raise HTTPException(401, "a bearer token is required", {"WWW-Authenticate": "Bearer"})
         user_id = sv.ctx.store.user_for_token(authorization[7:].strip())
         if user_id is None:
             raise HTTPException(401, "unknown or revoked token", {"WWW-Authenticate": "Bearer"})
-        sv.ctx.user(user_id)  # refuses a deactivated user
+        try:
+            sv.ctx.user(user_id)  # refuses a deactivated user
+        except EliLegalError as exc:
+            raise HTTPException(401, "this account is not active") from exc
+        authn.establish(user_id, "api-token")
         return user_id
 
     Actor = Annotated[str, Depends(user)]
+
+    async def decider(
+        actor: Actor, x_eli_passphrase: Annotated[str | None, Header()] = None
+    ) -> str:
+        """A decision needs more than a token that could be sitting in a script: the person's
+        passphrase, sent with this request."""
+        if not x_eli_passphrase:
+            raise HTTPException(
+                401, "this decision needs your passphrase in the X-ELI-Passphrase header"
+            )
+        try:
+            sv.users.authenticate(actor, x_eli_passphrase)
+        except EliLegalError as exc:
+            raise HTTPException(401, "that passphrase is not correct") from exc
+        authn.establish(actor, "api-token", step_up=True)
+        return actor
+
+    Decider = Annotated[str, Depends(decider)]
 
     def js(value: Any) -> Any:
         return codec.to_jsonable(value)
@@ -204,7 +230,12 @@ def create_app(services: Services | None = None) -> FastAPI:
     @app.post("/matters/{matter_id}/runs", status_code=202)
     def start_run(matter_id: str, actor: Actor, background: BackgroundTasks) -> dict[str, Any]:
         run = sv.runs.create(matter_id, actor_id=actor)
-        background.add_task(sv.runs.execute, matter_id, run.run_id, actor_id=actor)
+
+        def execute() -> None:
+            with authn.established(actor, "api-token"):
+                sv.runs.execute(matter_id, run.run_id, actor_id=actor)
+
+        background.add_task(execute)
         return {"run_id": run.run_id, "status": run.status.value}
 
     @app.get("/matters/{matter_id}/runs")
@@ -219,7 +250,7 @@ def create_app(services: Services | None = None) -> FastAPI:
         return sv.runs.summary(matter_id, run_id, actor_id=actor)
 
     @app.post("/matters/{matter_id}/runs/{run_id}/resume")
-    def resume(matter_id: str, run_id: str, body: schemas.ResumeIn, actor: Actor) -> Any:
+    def resume(matter_id: str, run_id: str, body: schemas.ResumeIn, actor: Decider) -> Any:
         sv.runs.resume(
             matter_id, run_id, actor_id=actor, reason=body.reason, from_step=body.from_step
         )
@@ -244,7 +275,7 @@ def create_app(services: Services | None = None) -> FastAPI:
 
     @app.post("/matters/{matter_id}/holds/{hold_id}/resolve")
     def resolve_hold(
-        matter_id: str, hold_id: str, body: schemas.HoldResolveIn, actor: Actor
+        matter_id: str, hold_id: str, body: schemas.HoldResolveIn, actor: Decider
     ) -> Any:
         return js(
             sv.holds.resolve(
@@ -257,7 +288,7 @@ def create_app(services: Services | None = None) -> FastAPI:
         return js(sv.verification.tasks(matter_id, run_id, actor_id=actor))
 
     @app.post("/matters/{matter_id}/claims/{claim_id}/verifications", status_code=201)
-    def verify(matter_id: str, claim_id: str, body: schemas.VerificationIn, actor: Actor) -> Any:
+    def verify(matter_id: str, claim_id: str, body: schemas.VerificationIn, actor: Decider) -> Any:
         return js(
             sv.verification.record_human_result(
                 matter_id,
@@ -286,7 +317,7 @@ def create_app(services: Services | None = None) -> FastAPI:
         )
 
     @app.post("/matters/{matter_id}/runs/{run_id}/review", status_code=201)
-    def review(matter_id: str, run_id: str, body: schemas.ReviewIn, actor: Actor) -> Any:
+    def review(matter_id: str, run_id: str, body: schemas.ReviewIn, actor: Decider) -> Any:
         decided = sv.reviews.decide(
             matter_id,
             run_id,
@@ -315,7 +346,7 @@ def create_app(services: Services | None = None) -> FastAPI:
         }
 
     @app.post("/matters/{matter_id}/releases/{release_id}/send")
-    def send(matter_id: str, release_id: str, body: schemas.SendIn, actor: Actor) -> Any:
+    def send(matter_id: str, release_id: str, body: schemas.SendIn, actor: Decider) -> Any:
         receipts = sv.delivery.distribute(
             matter_id,
             release_id,

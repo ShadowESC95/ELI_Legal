@@ -44,6 +44,7 @@ class User:
     actor_type: ActorType = ActorType.HUMAN
     active: bool = True
     created_at: datetime = field(default_factory=utcnow)
+    passphrase_hash: str = ""  # pbkdf2_sha256$iterations$salt$hash; empty until one is set
 
 
 @dataclass(slots=True)

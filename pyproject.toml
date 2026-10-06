@@ -26,6 +26,10 @@ dev = [
   "httpx>=0.27,<1",
 ]
 
+gui = [
+  "PySide6>=6.6",
+]
+
 [project.scripts]
 eli-legal = "eli_legal.cli:main"
 
@@ -44,6 +48,8 @@ eli_legal = [
   "edition/*.json",
   "edition/personas/*.json",
   "edition/templates/*.json",
+  "governance/registers/*.csv",
+  "governance/templates/*.md",
 ]
 
 [tool.pytest.ini_options]

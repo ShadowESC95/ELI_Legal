@@ -32,6 +32,7 @@ PROMPT_VERSIONS: dict[str, str] = {
     "fact_issue_link": "fact_issue_link/1",
     "arguments": "arguments/1",
     "support_check": "support_check/1",
+    "chat_answer": "chat_answer/1",
 }
 
 _JSON_OBJECT = re.compile(r"\{.*\}", re.S)

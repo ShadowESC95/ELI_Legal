@@ -1,7 +1,7 @@
-import csv
 from pathlib import Path
 
-from eli_legal.governance.registers import check_registers
+from eli_legal.governance import registers
+from eli_legal.governance.registers import check_registers, load_register
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -10,16 +10,31 @@ def test_governance_registers_match_the_code():
     assert check_registers(ROOT) == []
 
 
-def test_the_check_catches_a_register_that_drifts_from_the_code(tmp_path):
-    for sub in ("governance", "src/eli_legal", "tests"):
-        (tmp_path / sub).mkdir(parents=True)
+def test_registers_ship_with_the_package_and_load():
+    assert len(load_register("controls")) >= 28
+    assert {r["status"] for r in load_register("requirements")} == {
+        "implemented",
+        "partial",
+        "organisational",
+    }
+    assert load_register("risks") and load_register("responsibilities")
+    assert check_registers(None) == [], (
+        "an installed copy can still check everything but test names"
+    )
+
+
+def test_the_check_catches_a_register_that_drifts_from_the_code(tmp_path, monkeypatch):
+    import csv
+
+    fake = tmp_path / "registers"
+    fake.mkdir()
+    (tmp_path / "tests").mkdir()
     (tmp_path / "tests" / "test_x.py").write_text("def test_real():\n    pass\n")
-    (tmp_path / "src/eli_legal/real.py").write_text("")
     rows = {
         "control_register.csv": [
             ["control_id", "control", "type", "implementation", "tests", "evidence", "owner_role"],
             ["C-01", "a control", "prevent", "missing.py", "test_imaginary", "e", "provider"],
-            ["C-02", "unreferenced", "prevent", "real.py", "test_real", "e", "provider"],
+            ["C-02", "unreferenced", "prevent", "cli.py", "test_real", "e", "provider"],
         ],
         "risk_register.csv": [
             [
@@ -50,8 +65,9 @@ def test_the_check_catches_a_register_that_drifts_from_the_code(tmp_path):
         ],
     }
     for name, content in rows.items():
-        with open(tmp_path / "governance" / name, "w", newline="") as handle:
+        with open(fake / name, "w", newline="") as handle:
             csv.writer(handle).writerows(content)
+    monkeypatch.setattr(registers, "REGISTER_DIR", fake)
     problems = check_registers(tmp_path)
     assert "C-01 points at src/eli_legal/missing.py, which does not exist" in problems
     assert "C-01 names test test_imaginary, which does not exist" in problems

@@ -19,6 +19,7 @@ from eli_legal.domain.models import HumanReview, Report, Run, RunStep, Verificat
 from eli_legal.domain.profiles import profile_spec
 from eli_legal.governance.completeness import check_run_completeness
 from eli_legal.legal.human_review_gate import HumanReviewGate
+from eli_legal.security import authn
 from eli_legal.security.redaction import content_hash
 from eli_legal.workflows.case_preparation import build_report, warning_id, write_report
 
@@ -57,6 +58,7 @@ class ReviewService:
         acknowledged: Iterable[str] = (),
     ) -> HumanReview:
         ctx = self.ctx
+        authn.require_step_up(actor_id, "record a review decision")
         approving = decision is ReviewDecision.APPROVE
         matter = ctx.matter_for(
             matter_id, actor_id, "report.approve" if approving else "report.review"

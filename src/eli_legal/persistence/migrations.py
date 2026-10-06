@@ -99,4 +99,16 @@ MIGRATIONS: list[str] = [
         tokenize = 'porter unicode61'
     );
     """,
+    # 2 — signed-in sessions. Only the hash of a session token is stored.
+    """
+    CREATE TABLE IF NOT EXISTS sessions (
+        token_hash TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        method TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        revoked_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS ix_sessions_user ON sessions(user_id);
+    """,
 ]

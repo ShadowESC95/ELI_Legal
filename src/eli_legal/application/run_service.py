@@ -17,6 +17,7 @@ from eli_legal.domain.models import (
     VerificationTask,
     utcnow,
 )
+from eli_legal.security import authn
 from eli_legal.security.redaction import content_hash
 from eli_legal.workflows.case_preparation import CasePreparation
 from eli_legal.workflows.runner import WorkflowRunner
@@ -102,6 +103,7 @@ class RunService:
     ) -> Run:
         """Controlled restart: a named, authorised person, with a recorded reason."""
         ctx = self.ctx
+        authn.require_step_up(actor_id, "restart a run")
         matter = ctx.matter_for(matter_id, actor_id, "workflow.restart")
         run = self._load(matter, run_id, actor_id, "workflow.restart")
         if run.status not in _RESUMABLE:

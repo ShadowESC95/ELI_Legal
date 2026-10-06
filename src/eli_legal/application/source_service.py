@@ -9,6 +9,7 @@ from eli_legal.domain.errors import NotFound
 from eli_legal.domain.models import Authority
 from eli_legal.legal.source_registry import RegisteredSource
 from eli_legal.ports.legal_sources import ConnectorDeclaration
+from eli_legal.security import authn
 
 # The class below has a method named `list`; this is the builtin, for annotations.
 _List = list
@@ -32,6 +33,7 @@ class SourceService:
         return source
 
     def approve(self, source_id: str, *, actor_id: str) -> RegisteredSource:
+        authn.require_step_up(actor_id, "approve a legal source")
         self.ctx.authorizer().require_global(actor_id, "source.manage")
         source = self.ctx.sources.approve(source_id, approved_by=actor_id)
         if source.network_required:
