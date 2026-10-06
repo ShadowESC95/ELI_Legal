@@ -1,0 +1,422 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QListWidget,
+    QListWidgetItem,
+    QPlainTextEdit,
+    QTabWidget,
+    QTextBrowser,
+    QVBoxLayout,
+    QWidget,
+)
+
+from eli_legal.domain.enums import HoldScope, ReviewDecision, VerificationStatus
+from eli_legal.domain.models import Claim, Document
+from eli_legal.domain.release import ReleasePackage
+from eli_legal.gui import theme
+from eli_legal.gui.tabs.base import Tab
+from eli_legal.gui.widgets import (
+    ReasonDialog,
+    button,
+    card,
+    fill,
+    fit,
+    label,
+    row,
+    selected_id,
+    table,
+)
+from eli_legal.workflows.case_preparation import warning_id
+
+_CHECK = {
+    "citation": "Authority exists",
+    "current_law": "Still good law",
+    "proposition": "Authority says this",
+    "evidence_support": "Words appear in the document",
+    "provenance": "Source exists unchanged",
+}
+
+
+class ReviewTab(Tab):
+    title = "⚖ Review"
+
+    def __init__(self, session) -> None:  # type: ignore[no-untyped-def]
+        super().__init__(session)
+        self.inner = QTabWidget()
+        self.root.addWidget(self.inner)
+        self._claims: dict[str, Claim] = {}
+
+        # holds
+        self.show_closed = QCheckBox("Show resolved holds too")
+        self.show_closed.toggled.connect(self.refresh)
+        self.holds = table(["Held", "Why", "Detail", "What", "State"], stretch=3)
+        page = QWidget()
+        box = QVBoxLayout(page)
+        box.addWidget(
+            label(
+                "A hold closes when its check passes, or when a named person decides, with reasons. Nothing reaches review while one is open.",
+                "muted",
+                wrap=True,
+            )
+        )
+        box.addWidget(self.holds, 1)
+        box.addWidget(
+            row(
+                button("Verify by hand…", self._verify, tip="You checked the authority yourself"),
+                button("Take out of reliance…", lambda: self._resolve("exclude"), kind="danger"),
+                button(
+                    "Accept the gap…",
+                    lambda: self._resolve("waive"),
+                    tip="For an unread document or a flagged file you have read",
+                ),
+                self.show_closed,
+                None,
+            )
+        )
+        self.inner.addTab(page, "Holds")
+
+        # tasks
+        self.tasks = table(
+            ["Check", "What to confirm", "About", "What the system found"], stretch=2
+        )
+        page = QWidget()
+        box = QVBoxLayout(page)
+        box.addWidget(label("Checks the system could not complete on its own.", "muted"))
+        box.addWidget(self.tasks, 1)
+        box.addWidget(row(button("Record the result…", self._task_result, kind="primary"), None))
+        self.inner.addTab(page, "Checks for you")
+
+        # report
+        self.report = QTextBrowser()
+        self.report_info = label("", "muted", selectable=True)
+        page = QWidget()
+        box = QVBoxLayout(page)
+        box.addWidget(self.report_info)
+        box.addWidget(self.report, 1)
+        self.inner.addTab(page, "Report")
+
+        # decision
+        self.limits = QListWidget()
+        self.reasons = QPlainTextEdit()
+        self.reasons.setPlaceholderText("Your reasons for the decision (recorded with your name)")
+        self.reasons.setMaximumHeight(110)
+        self.decision_note = label("", wrap=True)
+        page = QWidget()
+        box = QVBoxLayout(page)
+        box.addWidget(self.decision_note)
+        box.addWidget(
+            card("Limits of this report — tick each one to show you have read it", self.limits), 1
+        )
+        box.addWidget(card("Reasons", self.reasons))
+        box.addWidget(
+            row(
+                button(
+                    "Approve for reliance…",
+                    lambda: self._decide(ReviewDecision.APPROVE),
+                    kind="primary",
+                ),
+                button(
+                    "Return for correction…",
+                    lambda: self._decide(ReviewDecision.RETURN_FOR_CORRECTION),
+                ),
+                button("Reject…", lambda: self._decide(ReviewDecision.REJECT), kind="danger"),
+                None,
+            )
+        )
+        self.inner.addTab(page, "Decision")
+
+        # release
+        self.recipients = QListWidget()
+        self.release_note = label("", wrap=True)
+        self.packages = table(["Release", "State", "Recipients", "Entitled?"], stretch=2)
+        page = QWidget()
+        box = QVBoxLayout(page)
+        box.addWidget(self.release_note)
+        box.addWidget(card("Who should receive the approved report", self.recipients))
+        box.addWidget(row(button("Prepare the release", self._prepare), None))
+        box.addWidget(card("Prepared releases", self.packages), 1)
+        box.addWidget(
+            row(
+                button("Confirm these recipients and stage it…", self._send, kind="primary"),
+                label(
+                    "Nothing is sent: the report is placed in the outbox for collection.", "muted"
+                ),
+                None,
+            )
+        )
+        self.inner.addTab(page, "Release")
+
+    def refresh(self) -> None:
+        self._claims = {}
+        if not (self.mid and self.rid):
+            for widget in (self.holds, self.tasks, self.packages):
+                fill(widget, [])
+            self.report.clear()
+            self.report_info.setText("No run is open.")
+            self.limits.clear()
+            self.recipients.clear()
+            self.decision_note.setText("Start a run from the DAG tab.")
+            return
+        summary = self.session.attempt(
+            self, lambda: self.sv.runs.summary(self.mid, self.rid, actor_id=self.actor), quiet=True
+        )
+        if summary is None:
+            return
+        claims = (
+            self.session.attempt(
+                self,
+                lambda: self.sv.verification.claims(self.mid, self.rid, actor_id=self.actor),
+                quiet=True,
+            )
+            or []
+        )
+        self._claims = {c.claim_id: c for c in claims}
+        docs = {d.document_id: d for d in self.sv.ctx.store.list(Document, self.mid)}
+
+        def subject(scope: HoldScope, subject_id: str) -> str:
+            if scope is HoldScope.CLAIM and subject_id in self._claims:
+                claim = self._claims[subject_id]
+                return f"{claim.citation or ''} “{claim.text}”".strip()
+            if scope is HoldScope.DOCUMENT and subject_id in docs:
+                return docs[subject_id].title or docs[subject_id].filename
+            return subject_id
+
+        holds = self.sv.holds.list(
+            self.mid, self.rid, actor_id=self.actor, open_only=not self.show_closed.isChecked()
+        )
+        fill(
+            self.holds,
+            [
+                [
+                    {
+                        "claim": "a finding",
+                        "document": "a document",
+                        "step": "a step",
+                        "run": "the run",
+                    }[h.scope.value],
+                    h.reason_code.replace("_", " "),
+                    h.detail,
+                    subject(h.scope, h.subject_id),
+                    h.status.value
+                    + (f" — {h.resolution.value} by {h.resolved_by}" if h.resolution else ""),
+                ]
+                for h in holds
+            ],
+            ids=[h.hold_id for h in holds],
+            state_columns=[4],
+        )
+        fit(self.holds, [90, 170, 320, 0, 200])
+        self._holds = {h.hold_id: h for h in holds}
+        self.inner.setTabText(0, f"Holds ({sum(1 for h in holds if h.status.value == 'open')})")
+
+        tasks = self.sv.verification.tasks(self.mid, self.rid, actor_id=self.actor)
+        fill(
+            self.tasks,
+            [
+                [
+                    _CHECK.get(t.verification_type, t.verification_type),
+                    t.question,
+                    subject(HoldScope.CLAIM, t.claim_id),
+                    self._claims[t.claim_id].status_reason if t.claim_id in self._claims else "",
+                ]
+                for t in tasks
+            ],
+            ids=[t.task_id for t in tasks],
+        )
+        fit(self.tasks, [170, 300, 0, 330])
+        self._tasks = {t.task_id: t for t in tasks}
+        self.inner.setTabText(1, f"Checks for you ({len(tasks)})")
+
+        report = summary["report"]
+        self.limits.clear()
+        if report:
+            path = Path(report["path"])
+            self.report.setMarkdown(
+                path.read_text(encoding="utf-8")
+                if path.is_file()
+                else "_The report file is missing._"
+            )
+            state = report["release_status"].replace("_", " ").lower()
+            self.report_info.setText(
+                f"Version {report['version']} · {state} · SHA-256 {report['sha256']} · {path}"
+            )
+            for warning in report["warnings"]:
+                item = QListWidgetItem(warning.split(": ", 1)[-1])
+                item.setData(Qt.ItemDataRole.UserRole, warning_id(warning))
+                item.setCheckState(Qt.CheckState.Unchecked)
+                self.limits.addItem(item)
+        else:
+            self.report.clear()
+            self.report_info.setText("No report has been drafted yet.")
+        self._report = report
+        status = summary["status"]
+        colour = theme.colour_for(status)
+        ready = (
+            "It can be approved by a named reviewer."
+            if status == "awaiting_human_review"
+            else "It cannot be approved in this state."
+        )
+        self.decision_note.setText(
+            f"The run is <b style='color:{colour}'>{status.replace('_', ' ')}</b>. {ready} Approval is tied to the exact report version shown in the Report tab."
+        )
+
+        matter = self.session.matter
+        self.recipients.clear()
+        if matter:
+            users = {u.user_id: u for u in self.sv.users.directory(self.actor)}
+            people = [
+                (uid, f"{users[uid].display_name} — member of this matter" if uid in users else uid)
+                for uid in sorted({matter.owner_user_id, *matter.authorised_user_ids})
+            ]
+            people += [(p.party_id, f"{p.name} — {p.role} (a party)") for p in matter.parties]
+            for key, text in people:
+                item = QListWidgetItem(text)
+                item.setData(Qt.ItemDataRole.UserRole, (key, text.split(" — ")[0]))
+                item.setCheckState(Qt.CheckState.Unchecked)
+                self.recipients.addItem(item)
+        packages = self.sv.ctx.store.list(ReleasePackage, self.mid, run_id=self.rid)
+        fill(
+            self.packages,
+            [
+                [
+                    p.release_id[-8:],
+                    p.status.replace("_", " "),
+                    ", ".join(r.display_name for r in p.recipients),
+                    "yes"
+                    if all(r.authorised_for_matter for r in p.recipients)
+                    else "NO — "
+                    + ", ".join(
+                        r.display_name for r in p.recipients if not r.authorised_for_matter
+                    ),
+                ]
+                for p in packages
+            ],
+            ids=[p.release_id for p in packages],
+        )
+        fit(self.packages, [90, 150, 0, 260])
+        self._packages = {p.release_id: p for p in packages}
+        self.release_note.setText(
+            "Only an approved report can be released, and only to people entitled to it. A tribunal's memorandum is not released to a party."
+            if status == "approved_for_reliance"
+            else "A report can be released once it has been approved."
+        )
+
+    # ── holds and checks ─────────────────────────────────────────────────────
+    def _resolve(self, action: str) -> None:
+        hold_id = selected_id(self.holds)
+        if not hold_id:
+            return
+        text = (
+            "The finding stays visible in the report under “Findings not to be relied on”, with your reason."
+            if action == "exclude"
+            else "You are accepting this gap. It will be stated in the report as a limit."
+        )
+        reason = ReasonDialog.ask(
+            self, "Take out of reliance" if action == "exclude" else "Accept the gap", text
+        )
+        if reason:
+            self.session.decide(
+                self,
+                f"{action} this hold",
+                lambda: self.sv.holds.resolve(
+                    self.mid, hold_id, actor_id=self.actor, action=action, reason=reason
+                ),
+            )
+
+    def _record(self, claim_id: str, default_check: str) -> None:
+        check = QComboBox()
+        for key, text in _CHECK.items():
+            check.addItem(text, key)
+        check.setCurrentIndex(max(0, check.findData(default_check)))
+        result = QComboBox()
+        result.addItem("Verified — I checked and it holds", VerificationStatus.VERIFIED.value)
+        result.addItem("Failed — I checked and it does not hold", VerificationStatus.FAILED.value)
+        reason = ReasonDialog.ask(
+            self,
+            "Record a check by hand",
+            "Say what you checked and where. Recording a failed system check as verified is an override: it needs that permission and is shown in the report.",
+            extra=[("Check", check), ("Result", result)],
+        )
+        if reason:
+            self.session.decide(
+                self,
+                "record this check in your name",
+                lambda: self.sv.verification.record_human_result(
+                    self.mid,
+                    claim_id,
+                    actor_id=self.actor,
+                    verification_type=check.currentData(),
+                    status=VerificationStatus(result.currentData()),
+                    reason=reason,
+                ),
+            )
+
+    def _verify(self) -> None:
+        hold = getattr(self, "_holds", {}).get(selected_id(self.holds))
+        if hold is not None and hold.scope is HoldScope.CLAIM:
+            self._record(hold.subject_id, hold.detail.split(":", 1)[0].strip())
+
+    def _task_result(self) -> None:
+        task = getattr(self, "_tasks", {}).get(selected_id(self.tasks))
+        if task is not None:
+            self._record(task.claim_id, task.verification_type)
+
+    # ── decision and release ─────────────────────────────────────────────────
+    def _decide(self, decision: ReviewDecision) -> None:
+        report = getattr(self, "_report", None) or {}
+        acknowledged = [
+            str(self.limits.item(i).data(Qt.ItemDataRole.UserRole))
+            for i in range(self.limits.count())
+            if self.limits.item(i).checkState() == Qt.CheckState.Checked
+        ]
+        verb = {
+            ReviewDecision.APPROVE: "approve this report for reliance",
+            ReviewDecision.REJECT: "reject this report",
+            ReviewDecision.RETURN_FOR_CORRECTION: "return this report for correction",
+        }[decision]
+        self.session.decide(
+            self,
+            verb,
+            lambda: self.sv.reviews.decide(
+                self.mid,
+                self.rid,
+                actor_id=self.actor,
+                decision=decision,
+                reasons=" ".join(self.reasons.toPlainText().split()),
+                report_hash=report.get("sha256", ""),
+                acknowledged=acknowledged,
+            ),
+        )
+
+    def _prepare(self) -> None:
+        chosen = [
+            self.recipients.item(i).data(Qt.ItemDataRole.UserRole)
+            for i in range(self.recipients.count())
+            if self.recipients.item(i).checkState() == Qt.CheckState.Checked
+        ]
+        recipients = [(key, name, "collect from the outbox") for key, name in chosen]
+        self.session.attempt(
+            self,
+            lambda: self.sv.releases.prepare(
+                self.mid, self.rid, actor_id=self.actor, recipients=recipients
+            ),
+        )
+
+    def _send(self) -> None:
+        package = getattr(self, "_packages", {}).get(selected_id(self.packages))
+        if package is None:
+            return
+        ids = [r.recipient_id for r in package.recipients]
+        names = ", ".join(r.display_name for r in package.recipients)
+        self.session.decide(
+            self,
+            f"release the approved report to: {names}",
+            lambda: self.sv.delivery.distribute(
+                self.mid, package.release_id, actor_id=self.actor, confirmed_recipient_ids=ids
+            ),
+        )

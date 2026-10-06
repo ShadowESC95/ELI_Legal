@@ -19,6 +19,7 @@ from eli_legal.domain.models import (
     Claim,
     Document,
     Hold,
+    Issue,
     Matter,
     Run,
     VerificationResult,
@@ -61,6 +62,10 @@ class VerificationService:
     def claims(self, matter_id: str, run_id: str, *, actor_id: str) -> list[Claim]:
         matter = self.ctx.matter_for(matter_id, actor_id, "document.read")
         return self.ctx.store.list(Claim, matter.matter_id, run_id=run_id)
+
+    def issues(self, matter_id: str, run_id: str, *, actor_id: str) -> list[Issue]:
+        matter = self.ctx.matter_for(matter_id, actor_id, "document.read")
+        return self.ctx.store.list(Issue, matter.matter_id, run_id=run_id)
 
     def results_for(
         self, matter_id: str, claim_id: str, *, actor_id: str

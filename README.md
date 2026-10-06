@@ -5,8 +5,8 @@ whom, finds and checks the law, and assembles a source-linked analysis for a nam
 review. It stops before the decision: it renders no verdict, award, recommendation on the merits
 or settlement terms.
 
-It runs on its own, and it is also built to be loaded by **ELI v3** as a separate edition (an
-add-on that can be licensed on its own or bundled).
+It is its own product with its own desktop application, command line and API. It can also be
+loaded by **ELI v3** as a separate edition (an add-on that can be licensed on its own or bundled).
 
 **Status: working software, not an assured product.** Everything described below runs and is
 tested, and a full synthetic dispute goes from ingestion to approved release (`eli-legal demo`).
@@ -71,21 +71,43 @@ off. The law itself always comes from an approved source. See
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
-pip install -e '.[dev]'
+pip install -e '.[dev,gui]'
 eli-legal demo                      # a synthetic dispute, start to finish, narrated
+./eli_legal.sh                      # the desktop application
 ```
 
-To work a real matter:
+## The desktop application
+
+`eli-legal gui` opens an application in the style of the ELI desktop, containing only legal and
+governance functions: **Matter · Evidence · Chat · DAG · Agents · Findings · Review · Audit Trail
+· Governance · Sources · Settings**. You sign in with your own passphrase, and a decision asks
+for it again. See [docs/18_DESKTOP_APPLICATION.md](docs/18_DESKTOP_APPLICATION.md).
+
+## Identity
+
+Roles and matter membership decide what someone may do; that is worthless if anyone can claim to
+be them. No front end acts on a typed name:
+
+| Front end | You prove who you are with | A decision also needs |
+|---|---|---|
+| Desktop application | your passphrase at sign-in | your passphrase again |
+| Command line | `eli-legal login` (a session that expires) | your passphrase again |
+| HTTP API | a bearer token | your passphrase in `X-ELI-Passphrase` |
+
+Every audit event records how the actor's identity was established.
+
+## The command line
 
 ```bash
-eli-legal init --admin admin
-export ELI_LEGAL_ACTOR=admin
+eli-legal init --admin admin                    # asks for the administrator's passphrase
+eli-legal login admin
 eli-legal user add j.murphy --name "Judge Murphy" --role judge
+eli-legal passphrase j.murphy                   # the administrator sets the first passphrase
 eli-legal source add my-corpus --name "Firm library" --jurisdiction IE --owner "…" \
     --licence "…" --terms-reviewed --status-semantics "…"
 eli-legal source approve my-corpus && eli-legal source import my-corpus ./corpus
 
-export ELI_LEGAL_ACTOR=j.murphy
+eli-legal login j.murphy
 M=$(eli-legal matter create --name "A v B" --purpose "Bench memorandum" --jurisdiction IE \
       --profile adjudicator --party "A Ltd:claimant" --party "B Ltd:respondent" \
       --issue "Whether …" --relevant-date 2023-04-28)
@@ -95,9 +117,9 @@ eli-legal run start $M              # then: holds, tasks, verify, hold, run resu
 ```
 
 `eli-legal --help` lists every command. A model is optional: without one, facts are selected by
-rule and no arguments are drafted. To use a local model, set `ELI_LEGAL_INFERENCE=openai_compat`,
-`ELI_LEGAL_INFERENCE_URL` (any OpenAI-compatible endpoint on this machine, such as Ollama or
-llama.cpp) and `ELI_LEGAL_INFERENCE_MODEL`.
+rule and no arguments are drafted. Choose a local model in Settings, or set
+`ELI_LEGAL_INFERENCE=openai_compat`, `ELI_LEGAL_INFERENCE_URL` (any OpenAI-compatible endpoint on
+this machine, such as Ollama or llama.cpp) and `ELI_LEGAL_INFERENCE_MODEL`.
 
 The HTTP API exposes the same services: `uvicorn --factory eli_legal.api.app:create_app`.
 
@@ -125,6 +147,7 @@ eli-legal edition verify --eli-root /path/to/ELI_v3.0     # read-only check agai
 - **No live legal database.** The one working connector reads a corpus you load yourself. Whether
   a case is still good law is only as reliable as the status data in that corpus.
 - **No encryption at rest and no OCR.** Use an encrypted volume; convert scans before ingestion.
+- **Passphrase only.** No second factor and no lockout after repeated failed sign-ins.
 
 ## Layout
 
@@ -136,8 +159,9 @@ eli-legal edition verify --eli-root /path/to/ELI_v3.0     # read-only check agai
 | `src/eli_legal/workflows` | the workflow runner and the case-preparation steps |
 | `src/eli_legal/application` | services: the only thing a front end calls |
 | `src/eli_legal/adapters` | parsers, vault, ledger, network guard, sources, inference, ELI v3 |
+| `src/eli_legal/gui` | the desktop application |
 | `src/eli_legal/edition` | the ELI v3 edition pack |
 | `src/eli_legal/config` | default policy, workflow and jurisdiction packs |
-| `governance/` | control, risk and requirement registers, checked against the code in CI |
+| `src/eli_legal/governance/registers` | control, risk and requirement registers, checked against the code in CI |
 | `docs/` | architecture, standards, runbook, instructions for use |
 | `tests/` | unit, security, integration, evaluation, edition contract, API |

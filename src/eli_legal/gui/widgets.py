@@ -1,0 +1,203 @@
+"""Small building blocks shared by every tab."""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from typing import Any
+
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QBrush, QColor
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QPlainTextEdit,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
+
+from eli_legal.gui import theme
+
+ID_ROLE = Qt.ItemDataRole.UserRole
+
+
+def label(
+    text: str = "", role: str = "", *, wrap: bool = False, selectable: bool = False
+) -> QLabel:
+    widget = QLabel(text)
+    if role:
+        widget.setProperty("role", role)
+    widget.setWordWrap(wrap)
+    if selectable:
+        widget.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+    return widget
+
+
+def button(text: str, on_click: Any = None, *, kind: str = "", tip: str = "") -> QPushButton:
+    widget = QPushButton(text)
+    if kind:
+        widget.setProperty("kind", kind)
+    if tip:
+        widget.setToolTip(tip)
+    if on_click is not None:
+        widget.clicked.connect(lambda _checked=False: on_click())
+    return widget
+
+
+def card(title: str, *widgets: QWidget, layout: str = "v") -> QGroupBox:
+    box = QGroupBox(title.upper())
+    inner: QVBoxLayout | QHBoxLayout = QVBoxLayout(box) if layout == "v" else QHBoxLayout(box)
+    for widget in widgets:
+        inner.addWidget(widget)
+    return box
+
+
+def row(*widgets: QWidget | None, stretch_last: bool = False) -> QWidget:
+    """Widgets side by side; ``None`` is elastic space."""
+    holder = QWidget()
+    inner = QHBoxLayout(holder)
+    inner.setContentsMargins(0, 0, 0, 0)
+    for index, widget in enumerate(widgets):
+        if widget is None:
+            inner.addStretch(1)
+        else:
+            inner.addWidget(widget, 1 if stretch_last and index == len(widgets) - 1 else 0)
+    return holder
+
+
+def table(headers: Sequence[str], *, stretch: int = -1) -> QTableWidget:
+    widget = QTableWidget(0, len(headers))
+    widget.setHorizontalHeaderLabels(list(headers))
+    widget.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+    widget.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+    widget.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+    widget.setAlternatingRowColors(True)
+    widget.setWordWrap(False)
+    widget.verticalHeader().setVisible(False)
+    widget.verticalHeader().setDefaultSectionSize(26)
+    header = widget.horizontalHeader()
+    header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+    header.setStretchLastSection(stretch < 0)
+    if stretch >= 0:
+        header.setSectionResizeMode(stretch, QHeaderView.ResizeMode.Stretch)
+    return widget
+
+
+def fill(
+    widget: QTableWidget,
+    rows: Sequence[Sequence[Any]],
+    *,
+    ids: Sequence[str] | None = None,
+    state_columns: Sequence[int] = (),
+    keep_selection: bool = True,
+) -> None:
+    """Replace a table's rows. Cells in ``state_columns`` are coloured by their state word."""
+    selected = selected_id(widget) if keep_selection else ""
+    widget.setSortingEnabled(False)
+    widget.setRowCount(len(rows))
+    for r, values in enumerate(rows):
+        for c, value in enumerate(values):
+            text = "" if value is None else str(value)
+            item = QTableWidgetItem(text)
+            item.setToolTip(text if len(text) > 40 else "")
+            if c in state_columns:
+                item.setForeground(
+                    QBrush(QColor(theme.colour_for(text.split(":")[0].split(" ")[0])))
+                )
+            if c == 0 and ids is not None:
+                item.setData(ID_ROLE, ids[r])
+            widget.setItem(r, c, item)
+    if selected and ids:
+        for r, record_id in enumerate(ids):
+            if record_id == selected:
+                widget.selectRow(r)
+                break
+
+
+def selected_id(widget: QTableWidget) -> str:
+    items = widget.selectedItems()
+    if not items:
+        return ""
+    first = widget.item(items[0].row(), 0)
+    return str(first.data(ID_ROLE) or "") if first is not None else ""
+
+
+def fit(widget: QTableWidget, widths: Sequence[int]) -> None:
+    for column, width in enumerate(widths):
+        if width:
+            widget.setColumnWidth(column, width)
+
+
+class ReasonDialog(QDialog):
+    """Every decision carries its reasons. This asks for them and will not accept a shrug."""
+
+    def __init__(
+        self,
+        parent: QWidget,
+        title: str,
+        prompt: str,
+        *,
+        minimum: int = 10,
+        extra: Sequence[tuple[str, QWidget]] = (),
+        placeholder: str = "",
+    ) -> None:
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.setMinimumWidth(520)
+        self.minimum = minimum
+        layout = QVBoxLayout(self)
+        layout.addWidget(label(prompt, wrap=True))
+        if extra:
+            form = QFormLayout()
+            for caption, widget in extra:
+                form.addRow(caption, widget)
+            layout.addLayout(form)
+        self.text = QPlainTextEdit()
+        self.text.setPlaceholderText(
+            placeholder or "Your reasons (they are recorded with your name)"
+        )
+        self.text.setMinimumHeight(110)
+        layout.addWidget(self.text)
+        self.hint = label("", "muted")
+        layout.addWidget(self.hint)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        self._ok = buttons.button(QDialogButtonBox.StandardButton.Ok)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+        self.text.textChanged.connect(self._check)
+        self._check()
+
+    def _check(self) -> None:
+        missing = self.minimum - len(self.reason())
+        self._ok.setEnabled(missing <= 0)
+        self.hint.setText(f"{missing} more character(s) needed" if missing > 0 else "")
+
+    def reason(self) -> str:
+        return " ".join(self.text.toPlainText().split())
+
+    @classmethod
+    def ask(cls, parent: QWidget, title: str, prompt: str, **kwargs: Any) -> str | None:
+        dialog = cls(parent, title, prompt, **kwargs)
+        return dialog.reason() if dialog.exec() == QDialog.DialogCode.Accepted else None
+
+
+def chip(text: str, colour: str = theme.TEXT) -> QLabel:
+    widget = label(text, "chip")
+    widget.setStyleSheet(f"color: {colour};")
+    return widget
+
+
+def set_chip(widget: QLabel, text: str, colour: str) -> None:
+    widget.setText(text)
+    widget.setStyleSheet(f"color: {colour};")

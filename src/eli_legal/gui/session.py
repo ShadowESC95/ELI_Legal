@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextvars
 from collections.abc import Callable
 from typing import TypeVar
 
@@ -9,8 +10,10 @@ from PySide6.QtWidgets import QInputDialog, QLineEdit, QMessageBox, QWidget
 from eli_legal.application.services import Services
 from eli_legal.domain.errors import EliLegalError
 from eli_legal.domain.models import Matter, Run, User
+from eli_legal.security import authn
 
 T = TypeVar("T")
+AUTH_METHOD = "gui-passphrase"
 
 
 class _Signals(QObject):
@@ -19,15 +22,18 @@ class _Signals(QObject):
 
 
 class _Job(QRunnable):
+    """Work run off the interface thread, carrying the signed-in identity with it."""
+
     def __init__(self, work: Callable[[], object]) -> None:
         super().__init__()
         self.work = work
         self.signals = _Signals()
+        self._context = contextvars.copy_context()
 
     def run(self) -> None:
         try:
-            result = self.work()
-        except Exception as exc:  # delivered to the UI thread, where it is shown
+            result = self._context.run(self.work)
+        except Exception as exc:  # delivered to the interface thread, where it is shown
             self.signals.failed.emit(exc)
         else:
             self.signals.done.emit(result)
@@ -51,6 +57,7 @@ class Session(QObject):
     # ── identity ─────────────────────────────────────────────────────────────
     def sign_in(self, user_id: str, passphrase: str) -> User:
         user = self.sv.users.authenticate(user_id, passphrase)
+        authn.establish(user.user_id, AUTH_METHOD)
         self.user_id, self.matter_id, self.run_id = user.user_id, "", ""
         matters = self.sv.matters.list_for(self.user_id)
         if matters:
@@ -59,6 +66,7 @@ class Session(QObject):
         return user
 
     def sign_out(self) -> None:
+        authn.clear()
         self.user_id = self.matter_id = self.run_id = ""
         self.changed.emit()
 
@@ -67,23 +75,19 @@ class Session(QObject):
         return self.sv.ctx.store.get_user(self.user_id) if self.user_id else None
 
     def may(self, action: str) -> bool:
-        """Whether the signed-in user holds a role that permits the action (matter-aware)."""
+        """Whether the signed-in user holds a role that permits the action here."""
         if not self.user_id:
             return False
         authz = self.sv.ctx.authorizer()
         matter = self.matter
-        if matter is not None and not action.startswith(
-            ("user.", "source.", "config.", "audit.verify")
-        ):
+        if matter is not None and action.split(".")[0] not in {"user", "source", "config"}:
             return authz.can_matter(matter, self.user_id, action)
         return authz.bindings.can(self.user_id, action)
 
     # ── what is open ─────────────────────────────────────────────────────────
     @property
     def matter(self) -> Matter | None:
-        if not self.matter_id:
-            return None
-        return self.sv.ctx.store.get_matter(self.matter_id)
+        return self.sv.ctx.store.get_matter(self.matter_id) if self.matter_id else None
 
     @property
     def run(self) -> Run | None:
@@ -107,7 +111,7 @@ class Session(QObject):
 
     # ── doing things ─────────────────────────────────────────────────────────
     def attempt(self, parent: QWidget, work: Callable[[], T], *, quiet: bool = False) -> T | None:
-        """Run a service call. A refusal is shown to the user, in the system's own words."""
+        """Run a service call. A refusal is shown to the user in the system's own words."""
         try:
             result = work()
         except EliLegalError as exc:
@@ -120,25 +124,37 @@ class Session(QObject):
             self.changed.emit()
         return result
 
-    def confirm_identity(self, parent: QWidget, what: str) -> bool:
-        """Ask the signed-in person for their passphrase again before a decision is recorded."""
+    def ask_passphrase(self, parent: QWidget, what: str) -> str | None:
         phrase, ok = QInputDialog.getText(
             parent,
             "Confirm it is you",
-            f"You are about to {what}.\n\nThis is recorded under your name ({self.user_id}). "
-            "Enter your passphrase to confirm.",
+            f"You are about to {what}.\n\nThis will be recorded under your name "
+            f"({self.user_id}). Enter your passphrase to confirm.",
             QLineEdit.EchoMode.Password,
         )
-        if not ok:
-            return False
+        return phrase if ok else None
+
+    def decide(self, parent: QWidget, what: str, work: Callable[[], T]) -> T | None:
+        """A decision: confirm the passphrase, then act with identity freshly confirmed."""
+        phrase = self.ask_passphrase(parent, what)
+        if phrase is None:
+            return None
+        return self.decide_with(parent, phrase, work)
+
+    def decide_with(self, parent: QWidget, phrase: str, work: Callable[[], T]) -> T | None:
         try:
             self.sv.users.authenticate(self.user_id, phrase)
         except EliLegalError:
             QMessageBox.warning(
                 parent, "Refused", "That passphrase is not correct. Nothing was recorded."
             )
-            return False
-        return True
+            return None
+
+        def confirmed() -> T:
+            with authn.stepped_up():
+                return work()
+
+        return self.attempt(parent, confirmed)
 
     def background(
         self,
@@ -151,16 +167,20 @@ class Session(QObject):
         job = _Job(work)
         self._jobs.append(job)
 
-        def finish(handler: Callable[[object], None], value: object) -> None:
+        def finish(handler: Callable[..., None], value: object) -> None:
             if job in self._jobs:
                 self._jobs.remove(job)
             self.busy.emit("")
             handler(value)
 
         job.signals.done.connect(lambda value: finish(on_done, value))
-        job.signals.failed.connect(lambda exc: finish(on_error, exc))  # type: ignore[arg-type]
+        job.signals.failed.connect(lambda exc: finish(on_error, exc))
         self.busy.emit(label)
         self._pool.start(job)
 
-    def wait_for_background(self, timeout_ms: int = 60000) -> bool:
+    @property
+    def working(self) -> bool:
+        return bool(self._jobs)
+
+    def wait_for_background(self, timeout_ms: int = 120000) -> bool:
         return bool(self._pool.waitForDone(timeout_ms))

@@ -2,8 +2,11 @@
 
 ## Before first use
 
-`eli-legal init --admin <id>`; back up the audit key separately from the databases; create users
-and roles; register and approve sources; `eli-legal doctor`.
+`eli-legal init --admin <id>` (asks for the administrator's passphrase), or start the desktop
+application, which does the same on first run. Back up the audit key separately from the
+databases. Sign in (`eli-legal login <id>`), create users and roles, set each user's first
+passphrase (`eli-legal passphrase <user>`), register and approve sources, `eli-legal doctor`.
+Every step below can be done in the desktop application instead.
 
 ## Before a run
 

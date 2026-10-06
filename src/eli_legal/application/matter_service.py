@@ -10,7 +10,7 @@ from datetime import date, timedelta
 from eli_legal.application.container import AppContext
 from eli_legal.domain.enums import ActorType, MatterStatus, Profile
 from eli_legal.domain.errors import AuthenticationFailed, InvalidInput, InvalidState, PolicyDenied
-from eli_legal.domain.models import Document, Matter, Party, User, utcnow
+from eli_legal.domain.models import Chunk, Document, Matter, Party, User, utcnow
 from eli_legal.domain.profiles import OVERSIGHT_ROLES, profile_spec
 from eli_legal.security import authn
 from eli_legal.security.rbac import DEFAULT_ROLE_ACTIONS
@@ -195,6 +195,12 @@ class UserService:
         if self.ctx.store.revoke_session(token) and user_id:
             self._sign_in_event(user_id, "signed_out")
 
+    def directory(self, actor_id: str) -> list[User]:
+        """Who exists and what roles they hold. Any signed-in user may see this, since granting
+        access to a matter means choosing people from it; it holds no credentials."""
+        authn.require(actor_id)
+        return self.ctx.store.list_users()
+
     def needs_passphrase(self, user_id: str) -> bool:
         user = self.ctx.store.get_user(user_id)
         return user is not None and user.active and not user.passphrase_hash
@@ -319,6 +325,12 @@ class MatterService:
     def documents(self, matter_id: str, actor_id: str) -> list[Document]:
         matter = self.ctx.matter_for(matter_id, actor_id, "document.read")
         return self.ctx.store.list(Document, matter.matter_id)
+
+    def passages(self, matter_id: str, document_id: str, actor_id: str) -> list[Chunk]:
+        """A document's text as located passages, for reading it in the application."""
+        matter = self.ctx.matter_for(matter_id, actor_id, "document.read")
+        self.ctx.store.require(Document, matter.matter_id, document_id)
+        return self.ctx.store.chunks_for(matter.matter_id, document_id)
 
     def _save(self, matter: Matter, actor_id: str, change: str, **payload: object) -> Matter:
         self.ctx.store.put_matter(matter)

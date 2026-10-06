@@ -16,6 +16,9 @@
 | Gold matter | `tests/evaluation/test_gold_matter.py` | each planted defect caught for the stated reason; scorecard |
 | Model mode | `tests/evaluation/test_model_mode.py` | a misbehaving model contributes nothing unverified |
 | Edition | `tests/edition/test_edition_contract.py` | ELI v3 contract; refused actions; no decisions or content via the host |
+| Authentication | `tests/security/test_authentication.py` | a name alone is refused; no acting as someone else; decisions need step-up; sessions; the CLI with no harness |
+| Chat, agents, sign-in | `tests/integration/test_chat_agents_signin.py` | grounded chat; agent mandates; passphrases; governed model change |
+| Desktop application | `tests/gui/test_gui.py` | the window driven headlessly as a signed-in person |
 | Registers | `tests/governance/test_registers.py` | registers match code and tests |
 | API | `tests/api/test_api.py` | authentication; same rules as other front ends |
 

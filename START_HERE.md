@@ -1,7 +1,8 @@
 # Start here
 
-1. `pip install -e '.[dev]'`, then `eli-legal demo` to watch a synthetic dispute go from
+1. `pip install -e '.[dev,gui]'`, then `eli-legal demo` to watch a synthetic dispute go from
    ingestion to an approved, released report, with each control narrated as it acts.
+   `./eli_legal.sh` opens the desktop application.
 2. Read `README.md` for what the system does and does not do.
 3. Read `docs/03_ARCHITECTURE.md` and `docs/16_INSTRUCTIONS_FOR_USE.md`.
 4. `make check` runs tests, lint, type checks and the governance register check.

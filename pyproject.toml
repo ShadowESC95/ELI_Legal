@@ -33,6 +33,9 @@ gui = [
 [project.scripts]
 eli-legal = "eli_legal.cli:main"
 
+[project.gui-scripts]
+eli-legal-gui = "eli_legal.gui.app:main"
+
 # How ELI v3 finds this edition once the package is installed beside it.
 [project.entry-points."eli.editions"]
 legal = "eli_legal.edition:register"
@@ -50,6 +53,7 @@ eli_legal = [
   "edition/templates/*.json",
   "governance/registers/*.csv",
   "governance/templates/*.md",
+  "gui/assets/*.png",
 ]
 
 [tool.pytest.ini_options]

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=ELI Legal
+GenericName=Governed legal case preparation
+Comment=Prepare a dispute for a named human decision-maker: evidence, issues, checked authorities, audit trail
+Exec=@INSTALL_DIR@/eli_legal.sh
+Icon=@INSTALL_DIR@/src/eli_legal/gui/assets/eli_legal_256.png
+Path=@INSTALL_DIR@
+Terminal=false
+Categories=Office;
+StartupWMClass=ELI Legal

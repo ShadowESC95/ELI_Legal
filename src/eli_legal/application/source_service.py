@@ -6,7 +6,7 @@ from pathlib import Path
 from eli_legal.adapters.sources.local_corpus import import_corpus
 from eli_legal.application.container import AppContext
 from eli_legal.domain.errors import NotFound
-from eli_legal.domain.models import Authority
+from eli_legal.domain.models import Authority, AuthorityPassage
 from eli_legal.legal.source_registry import RegisteredSource
 from eli_legal.ports.legal_sources import ConnectorDeclaration
 from eli_legal.security import authn
@@ -70,6 +70,15 @@ class SourceService:
             },
         )
         return imported
+
+    def authorities(self, source_id: str, *, actor_id: str) -> _List[Authority]:
+        """What an approved corpus holds. Legal sources are not matter data."""
+        authn.require(actor_id)
+        return self.ctx.store.list_authorities([source_id])
+
+    def authority_text(self, authority_id: str, *, actor_id: str) -> _List[AuthorityPassage]:
+        authn.require(actor_id)
+        return self.ctx.store.passages_for(authority_id)
 
     def describe(self, source_id: str) -> ConnectorDeclaration:
         source = self.ctx.sources.get(source_id)

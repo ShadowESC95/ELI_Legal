@@ -35,6 +35,11 @@ have each jurisdiction pack validated; set retention periods; keep the audit key
 checkpoints; watch `eli-legal monitor`; assess changes before use; train users; complete the
 classification, impact and data-protection assessments that apply to it.
 
+## Signing in
+
+Sign in as yourself. Never share a passphrase or leave a session open on a shared machine: what
+is done in your session is recorded as done by you.
+
 ## Stopping
 
 `eli-legal run stop M R --reason …` stops a run. Rejecting or returning a report stops reliance.
