@@ -110,6 +110,7 @@ class SettingsTab(Tab):
                 self.me,
                 row(
                     button("Change my passphrase…", self._my_passphrase),
+                    button("Second factor…", self._second_factor),
                     button("Sign out", on_sign_out),
                     None,
                 ),
@@ -128,6 +129,8 @@ class SettingsTab(Tab):
                 button("Change roles…", self._edit_user),
                 button("Set a passphrase…", self._set_passphrase),
                 button("Issue an API token…", self._token),
+                button("Unlock", self._unlock),
+                button("Reset second factor", self._reset_second_factor),
                 button("Deactivate", self._deactivate, kind="danger"),
                 None,
             )
@@ -199,7 +202,7 @@ class SettingsTab(Tab):
         user = self.session.user
         if user is not None:
             self.me.setText(
-                f"<b>{user.display_name}</b> ({user.user_id})<br>Roles: {', '.join(sorted(r.replace('_', ' ') for r in user.roles)) or 'none'}<br><span style='color:{theme.MUTED}'>Decisions you record ask for your passphrase again and are logged under your name.</span>"
+                f"<b>{user.display_name}</b> ({user.user_id})<br>Roles: {', '.join(sorted(r.replace('_', ' ') for r in user.roles)) or 'none'}<br>Second factor: {'set up' if self.sv.users.has_second_factor(user.user_id) else 'not set up'}<br><span style='color:{theme.MUTED}'>Decisions you record ask for your passphrase again and are logged under your name.</span>"
             )
         users = self.sv.users.directory(self.actor) if self.actor else []
         fill(
@@ -347,6 +350,81 @@ class SettingsTab(Tab):
         if uid and uid != self.actor:
             self.session.attempt(
                 self, lambda: self.sv.users.deactivate(actor_id=self.actor, user_id=uid)
+            )
+
+    # ── second factor and locks ──────────────────────────────────────────────
+    def _second_factor(self) -> None:
+        """Set up an authenticator code for yourself, or remove the one you have."""
+        users = self.sv.users
+        if users.has_second_factor(self.actor):
+            asked = QMessageBox.question(
+                self,
+                "Second factor",
+                "You have a second factor set up.\n\nRemove it? You would then sign in with your "
+                "passphrase alone, and your other sessions will be ended.",
+            )
+            if asked != QMessageBox.StandardButton.Yes:
+                return
+
+            def remove() -> bool:
+                users.second_factor_remove(actor_id=self.actor, user_id=self.actor)
+                return True
+
+            if self.session.decide(self, "remove your second factor", remove):
+                self.refresh()
+            return
+        started = self.session.decide(
+            self, "set up a second factor", lambda: users.second_factor_begin(actor_id=self.actor)
+        )
+        if started is None:
+            return
+        secret, _uri = started
+        code, ok = QInputDialog.getText(
+            self,
+            "Set up your authenticator",
+            "Add this key to an authenticator app on your phone:\n\n"
+            f"    {secret}\n\nThen enter the six-digit code the app shows:",
+        )
+        if not ok:
+            return
+
+        def confirm() -> bool:
+            users.second_factor_confirm(actor_id=self.actor, code=code.strip())
+            return True
+
+        if self.session.attempt(self, confirm):
+            QMessageBox.information(
+                self,
+                "Second factor",
+                "Set up. From now on you will be asked for a code at every sign-in, here, in the "
+                "browser and on the command line.",
+            )
+            self.refresh()
+
+    def _unlock(self) -> None:
+        uid = selected_id(self.users)
+        if not uid:
+            return
+
+        def unlock() -> bool:
+            self.sv.users.unlock(actor_id=self.actor, user_id=uid)
+            return True
+
+        if self.session.decide(self, f"unlock {uid}", unlock):
+            QMessageBox.information(self, "Unlocked", f"{uid} can sign in again.")
+
+    def _reset_second_factor(self) -> None:
+        uid = selected_id(self.users)
+        if not uid or uid == self.actor:
+            return
+
+        def reset() -> bool:
+            self.sv.users.second_factor_remove(actor_id=self.actor, user_id=uid)
+            return True
+
+        if self.session.decide(self, f"remove the second factor of {uid}", reset):
+            QMessageBox.information(
+                self, "Second factor", f"Removed for {uid}. Their sessions have been ended."
             )
 
     # ── model ────────────────────────────────────────────────────────────────

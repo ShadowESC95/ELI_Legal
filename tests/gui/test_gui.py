@@ -14,7 +14,7 @@ from eli_legal.application.services import build_services  # noqa: E402
 from eli_legal.demo import build_demo_workspace  # noqa: E402
 from eli_legal.demo_run import ADMIN, ARBITRATOR, SECRETARY, demo_settings, setup_demo  # noqa: E402
 from eli_legal.domain.enums import ReviewDecision  # noqa: E402
-from eli_legal.domain.errors import AuthenticationFailed  # noqa: E402
+from eli_legal.domain.errors import AuthenticationFailed, SecondFactorRequired  # noqa: E402
 from eli_legal.gui.app import (  # noqa: E402
     FirstRunDialog,
     SignInDialog,
@@ -33,7 +33,7 @@ from eli_legal.gui.tabs.review_tab import ReviewTab  # noqa: E402
 from eli_legal.gui.tabs.settings_tab import SettingsTab  # noqa: E402
 from eli_legal.gui.tabs.workflow_tab import WorkflowTab  # noqa: E402
 from eli_legal.gui.widgets import ReasonDialog  # noqa: E402
-from eli_legal.security import authn  # noqa: E402
+from eli_legal.security import authn, totp  # noqa: E402
 
 PHRASE = {ARBITRATOR: "arbitrator passphrase", SECRETARY: "secretary passphrase"}
 
@@ -243,6 +243,30 @@ def test_the_application_cannot_do_what_the_signed_in_role_cannot(desk):
     settings._apply_model()
     assert "not permitted to perform 'config.manage'" in d.warnings[-1]
     assert len(d.sv.holds.list(d.mid, d.session.run_id, actor_id=SECRETARY)) == 6
+
+
+def test_a_second_factor_can_be_set_up_in_the_application_and_is_then_needed(desk, monkeypatch):
+    d = desk()
+    settings = d.page(SettingsTab)
+    assert "Second factor: not set up" in settings.me.text()
+
+    def answer(parent, title, label, *args, **kwargs):
+        if "six-digit" in label:  # the code the authenticator would show for the key just issued
+            pending = d.sv.ctx.store.auth_state(ARBITRATOR)["totp_pending"]
+            assert pending in label
+            return totp.code_at(pending, totp.step_at()), True
+        return d.passphrase, True
+
+    monkeypatch.setattr(QInputDialog, "getText", answer)
+    settings._second_factor()
+    assert d.sv.users.has_second_factor(ARBITRATOR) and not d.warnings
+    assert "Second factor: set up" in settings.me.text()
+    with pytest.raises(SecondFactorRequired):
+        Session(d.sv).sign_in(ARBITRATOR, PHRASE[ARBITRATOR])
+    fresh = totp.code_at(d.sv.ctx.store.auth_state(ARBITRATOR)["totp_secret"], totp.step_at() + 1)
+    assert Session(d.sv).sign_in(ARBITRATOR, PHRASE[ARBITRATOR], fresh).user_id == ARBITRATOR
+    outcomes = [e["outcome"] for e in d.sv.ctx.audit.events(matter_id="-")]
+    assert "second_factor_enabled" in outcomes and "signed_in_two_factor" in outcomes
 
 
 def test_first_run_creates_the_key_and_insists_on_a_real_passphrase(qt, tmp_path, monkeypatch):

@@ -11,7 +11,8 @@ themselves any: that separation is deliberate.
 3. Copy `secrets/audit_hmac.key` from the [data folder](01_installation.md#where-your-data-is) to
    somewhere safe and separate. Without it the ledger cannot be verified and nothing will run.
 4. Put the data folder on an encrypted disk. The software does not encrypt it.
-5. Set up a second factor for yourself: Settings, You; or `eli-legal second-factor setup`.
+5. Set up a second factor for yourself: Settings, You, Second factor; or
+   `eli-legal second-factor setup`.
 
 ## 2. Users and roles
 
@@ -22,7 +23,7 @@ Every person has their own account. Never share one: the audit trail is only as 
 | Add a user | Settings, Users and roles, Add a user | `eli-legal user add <id> --name "<name>" --role <role>` |
 | Set a first or replacement passphrase | Passphrase… | `eli-legal passphrase <id>` |
 | Unlock after failed sign-ins | Unlock | `eli-legal unlock <id>` |
-| Remove a lost second factor | Reset 2nd factor | `eli-legal second-factor remove <id>` |
+| Remove a lost second factor | Reset second factor | `eli-legal second-factor remove <id>` |
 | Deactivate a leaver | Deactivate | `eli-legal user deactivate <id>` |
 | Issue a token for a program | Create an API token | `eli-legal user token <id>` |
 
