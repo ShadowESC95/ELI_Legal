@@ -1,0 +1,53 @@
+{
+  "policy_version": "0.1.0",
+  "runtime": {
+    "network_default": "deny",
+    "audit_fail_closed": true,
+    "human_release_required": true,
+    "matter_isolation_required": true,
+    "source_registry_enforced": true,
+    "verification_before_reliance": true,
+    "source_content_is_data_not_instruction": true
+  },
+  "allowed_actions": [
+    "matter.create",
+    "matter.read",
+    "document.ingest",
+    "document.read",
+    "source.search_approved",
+    "source.retrieve_approved",
+    "facts.extract",
+    "issues.map",
+    "evidence.map",
+    "citation.verify",
+    "proposition.verify",
+    "authority.status_check",
+    "report.draft",
+    "report.review",
+    "workflow.hold",
+    "workflow.stop",
+    "workflow.restart_authorised"
+  ],
+  "prohibited_actions": [
+    "award.issue",
+    "final_decision.make",
+    "party.contact",
+    "evidence.modify",
+    "privilege_decide_unapproved",
+    "disclosure_decide_unapproved",
+    "web.unapproved",
+    "tool.unapproved",
+    "shell.general",
+    "desktop.control",
+    "personal_memory",
+    "self_modify",
+    "proactive_personal_assistant"
+  ],
+  "release_gates": {
+    "all_material_claims_verified": true,
+    "authorities_current_or_explicitly_flagged": true,
+    "audit_chain_valid": true,
+    "named_reviewer_approval": true,
+    "no_unresolved_hard_gate": true
+  }
+}

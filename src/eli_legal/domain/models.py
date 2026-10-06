@@ -110,3 +110,13 @@ class AuditEvent:
     outcome: str
     payload: dict[str, Any] = field(default_factory=dict)
     created_at: datetime = field(default_factory=utcnow)
+    event_id: str = field(default_factory=lambda: new_id("evt"))
+    object_type: str | None = None
+    model_id: str | None = None
+    prompt_version: str | None = None
+    tool_id: str | None = None
+    source_ids: list[str] = field(default_factory=list)
+    input_hash: str | None = None
+    output_hash: str | None = None
+    verification_status: str | None = None
+    reviewer_id: str | None = None

@@ -15,6 +15,7 @@ def test_missing_audit_key_fails_closed(tmp_path):
 def test_audit_tamper_detected(tmp_path):
     key = tmp_path / "key"
     key.write_bytes(b"x" * 64)
+    key.chmod(0o600)
     db = tmp_path / "audit.db"
     ledger = HmacAuditLedger(db, key)
     ledger.append(AuditEvent("test", "human", "m1", "r1", "review", "c1", "ok"))
