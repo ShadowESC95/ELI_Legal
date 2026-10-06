@@ -1,4 +1,5 @@
 import pytest
+
 from eli_legal.domain.errors import MatterAccessDenied
 from eli_legal.domain.models import Matter
 from eli_legal.security.matter_guard import require_matter_access

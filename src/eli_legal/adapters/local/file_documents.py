@@ -1,6 +1,8 @@
 from __future__ import annotations
+
 import hashlib
 from pathlib import Path
+
 from eli_legal.domain.models import new_id
 
 
@@ -19,4 +21,6 @@ class LocalFileDocumentAdapter:
         return document_id
 
     def extract_text(self, *, matter_id: str, document_id: str) -> str:
-        raise NotImplementedError("Use a format-specific parser; do not silently decode binary containers")
+        raise NotImplementedError(
+            "Use a format-specific parser; do not silently decode binary containers"
+        )

@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from dataclasses import dataclass, field
 
 
@@ -13,5 +14,6 @@ class ProcessedDocument:
 
 class LegalDocumentProcessor:
     """Format/OCR/structure processing boundary. Preserve original document and page/section locators."""
+
     def process(self, *, matter_id: str, document_id: str) -> ProcessedDocument:
         raise NotImplementedError("connect to an approved document-processing adapter")

@@ -1,8 +1,10 @@
 from __future__ import annotations
+
 import argparse
 import json
-from eli_legal.settings import settings
+
 from eli_legal.domain.policy import RuntimePolicy
+from eli_legal.settings import settings
 
 
 def doctor() -> int:
@@ -12,7 +14,9 @@ def doctor() -> int:
     if not settings.policy_file.exists():
         problems.append(f"policy missing: {settings.policy_file}")
     if not settings.audit_key_file.exists():
-        problems.append(f"audit key missing: {settings.audit_key_file} (run scripts/generate_audit_key.py)")
+        problems.append(
+            f"audit key missing: {settings.audit_key_file} (run scripts/generate_audit_key.py)"
+        )
     print("ELI Legal doctor")
     print(f"  mode: {settings.mode}")
     print(f"  network default: {settings.network_default}")

@@ -1,4 +1,5 @@
 import pytest
+
 from eli_legal.domain.errors import PolicyDenied
 from eli_legal.domain.policy import RuntimePolicy
 

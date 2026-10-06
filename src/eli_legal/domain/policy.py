@@ -16,7 +16,7 @@ class RuntimePolicy:
     matter_isolation_required: bool = True
 
     @classmethod
-    def from_file(cls, path: str | Path) -> "RuntimePolicy":
+    def from_file(cls, path: str | Path) -> RuntimePolicy:
         raw = json.loads(Path(path).read_text(encoding="utf-8"))
         runtime = raw.get("runtime", {})
         return cls(

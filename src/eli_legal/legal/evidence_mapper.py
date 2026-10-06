@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from eli_legal.domain.models import Claim, EvidenceLink
 
 

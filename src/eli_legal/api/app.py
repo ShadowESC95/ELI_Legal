@@ -1,6 +1,8 @@
 from fastapi import FastAPI
+
 from eli_legal import __version__
 from eli_legal.settings import settings
+
 from .schemas import HealthResponse
 
 app = FastAPI(title="ELI Legal", version=__version__)

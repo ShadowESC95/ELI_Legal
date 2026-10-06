@@ -1,5 +1,7 @@
 import sqlite3
+
 import pytest
+
 from eli_legal.adapters.local.hmac_audit import HmacAuditLedger
 from eli_legal.domain.errors import AuditIntegrityError, MissingAuditKey
 from eli_legal.domain.models import AuditEvent

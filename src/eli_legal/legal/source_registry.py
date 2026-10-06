@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
+
 from eli_legal.domain.errors import PolicyDenied
 
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
+
 from eli_legal.domain.enums import VerificationStatus
 
 
@@ -12,7 +14,10 @@ class PropositionCheck:
 
 class PropositionVerifier:
     """Interface-level placeholder: use independent evidence/tooling, not the drafting agent agreeing with itself."""
+
     def verify(self, claim_text: str, source_text: str) -> PropositionCheck:
         if not claim_text.strip() or not source_text.strip():
             return PropositionCheck(VerificationStatus.INCONCLUSIVE, "missing claim/source text")
-        return PropositionCheck(VerificationStatus.INCONCLUSIVE, "specialised proposition verification not configured")
+        return PropositionCheck(
+            VerificationStatus.INCONCLUSIVE, "specialised proposition verification not configured"
+        )

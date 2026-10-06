@@ -1,7 +1,16 @@
 WORKFLOW_ORDER = [
-    "scope", "ingest", "document_coverage", "facts_issues", "legal_research",
-    "citation_verification", "current_law_check", "proposition_verification",
-    "evidence_mapping", "draft_report", "final_validation", "human_review",
+    "scope",
+    "ingest",
+    "document_coverage",
+    "facts_issues",
+    "legal_research",
+    "citation_verification",
+    "current_law_check",
+    "proposition_verification",
+    "evidence_mapping",
+    "draft_report",
+    "final_validation",
+    "human_review",
     "release_for_reliance",
 ]
 
