@@ -24,3 +24,8 @@ artifacts/evidence/*
 !artifacts/evidence/.gitkeep
 artifacts/incidents/*
 !artifacts/incidents/.gitkeep
+.upgrade_backups/
+artifacts/outbox/*
+!artifacts/outbox/.gitkeep
+data/*.sqlite3-*
+secrets/*.head.json

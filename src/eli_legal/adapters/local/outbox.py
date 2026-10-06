@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 from eli_legal.domain.release import DeliveryReceipt, ReleasePackage
 
 
 class OutboxDeliveryAdapter:
-    """Safe default: stage approved release metadata; do not autonomously send external email."""
+    """Safe default: stage the approved report and its manifest. Nothing is sent anywhere.
+
+    A person, or a separately approved mail integration, takes it from the outbox. The system
+    itself never contacts a party.
+    """
 
     def __init__(self, root: str | Path = "./artifacts/outbox") -> None:
         self.root = Path(root)
@@ -18,6 +23,9 @@ class OutboxDeliveryAdapter:
 
         target = self.root / package.matter_id / package.release_id
         target.mkdir(parents=True, exist_ok=True)
+        source = Path(package.artifact_ref)
+        if source.is_file():
+            shutil.copyfile(source, target / source.name)
         manifest = {
             "release_id": package.release_id,
             "matter_id": package.matter_id,
@@ -25,7 +33,7 @@ class OutboxDeliveryAdapter:
             "report_id": package.report_id,
             "report_version": package.report_version,
             "report_hash": package.report_hash,
-            "artifact_ref": package.artifact_ref,
+            "report_file": source.name,
             "classification": package.classification,
             "approved_by": package.approved_by,
             "recipients": [

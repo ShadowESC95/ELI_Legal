@@ -1,0 +1,32 @@
+{
+  "code": "US-FED",
+  "name": "United States (federal)",
+  "legal_family": "common_law",
+  "languages": ["en"],
+  "date_order": "mdy",
+  "applies_also": [],
+  "court_hierarchy": [
+    {"court": "Supreme Court of the United States", "level": 1, "code": "U.S."},
+    {"court": "Courts of Appeals", "level": 2, "code": "F."},
+    {"court": "District Courts", "level": 3, "code": "F. Supp."}
+  ],
+  "citation_patterns": [
+    {"id": "us_reporter", "kind": "case", "regex": "\\b\\d{1,3}\\s+(?:U\\.S\\.|S\\.\\s?Ct\\.|L\\.\\s?Ed\\.(?:\\s?2d)?|F\\.(?:2d|3d|4th)?|F\\.\\s?Supp\\.(?:\\s?[23]d)?|F\\.\\s?App'x)\\s+\\d{1,4}", "example": "410 U.S. 113"},
+    {"id": "us_code", "kind": "legislation", "regex": "\\b\\d{1,2}\\s+U\\.S\\.C\\.\\s+§+\\s*\\d+[a-z]?(?:\\([\\w]+\\))*", "example": "9 U.S.C. § 10"},
+    {"id": "us_cfr", "kind": "rule", "regex": "\\b\\d{1,2}\\s+C\\.F\\.R\\.\\s+§+\\s*[\\d.]+", "example": "29 C.F.R. § 1614.105"}
+  ],
+  "status_policy": {
+    "case": {"fail": ["overruled", "reversed", "superseded"], "conflict": ["doubted"]},
+    "legislation": {"fail": ["repealed", "not_yet_in_force"], "note": ["amended"]},
+    "rule": {"fail": ["repealed", "superseded", "not_yet_in_force"], "note": ["amended"]},
+    "treaty": {"fail": ["superseded", "not_yet_in_force"], "note": ["amended"]},
+    "secondary": {"fail": [], "note": ["superseded"]}
+  },
+  "status_max_age_days": 30,
+  "official_sources": [
+    {"name": "GovInfo", "url": "https://www.govinfo.gov", "covers": "United States Code, Code of Federal Regulations and court opinions"}
+  ],
+  "pack_status": "structural",
+  "validated_by": null,
+  "notes": "Federal structure and citation grammar only. State law needs its own packs. It contains no rules of law."
+}

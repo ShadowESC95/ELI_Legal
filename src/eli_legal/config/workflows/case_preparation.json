@@ -1,0 +1,42 @@
+{
+  "workflow_id": "case-preparation",
+  "version": "1.0.0",
+  "purpose": "Prepare a dispute for a human decision-maker or representative: read the papers, establish what is said and by whom, find and check the law, and assemble a source-linked analysis. Stops before any decision.",
+  "steps": [
+    {"id": "scope", "depends_on": [], "description": "Confirm who, what law, which sources and which reviewer before anything runs."},
+    {"id": "ingest", "depends_on": ["scope"], "description": "Read every registered document into locatable passages."},
+    {"id": "document_coverage", "depends_on": ["ingest"], "description": "Account for every document: read, or explicitly waived by a person."},
+    {"id": "facts", "depends_on": ["document_coverage"], "description": "Take factual statements word for word from the documents."},
+    {"id": "issues", "depends_on": ["facts"], "description": "Identify the questions in dispute and attach the facts that bear on them."},
+    {"id": "evidence_mapping", "depends_on": ["issues"], "description": "Map evidence to issues; note gaps and statements that may conflict."},
+    {"id": "legal_research", "depends_on": ["issues"], "description": "Search approved sources; list every authority the parties cite."},
+    {"id": "citation_verification", "depends_on": ["legal_research"], "description": "Confirm each cited authority exists in an approved source."},
+    {"id": "current_law_check", "depends_on": ["citation_verification"], "description": "Confirm each authority is still good law, independently of who cited it."},
+    {"id": "proposition_verification", "depends_on": ["current_law_check"], "description": "Confirm each authority says what it is quoted as saying."},
+    {"id": "evidence_verification", "depends_on": ["evidence_mapping", "legal_research"], "description": "Confirm every finding points at unchanged source text."},
+    {"id": "verification_gate", "depends_on": ["proposition_verification", "evidence_verification"], "description": "Hold every finding that lacks a required passing check, and everything relying on it."},
+    {"id": "analysis", "depends_on": ["verification_gate"], "description": "Set out the arguments open to each party, from verified findings only."},
+    {"id": "draft_report", "depends_on": ["analysis"], "description": "Assemble the source-linked report from verified findings."},
+    {"id": "final_validation", "depends_on": ["draft_report"], "description": "Verify the audit chain and its completeness; confirm no hold is open."},
+    {"id": "human_review", "depends_on": ["final_validation"], "manual": true, "description": "A named reviewer approves, rejects or returns the report."},
+    {"id": "prepare_release", "depends_on": ["human_review"], "manual": true, "description": "Fix the exact approved report version and its recipients."},
+    {"id": "recipient_approval", "depends_on": ["prepare_release"], "manual": true, "description": "A person confirms each recipient is entitled to receive it."},
+    {"id": "controlled_delivery", "depends_on": ["recipient_approval"], "manual": true, "description": "Stage the approved report for delivery; nothing is sent autonomously."}
+  ],
+  "hard_gate_failures": [
+    "missing_reviewer",
+    "unapproved_source",
+    "no_documents",
+    "coverage_gap",
+    "prompt_injection_detected",
+    "verification_failed",
+    "verification_conflict",
+    "verification_inconclusive",
+    "verification_missing",
+    "dependency_held",
+    "step_failed",
+    "audit_gap",
+    "audit_integrity_failure",
+    "cross_matter_access"
+  ]
+}

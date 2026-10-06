@@ -1,0 +1,36 @@
+{
+  "code": "GB-EAW",
+  "name": "England and Wales",
+  "legal_family": "common_law",
+  "languages": ["en", "cy"],
+  "date_order": "dmy",
+  "applies_also": [],
+  "court_hierarchy": [
+    {"court": "Supreme Court of the United Kingdom", "level": 1, "code": "UKSC"},
+    {"court": "Court of Appeal", "level": 2, "code": "EWCA"},
+    {"court": "High Court", "level": 3, "code": "EWHC"},
+    {"court": "County Court and Family Court", "level": 4, "code": ""},
+    {"court": "Tribunals (Upper and First-tier)", "level": 4, "code": "UKUT"}
+  ],
+  "citation_patterns": [
+    {"id": "uk_neutral", "kind": "case", "regex": "\\[(?:19|20)\\d{2}\\]\\s+(?:UKSC|UKPC|UKHL|EWCA\\s+(?:Civ|Crim)|EWHC|UKUT|UKFTT|EWCOP|EWFC|UKEAT)\\s+\\d+(?:\\s+\\((?:Comm|Ch|TCC|QB|KB|Admin|Fam|Pat|IPEC|Admlty|AAC|TCC|IAC|LC)\\))?", "example": "[2020] EWHC 123 (Comm)"},
+    {"id": "uk_reports", "kind": "case", "regex": "\\[(?:18|19|20)\\d{2}\\]\\s+(?:\\d+\\s+)?(?:AC|QB|KB|Ch|WLR|All ER(?:\\s+\\(Comm\\))?|Lloyd's Rep|BCLC|Bus LR|Fam|ICR|IRLR)\\s+\\d+", "example": "[1990] 2 AC 605"},
+    {"id": "uk_si", "kind": "legislation", "regex": "S\\.?I\\.?\\s+(?:19|20)\\d{2}/\\d+", "example": "SI 1998/3132"},
+    {"id": "act_title_year", "kind": "legislation", "regex": "@ACT", "example": "Arbitration Act 1996"}
+  ],
+  "status_policy": {
+    "case": {"fail": ["overruled", "reversed", "superseded"], "conflict": ["doubted"]},
+    "legislation": {"fail": ["repealed", "not_yet_in_force"], "note": ["amended"]},
+    "rule": {"fail": ["repealed", "superseded", "not_yet_in_force"], "note": ["amended"]},
+    "treaty": {"fail": ["superseded", "not_yet_in_force"], "note": ["amended"]},
+    "secondary": {"fail": [], "note": ["superseded"]}
+  },
+  "status_max_age_days": 30,
+  "official_sources": [
+    {"name": "legislation.gov.uk", "url": "https://www.legislation.gov.uk", "covers": "UK legislation, with revised versions for much primary legislation"},
+    {"name": "Find Case Law (The National Archives)", "url": "https://caselaw.nationalarchives.gov.uk", "covers": "Court and tribunal judgments"}
+  ],
+  "pack_status": "structural",
+  "validated_by": null,
+  "notes": "Structure and citation grammar only. It contains no rules of law."
+}

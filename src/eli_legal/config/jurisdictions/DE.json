@@ -1,0 +1,35 @@
+{
+  "code": "DE",
+  "name": "Germany",
+  "legal_family": "civil_law",
+  "languages": ["de"],
+  "date_order": "dmy",
+  "applies_also": ["EU"],
+  "court_hierarchy": [
+    {"court": "Bundesverfassungsgericht", "level": 0, "code": "BVerfG"},
+    {"court": "Bundesgerichtshof", "level": 1, "code": "BGH"},
+    {"court": "Oberlandesgericht", "level": 2, "code": "OLG"},
+    {"court": "Landgericht", "level": 3, "code": "LG"},
+    {"court": "Amtsgericht", "level": 4, "code": "AG"}
+  ],
+  "citation_patterns": [
+    {"id": "ecli", "kind": "case", "regex": "ECLI:[A-Z]{2}:[A-Z0-9]{1,7}:(?:19|20)\\d{2}:[A-Z0-9.]{1,25}", "example": "ECLI:DE:BGH:2019:120319UVIZR123.18.0"},
+    {"id": "de_docket", "kind": "case", "regex": "\\b(?:[IVX]{1,5}|\\d{1,2})\\s+Z[RB]\\s+\\d{1,4}/\\d{2}\\b", "example": "VIII ZR 123/18"},
+    {"id": "de_code_section", "kind": "legislation", "regex": "§§?\\s*\\d+[a-z]?(?:\\s+Abs\\.\\s*\\d+)?(?:\\s+S(?:atz|\\.)\\s*\\d+)?\\s+(?:BGB|ZPO|HGB|GG|StGB|StPO|VwGO|GVG|AktG|GmbHG|InsO|UWG|ArbGG)\\b", "example": "§ 1059 ZPO"}
+  ],
+  "status_policy": {
+    "case": {"fail": ["reversed", "superseded"], "conflict": ["overruled", "doubted"]},
+    "legislation": {"fail": ["repealed", "not_yet_in_force"], "note": ["amended"]},
+    "rule": {"fail": ["repealed", "superseded", "not_yet_in_force"], "note": ["amended"]},
+    "treaty": {"fail": ["superseded", "not_yet_in_force"], "note": ["amended"]},
+    "secondary": {"fail": [], "note": ["superseded"]}
+  },
+  "status_max_age_days": 30,
+  "official_sources": [
+    {"name": "Gesetze im Internet", "url": "https://www.gesetze-im-internet.de", "covers": "Federal legislation in its current version"},
+    {"name": "Rechtsprechung im Internet", "url": "https://www.rechtsprechung-im-internet.de", "covers": "Decisions of the federal courts"}
+  ],
+  "pack_status": "structural",
+  "validated_by": null,
+  "notes": "Civil-law pack: legislation is the primary source and court decisions are persuasive rather than binding precedent, so a later contrary decision is treated as a conflict for human assessment, not an automatic failure. Structure and citation grammar only; it contains no rules of law."
+}

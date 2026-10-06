@@ -1,6 +1,0 @@
-from typing import Protocol
-
-
-class CapabilityPort(Protocol):
-    def is_authorised(self, capability: str, *, matter_id: str) -> bool: ...
-    def health(self, capability: str) -> dict: ...

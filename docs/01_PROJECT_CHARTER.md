@@ -1,7 +1,19 @@
 # Project charter
 
-ELI Legal is a separate specialist project that may later integrate with ELI v3 through adapter contracts. Its initial use case is bounded agentic legal research and case preparation for an authorised arbitration/ADR matter.
+ELI Legal is a separate product for governed legal case preparation. It serves three kinds of
+user — a court or tribunal, a mediator or conciliator, and a party's legal representatives — and
+any legal system for which a jurisdiction pack and an approved source exist. ELI v3 can load it
+as an edition; it does not depend on ELI to run.
 
-The intended output is a source-linked internal case-analysis report containing legal/factual issues, evidence mapping, relevant authorities, uncertainty, verification results and run metadata. The human tribunal/ADR reviewer retains the decision and can reject the output completely.
+**Output.** A source-linked case analysis: documents considered, chronology, issues, the evidence
+on each, the authorities located and those the parties rely on (each with its verification
+result), the findings that may not be relied on and why, the limits of the document, and the run
+record. The human reviewer keeps the decision and can reject the output completely.
 
-The first governance failure scenario is a stale or invalid authority passing through multiple agents and emerging as a confident verified conclusion. The design must make that failure testable, stoppable, reviewable and reconstructable.
+**Boundary.** Everything up to the decision. No verdict, award, order, recommendation on the
+merits (for a decision-maker or a neutral), or settlement terms; no contact with parties; no
+change to evidence.
+
+**First governance failure scenario.** A stale or invalid authority passes through several steps
+and emerges as a confident, verified conclusion. The design makes that failure testable,
+stoppable, reviewable and reconstructable, and `tests/evaluation/test_gold_matter.py` tests it.

@@ -1,0 +1,25 @@
+{
+  "code": "GENERIC",
+  "name": "Generic (no jurisdiction pack authored)",
+  "legal_family": "unspecified",
+  "languages": [],
+  "date_order": "dmy",
+  "applies_also": [],
+  "court_hierarchy": [],
+  "citation_patterns": [
+    {"id": "ecli", "kind": "case", "regex": "ECLI:[A-Z]{2}:[A-Z0-9]{1,7}:(?:19|20)\\d{2}:[A-Z0-9.]{1,25}", "example": "ECLI:NL:HR:2019:1234"},
+    {"id": "act_title_year", "kind": "legislation", "regex": "@ACT", "example": "Arbitration Act 2010"}
+  ],
+  "status_policy": {
+    "case": {"fail": ["reversed", "superseded"], "conflict": ["overruled", "doubted"]},
+    "legislation": {"fail": ["repealed", "not_yet_in_force"], "note": ["amended"]},
+    "rule": {"fail": ["repealed", "superseded", "not_yet_in_force"], "note": ["amended"]},
+    "treaty": {"fail": ["superseded", "not_yet_in_force"], "note": ["amended"]},
+    "secondary": {"fail": [], "note": ["superseded"]}
+  },
+  "status_max_age_days": 30,
+  "official_sources": [],
+  "pack_status": "fallback",
+  "validated_by": null,
+  "notes": "Used when no pack exists for a jurisdiction. Citation recognition is minimal, so authorities cited in the papers may go undetected. Author and validate a pack before relying on the system for this jurisdiction."
+}

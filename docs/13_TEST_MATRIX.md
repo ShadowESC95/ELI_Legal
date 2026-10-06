@@ -1,14 +1,22 @@
 # Test matrix
 
-| Test | Expected control outcome |
-|---|---|
-| Outdated/overruled authority | current-law check fails; claim/dependents held |
-| Citation exists but does not support proposition | proposition check fails; claim held |
-| Fabricated citation | citation verification fails |
-| Hidden instruction in uploaded file | treated as untrusted data; no privileged action |
-| Cross-matter document ID | access denied + event recorded |
-| Removed/altered audit event | chain/completeness failure; no release |
-| Missing audit key | governed run refuses to start |
-| Missing reviewer | no release for reliance |
-| Model/tool/prompt change | change assessment + revalidation path |
-| Corpus/source version change | affected work rechecked |
+`pytest` runs everything; no network, model or ELI installation is needed.
+
+| Area | File | What it establishes |
+|---|---|---|
+| Gates | `tests/unit/test_gates.py` | one passing check never verifies; failures hold; dependents hold; human results and overrides |
+| Citations, dates | `tests/unit/test_citations_and_dates.py` | every pack recognises its own examples; no pack claims validation |
+| Parsers, ingestion | `tests/unit/test_parsers_and_ingestion.py` | each format; unreadable files refused; originals immutable |
+| Current law | `tests/unit/test_current_law.py` | overruled, stale, unknown, versions of legislation, civil-law policy |
+| Policy, boundaries | `tests/unit/test_policy_and_boundaries.py` | prohibited actions; core controls cannot be disabled; outcome wording; injection patterns |
+| Audit | `tests/security/test_audit.py` | missing key, tamper, removal, truncation, anchor forgery, rollback, minimisation |
+| Access | `tests/security/test_access.py` | role + membership + profile; denials recorded; cross-matter; humans only; closure |
+| Network, injection | `tests/security/test_network_and_injection.py` | egress refused; per-host windows; flagged file never reaches a model |
+| Lifecycle | `tests/integration/test_lifecycle.py` | ingest to release; report integrity; restart; tampering blocks approval |
+| Gold matter | `tests/evaluation/test_gold_matter.py` | each planted defect caught for the stated reason; scorecard |
+| Model mode | `tests/evaluation/test_model_mode.py` | a misbehaving model contributes nothing unverified |
+| Edition | `tests/edition/test_edition_contract.py` | ELI v3 contract; refused actions; no decisions or content via the host |
+| Registers | `tests/governance/test_registers.py` | registers match code and tests |
+| API | `tests/api/test_api.py` | authentication; same rules as other front ends |
+
+Set `ELI_V3_ROOT` to a real ELI v3 checkout to add a contract check against its own loader.

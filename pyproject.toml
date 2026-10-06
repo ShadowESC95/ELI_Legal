@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "eli-legal"
-version = "0.1.0"
-description = "Governance-first legal/ADR AI workflow runtime"
+version = "0.3.0"
+description = "Governed legal case preparation: evidence in, verified source-linked analysis out, a named human decides"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [{name = "Jason Fitzgibbon Bridgeman"}]
@@ -14,6 +14,7 @@ dependencies = [
   "uvicorn>=0.30,<1",
   "pydantic>=2.8,<3",
   "pydantic-settings>=2.4,<3",
+  "pypdf>=4.2,<7",
 ]
 
 [project.optional-dependencies]
@@ -28,8 +29,22 @@ dev = [
 [project.scripts]
 eli-legal = "eli_legal.cli:main"
 
+# How ELI v3 finds this edition once the package is installed beside it.
+[project.entry-points."eli.editions"]
+legal = "eli_legal.edition:register"
+
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+eli_legal = [
+  "config/*.json",
+  "config/jurisdictions/*.json",
+  "config/workflows/*.json",
+  "edition/*.json",
+  "edition/personas/*.json",
+  "edition/templates/*.json",
+]
 
 [tool.pytest.ini_options]
 addopts = "-q"
@@ -48,3 +63,7 @@ ignore = ["E501"]
 python_version = "3.10"
 strict = true
 packages = ["eli_legal"]
+
+[[tool.mypy.overrides]]
+module = ["eli.*", "pypdf.*"]
+ignore_missing_imports = true

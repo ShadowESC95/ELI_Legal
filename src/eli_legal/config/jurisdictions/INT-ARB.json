@@ -1,0 +1,26 @@
+{
+  "code": "INT-ARB",
+  "name": "International arbitration instruments",
+  "legal_family": "international",
+  "languages": ["en"],
+  "date_order": "dmy",
+  "applies_also": [],
+  "court_hierarchy": [],
+  "citation_patterns": [
+    {"id": "arb_instrument", "kind": "treaty", "regex": "\\b(?:New York Convention|UNCITRAL Model Law(?: on International Commercial Arbitration)?|UNCITRAL Arbitration Rules|ICSID Convention|IBA Rules on the Taking of Evidence(?: in International Arbitration)?)\\b", "example": "New York Convention"}
+  ],
+  "status_policy": {
+    "case": {"fail": ["reversed", "superseded"], "conflict": ["overruled", "doubted"]},
+    "legislation": {"fail": ["repealed", "not_yet_in_force"], "note": ["amended"]},
+    "rule": {"fail": ["repealed", "not_yet_in_force"], "note": ["amended", "superseded"]},
+    "treaty": {"fail": ["not_yet_in_force"], "note": ["amended", "superseded"]},
+    "secondary": {"fail": [], "note": ["superseded"]}
+  },
+  "status_max_age_days": 90,
+  "official_sources": [
+    {"name": "UNCITRAL", "url": "https://uncitral.un.org", "covers": "Texts and status of UNCITRAL instruments"}
+  ],
+  "pack_status": "structural",
+  "validated_by": null,
+  "notes": "Add this pack beside the law of the seat and the governing law. Institutional rules exist in several editions: the edition that applies depends on the arbitration agreement and the date proceedings began, which a human must confirm."
+}

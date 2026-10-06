@@ -1,19 +1,46 @@
 # Operations runbook
 
+## Before first use
+
+`eli-legal init --admin <id>`; back up the audit key separately from the databases; create users
+and roles; register and approve sources; `eli-legal doctor`.
+
 ## Before a run
 
-Confirm matter scope, users, jurisdiction, approved source set, approved tools, model/tool versions, named reviewer and working audit key.
+Confirm the matter's profile, parties, relevant date, approved sources and named reviewer
+(`eli-legal matter show`). Ingest the documents and check `eli-legal docs`.
 
-## Hard-gate breach
+## A held run
 
-1. Hold the affected claim and dependent workflow nodes.
-2. Preserve the run and evidence.
-3. Alert the named matter lead/reviewer and system owner.
-4. Assess other claims/matters that depend on the same source/component.
-5. Correct or replace the source/control.
-6. Re-run the affected verification.
-7. Restart only after authorised approval is recorded.
+1. `eli-legal run status M R` and `eli-legal holds M R` — what is held and why.
+2. `eli-legal tasks M R` — checks waiting for a person.
+3. For each hold, a named person decides, with reasons:
+   - verify by hand: `eli-legal verify M CLAIM --check current_law --result verified --reason …`
+   - take the finding out of reliance: `eli-legal hold M HOLD --action exclude --reason …`
+   - accept an unread document or a flagged file: `eli-legal hold M HOLD --action waive --reason …`
+4. Fix the cause where there is one (re-import a corrected source, re-ingest a converted scan).
+5. `eli-legal run resume M R --reason …` by a person authorised to restart.
+6. If the same source or component could affect other matters, check them and open an incident.
+
+## Review and release
+
+`eli-legal report M R`; then `eli-legal review M R --decision approve --reasons … --report-hash H
+--acknowledge-all` (the limits are printed first). `eli-legal release prepare` and
+`eli-legal release send` stage the approved report in the outbox; nothing is transmitted.
+
+## Audit
+
+`eli-legal audit verify` routinely; `eli-legal audit checkpoint --out FILE` and store the file off
+the machine; later `eli-legal audit verify --against FILE` detects a rollback. If verification
+fails: stop, preserve both database files and the anchor, open an incident, and do not restart
+until the cause is known.
+
+## Change
+
+A change of model, prompt, tool, source, workflow or policy shows in `eli-legal monitor`. Complete
+`governance/templates/change_assessment.md` and re-run the evaluation before further use.
 
 ## Matter close
 
-Revoke access; apply retention/deletion/privilege rules to documents, indexes/embeddings and logs; retain only evidence needed to account for past use and assurance.
+`eli-legal matter close M --reason … [--purge]`. Access ends; with `--purge`, documents, text and
+indexes are deleted. Runs, reviews, releases, holds, incidents and the ledger are kept.

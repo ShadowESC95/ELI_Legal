@@ -10,6 +10,10 @@ class MatterAccessDenied(EliLegalError):
     pass
 
 
+class AuthenticationFailed(EliLegalError):
+    pass
+
+
 class VerificationGateFailed(EliLegalError):
     pass
 
@@ -20,3 +24,48 @@ class AuditIntegrityError(EliLegalError):
 
 class MissingAuditKey(AuditIntegrityError):
     pass
+
+
+class NetworkDenied(EliLegalError):
+    """Outbound network use that the approved-source policy does not permit."""
+
+
+class NotFound(EliLegalError):
+    pass
+
+
+class InvalidState(EliLegalError):
+    """An operation was attempted in a lifecycle state that does not allow it."""
+
+
+class IngestionError(EliLegalError):
+    pass
+
+
+class UnsupportedDocument(IngestionError):
+    pass
+
+
+class InferenceUnavailable(EliLegalError):
+    pass
+
+
+class ConnectorError(EliLegalError):
+    pass
+
+
+class HoldRaised(EliLegalError):
+    """Raised by a workflow step to stop itself and everything that depends on it."""
+
+    def __init__(self, reason_code: str, detail: str = "") -> None:
+        super().__init__(f"{reason_code}: {detail}" if detail else reason_code)
+        self.reason_code = reason_code
+        self.detail = detail
+
+
+class EntitlementDenied(EliLegalError):
+    """The hosting ELI licence does not entitle this edition."""
+
+
+class InvalidInput(EliLegalError, ValueError):
+    """The request is missing something a governed action requires, such as a reason."""

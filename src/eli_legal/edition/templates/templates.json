@@ -1,0 +1,17 @@
+{
+  "Bench Memorandum": {
+    "template": "bench_memorandum",
+    "profile": "adjudicator",
+    "description": "Neutral analysis for a judge, tribunal member or arbitrator: chronology, issues, evidence, authorities with status, findings not relied on."
+  },
+  "Mediation Brief": {
+    "template": "mediation_brief",
+    "profile": "neutral_facilitator",
+    "description": "Preparation aid for a mediator or conciliator. A shared version omits anything received in confidence from one party."
+  },
+  "Case Preparation Memorandum": {
+    "template": "case_preparation_memorandum",
+    "profile": "party_representative",
+    "description": "Privileged work product for a party's legal team."
+  }
+}

@@ -1,7 +1,20 @@
-responsibility,provider,deployer,technical_security_owner,status
-System design/compliance,R,A/C,C,TBD
-Instructions for use,R,A,C,TBD
-Matter permissions,C,A,R,TBD
-Human oversight,C,A,C,TBD
-Audit infrastructure,R,C,R,TBD
-Stop/restart authority,C,A,R,TBD
+responsibility,provider,deployer,technical_security_owner
+"System design, controls and their tests",R,I,C
+Classification assessment for the deployment,R,C,I
+"Technical documentation, conformity assessment, registration",R,I,C
+Instructions for use: writing them,R,C,C
+Instructions for use: following them,I,R,I
+Approving legal sources and recording their licence and status semantics,R,C,C
+Validating a jurisdiction pack (qualified lawyer),R,C,I
+"Matter set-up: profile, parties, relevant date, sources, named reviewer",I,R,I
+Granting and revoking access to a matter,I,R,C
+"Human oversight: resolving holds, verifying, reviewing, approving",I,R,I
+Stopping a run; authorising a restart,C,R,C
+Confirming recipients and releasing a report,I,R,I
+"Audit key custody, off-machine checkpoints, ledger verification",C,C,R
+"Encryption at rest, backups, host and network security",C,C,R
+Retention periods; closing and purging matters,C,R,C
+"Monitoring, change assessment and revalidation",R,C,C
+Incident handling; deciding whether an incident is reportable,R,R,C
+Training and AI literacy of users,C,R,I
+Data-protection assessments and lawful basis,C,R,C

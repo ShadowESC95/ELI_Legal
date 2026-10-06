@@ -4,4 +4,9 @@ from typing import Protocol
 
 
 class InferencePort(Protocol):
-    def generate(self, *, system: str, prompt: str, max_tokens: int = 2048) -> str: ...
+    model_id: str
+    available: bool
+
+    def generate(
+        self, *, system: str, prompt: str, max_tokens: int = 2048, json_mode: bool = False
+    ) -> str: ...

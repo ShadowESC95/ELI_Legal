@@ -1,0 +1,117 @@
+--- a/eli/editions/__init__.py
++++ b/eli/editions/__init__.py
+@@ -42,19 +42,26 @@
+     policy_module: str
+     suggested_tiers: tuple[str, ...]
+     manifest: dict[str, Any]
++    location: str | None = None    # set when the pack is installed as its own package
+ 
+     @property
+     def root(self) -> Path:
+-        return _EDITIONS_DIR / self.pkg
++        return Path(self.location) if self.location else _EDITIONS_DIR / self.pkg
++
++    @property
++    def external(self) -> bool:
++        return self.location is not None
+ 
+ 
+-def _load(manifest_path: Path) -> Edition | None:
++def _load(manifest_path: Path, *, pkg: str | None = None,
++          location: str | None = None) -> Edition | None:
+     try:
+         m = json.loads(manifest_path.read_text(encoding="utf-8"))
+     except (OSError, ValueError):
+         return None
+-    pkg = manifest_path.parent.name
++    pkg = pkg or manifest_path.parent.name
+     return Edition(
++        location=location,
+         pkg=pkg,
+         name=str(m.get("edition") or pkg),
+         label=str(m.get("label") or pkg.title()),
+@@ -69,8 +76,40 @@
+     )
+ 
+ 
++ENTRY_POINT_GROUP = "eli.editions"
++
++
++def _discover_installed() -> dict[str, Edition]:
++    """Edition packs installed as their own packages (separate products / paid add-ons).
++
++    A pack advertises itself with an entry point in the ``eli.editions`` group whose value is
++    ``<package>:<register callable>``; its ``manifest.json`` sits beside that module. Only the
++    manifest is read here. Nothing of the pack runs until ``activate_edition`` is called.
++    """
++    out: dict[str, Edition] = {}
++    try:
++        from importlib import metadata
++        from importlib.util import find_spec
++        entries = list(metadata.entry_points(group=ENTRY_POINT_GROUP))
++    except Exception:
++        return out
++    for ep in entries:
++        try:
++            module_name = ep.value.split(":", 1)[0]
++            spec = find_spec(module_name)
++            if spec is None or not spec.origin:
++                continue
++            folder = Path(spec.origin).resolve().parent
++            ed = _load(folder / "manifest.json", pkg=module_name, location=str(folder))
++        except Exception:
++            continue
++        if ed is not None:
++            out[ed.name] = ed
++    return out
++
++
+ def discover_editions() -> dict[str, Edition]:
+-    """Every edition pack on disk, keyed by edition name."""
++    """Every edition pack available, keyed by edition name: in-tree, then installed."""
+     out: dict[str, Edition] = {}
+     for child in sorted(_EDITIONS_DIR.iterdir()):
+         if not child.is_dir() or child.name.startswith(("_", ".")):
+@@ -80,6 +119,11 @@
+             ed = _load(manifest)
+             if ed is not None:
+                 out[ed.name] = ed
++    # An installed pack takes the place of an in-tree scaffold of the same name. It never
++    # displaces a pack the core actually ships.
++    for name, ed in _discover_installed().items():
++        if name not in out or out[name].status == "scaffold":
++            out[name] = ed
+     return out
+ 
+ 
+@@ -104,9 +148,30 @@
+     return {k: v for k, v in found.items() if v.name in entitled}
+ 
+ 
++def activate_edition(name: str, *, host: Any = None,
++                     entitled: set[str] | None = None) -> dict[str, Any] | None:
++    """Activate an installed edition pack by calling its ``register`` entry point.
++
++    Returns what the pack registered, or None if the edition is not entitled, is in-tree
++    (nothing to call), or is not installed. The pack itself refuses when ``entitled`` is given
++    and does not include it, so entitlement is enforced on both sides.
++    """
++    ed = active_editions(entitled).get(str(name).lower().strip()) if entitled is not None \
++        else discover_editions().get(str(name).lower().strip())
++    if ed is None or not ed.external:
++        return None
++    from importlib import metadata
++    for ep in metadata.entry_points(group=ENTRY_POINT_GROUP):
++        if ep.value.split(":", 1)[0] == ed.pkg:
++            return ep.load()(host, entitled=entitled)
++    return None
++
++
+ __all__ = [
+     "Edition",
++    "ENTRY_POINT_GROUP",
+     "discover_editions",
+     "get_edition",
+     "active_editions",
++    "activate_edition",
+ ]

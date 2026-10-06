@@ -1,20 +1,27 @@
-# Legal evaluation plan
+# Evaluation
 
-Legal competence must be demonstrated separately from ELI's general assistant competence.
+Legal competence has to be shown separately from the general competence of whatever model is used.
 
-Minimum metrics should include:
+## What exists
 
-- document coverage;
-- citation identity/pinpoint accuracy where available;
-- proposition-support accuracy;
-- current-law/stale-authority detection;
-- unsupported material-claim rate;
-- evidence-map precision/recall;
-- reviewer correction and override rate;
-- hard-gate false-positive/false-negative rate;
-- prompt-injection resistance;
-- matter-isolation tests;
-- audit-chain completeness/integrity;
-- restart/recovery correctness.
+A synthetic dispute (`src/eli_legal/demo.py`) in a fictional jurisdiction, with one planted defect
+per control, and tests that assert each is caught for the stated reason
+(`tests/evaluation/test_gold_matter.py`). The scorecard test requires every planted defect to be
+held and nothing planted as sound to be held. `tests/evaluation/test_model_mode.py` scripts a
+model that misbehaves in each known way.
 
-Predefine thresholds before evaluation. Keep failed and inconclusive cases; do not discard them from the evidence set.
+A run with a real 8-billion-parameter local model completed the lifecycle with every drafted
+argument attributed and none stating an outcome. It also misattributed some arguments to the
+wrong party. That is the kind of error the software cannot detect and the reviewer must; a larger
+model will do better, and the report labels the arguments accordingly.
+
+## What does not exist yet
+
+- Representative **real** matters with known answers, per jurisdiction and profile.
+- Thresholds fixed before testing, for: document coverage; citation recognition recall per pack;
+  stale-authority detection; false holds; fact-selection recall; argument attribution accuracy;
+  reviewer correction rate.
+- A reviewer study measuring whether reviewers actually check what they approve.
+- Testing against a live legal source with real treatment data.
+
+Keep failed and inconclusive cases in the evidence set; do not discard them.

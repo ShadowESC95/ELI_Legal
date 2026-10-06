@@ -1,0 +1,42 @@
+# Instructions for use
+
+For the people who deploy and review. Adapt to the actual deployment before use.
+
+**Intended purpose.** To help a court or tribunal, a mediator or conciliator, or a party's legal
+representatives prepare a dispute: read the papers, set out facts and issues with their sources,
+locate and check authorities, and present a draft analysis for a named person to review.
+
+**Not intended for.** Deciding or recommending the outcome; legal advice to a client without a
+lawyer's review; use on a legal system with no pack and no approved source; use without a named
+human reviewer; unattended use.
+
+## What a reviewer must know
+
+- **Verified means something narrow.** A fact marked verified is a sentence that appears, word for
+  word, in an unaltered document. It is not a finding that the sentence is true. An authority
+  marked verified exists in an approved source and was in good standing when the source last said
+  so. It is not a finding that it governs the case.
+- **What the parties' authorities stand for is not checked.** Section 5 of the report shows what a
+  party says an authority decides beside the closest passage of the authority. Compare them.
+- **Read section 6.** Findings that failed verification are listed there with reasons. An
+  overruled case a party relies on is something you need to know, not noise.
+- **Read section 8.** It lists every limit of the particular report: documents not read, packs not
+  validated, whether a model was used, overrides. Approval requires acknowledging each.
+- **Model-drafted arguments are prompts for thought.** They rest on verified items but can be
+  misattributed, incomplete or repetitive.
+- **Absence is not evidence.** Without a model, facts are selected by rule (dated or monetary
+  statements); relevant undated facts can be missing. Keyword search can miss an authority
+  phrased differently. No source is complete unless it is declared so.
+
+## What the organisation must do
+
+Name reviewers who are qualified and have time to review; approve sources and record their terms;
+have each jurisdiction pack validated; set retention periods; keep the audit key and off-machine
+checkpoints; watch `eli-legal monitor`; assess changes before use; train users; complete the
+classification, impact and data-protection assessments that apply to it.
+
+## Stopping
+
+`eli-legal run stop M R --reason …` stops a run. Rejecting or returning a report stops reliance.
+If the software cannot be trusted, stop using it and prepare the matter by hand; the originals in
+the vault are untouched.

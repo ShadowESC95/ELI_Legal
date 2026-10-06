@@ -1,0 +1,34 @@
+{
+  "code": "EU",
+  "name": "European Union",
+  "legal_family": "supranational",
+  "languages": ["en", "fr", "de"],
+  "date_order": "dmy",
+  "applies_also": [],
+  "court_hierarchy": [
+    {"court": "Court of Justice", "level": 1, "code": "C"},
+    {"court": "General Court", "level": 2, "code": "T"}
+  ],
+  "citation_patterns": [
+    {"id": "ecli", "kind": "case", "regex": "ECLI:[A-Z]{2}:[A-Z0-9]{1,7}:(?:19|20)\\d{2}:[A-Z0-9.]{1,25}", "example": "ECLI:EU:C:2020:559"},
+    {"id": "eu_case_number", "kind": "case", "regex": "(?:Joined\\s+Cases?\\s+|Case\\s+)?[CTF][-‑–]\\d{1,4}/\\d{2}(?:\\s+P{1,2})?", "example": "Case C-311/18"},
+    {"id": "eu_act_new", "kind": "legislation", "regex": "(?:Regulation|Directive|Decision)\\s+\\((?:EU|EC|EEC|Euratom)\\)\\s+(?:No\\s+)?\\d{1,4}/\\d{1,4}", "example": "Regulation (EU) 2016/679"},
+    {"id": "eu_act_old", "kind": "legislation", "regex": "(?:Directive|Decision)\\s+\\d{2,4}/\\d{1,4}/(?:EC|EEC|EU|Euratom)", "example": "Directive 2011/83/EU"},
+    {"id": "celex", "kind": "legislation", "regex": "\\b[1-9CE]\\d{4}[A-Z]{1,2}\\d{4}\\b", "example": "32016R0679"}
+  ],
+  "status_policy": {
+    "case": {"fail": ["overruled", "reversed", "superseded"], "conflict": ["doubted"]},
+    "legislation": {"fail": ["repealed", "not_yet_in_force"], "note": ["amended"]},
+    "rule": {"fail": ["repealed", "superseded", "not_yet_in_force"], "note": ["amended"]},
+    "treaty": {"fail": ["superseded", "not_yet_in_force"], "note": ["amended"]},
+    "secondary": {"fail": [], "note": ["superseded"]}
+  },
+  "status_max_age_days": 30,
+  "official_sources": [
+    {"name": "EUR-Lex", "url": "https://eur-lex.europa.eu", "covers": "EU treaties, legislation and case law, with in-force information and consolidated versions"},
+    {"name": "CURIA", "url": "https://curia.europa.eu", "covers": "Case law of the Court of Justice and the General Court"}
+  ],
+  "pack_status": "structural",
+  "validated_by": null,
+  "notes": "Structure and citation grammar only. It contains no rules of law."
+}

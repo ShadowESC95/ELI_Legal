@@ -1,0 +1,37 @@
+{
+  "code": "IE",
+  "name": "Ireland",
+  "legal_family": "common_law",
+  "languages": ["en", "ga"],
+  "date_order": "dmy",
+  "applies_also": ["EU"],
+  "court_hierarchy": [
+    {"court": "Supreme Court", "level": 1, "code": "IESC"},
+    {"court": "Court of Appeal", "level": 2, "code": "IECA"},
+    {"court": "High Court", "level": 3, "code": "IEHC"},
+    {"court": "Circuit Court", "level": 4, "code": "IECC"},
+    {"court": "District Court", "level": 5, "code": "IEDC"}
+  ],
+  "citation_patterns": [
+    {"id": "ie_neutral", "kind": "case", "regex": "\\[(?:19|20)\\d{2}\\]\\s+IE(?:SC|CA|HC|CC|DC|SCDET|CCA)\\s+\\d+", "example": "[2019] IESC 12"},
+    {"id": "ie_reports", "kind": "case", "regex": "\\[(?:18|19|20)\\d{2}\\]\\s+\\d+\\s+(?:I\\.?R\\.?|I\\.?L\\.?R\\.?M\\.?)\\s+\\d+", "example": "[2010] 2 IR 123"},
+    {"id": "ie_si", "kind": "legislation", "regex": "S\\.?I\\.?\\s+No\\.?\\s*\\d+\\s+of\\s+(?:19|20)\\d{2}", "example": "S.I. No. 361 of 2010"},
+    {"id": "act_title_year", "kind": "legislation", "regex": "@ACT", "example": "Arbitration Act 2010"}
+  ],
+  "status_policy": {
+    "case": {"fail": ["overruled", "reversed", "superseded"], "conflict": ["doubted"]},
+    "legislation": {"fail": ["repealed", "not_yet_in_force"], "note": ["amended"]},
+    "rule": {"fail": ["repealed", "superseded", "not_yet_in_force"], "note": ["amended"]},
+    "treaty": {"fail": ["superseded", "not_yet_in_force"], "note": ["amended"]},
+    "secondary": {"fail": [], "note": ["superseded"]}
+  },
+  "status_max_age_days": 30,
+  "official_sources": [
+    {"name": "electronic Irish Statute Book", "url": "https://www.irishstatutebook.ie", "covers": "Acts and statutory instruments as enacted or made"},
+    {"name": "Law Reform Commission Revised Acts", "url": "https://revisedacts.lawreform.ie", "covers": "Administrative consolidations of selected Acts"},
+    {"name": "Courts Service judgments", "url": "https://www.courts.ie/judgments", "covers": "Judgments of the superior courts"}
+  ],
+  "pack_status": "structural",
+  "validated_by": null,
+  "notes": "Structure and citation grammar only. It contains no rules of law. Treatment of case law (whether an authority is still good law) needs an approved source with treatment data; none is bundled."
+}

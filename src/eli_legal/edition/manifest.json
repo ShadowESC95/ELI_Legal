@@ -1,0 +1,44 @@
+{
+  "edition": "legal",
+  "label": "ELI Legal",
+  "status": "beta",
+  "summary": "Governed case preparation for courts, tribunals, arbitrators, mediators and legal representatives: read the papers, establish facts and issues, check every authority, and stop at a named human reviewer. Decision support only: no verdict and no legal advice.",
+  "default_persona": "legal_case_preparation",
+  "adds_capability_categories": [
+    "legal-matter",
+    "legal-evidence",
+    "legal-run",
+    "legal-verification",
+    "legal-audit"
+  ],
+  "report_templates": [
+    "Bench Memorandum",
+    "Mediation Brief",
+    "Case Preparation Memorandum"
+  ],
+  "policy_module": "eli_legal.edition.policy",
+  "requires_core": ">=3.0",
+  "suggested_tiers": [
+    "pro",
+    "enterprise"
+  ],
+  "contract_version": 1,
+  "package": "eli-legal",
+  "entry_point": "eli_legal.edition:register",
+  "profiles": [
+    "adjudicator",
+    "neutral_facilitator",
+    "party_representative"
+  ],
+  "isolation": {
+    "own_store": true,
+    "own_audit_ledger": true,
+    "own_access_control": true,
+    "host_modules_used": [
+      "eli.cognition.gguf_inference",
+      "eli.core.netguard",
+      "eli.tools.registry.capability_registry"
+    ],
+    "decisions_exposed_to_host": false
+  }
+}
