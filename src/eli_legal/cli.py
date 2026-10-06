@@ -689,7 +689,11 @@ def cmd_audit(args: argparse.Namespace) -> int:
     ledger = sv.ctx.audit
     if args.audit_cmd == "verify":
         sv.ctx.authorizer().require_global(actor, "audit.verify")
-        expected = Checkpoint.from_json(Path(args.against).read_text()) if args.against else None
+        expected = (
+            Checkpoint.from_json(Path(args.against).read_text(encoding="utf-8"))
+            if args.against
+            else None
+        )
         report = ledger.report(expected=expected)
         print(
             f"{'VALID' if report.ok else 'INVALID: ' + report.error}  events={report.count}  keys={','.join(report.key_ids)}"

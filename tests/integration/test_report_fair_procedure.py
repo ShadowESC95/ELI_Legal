@@ -1,6 +1,7 @@
 """An authority the system found that no party cited is new to the dispute. The report must say
 which those are, so a decision-maker does not rely on one without hearing the parties on it."""
 
+import hashlib
 from pathlib import Path
 
 from eli_legal.application.services import build_services
@@ -53,3 +54,13 @@ def test_an_authority_no_party_cited_is_flagged_for_the_parties_to_address(tmp_p
     marks = {row[1]: row[-1] for row in _research_rows(_report(sv, mid, run.run_id))}
     assert "put it to the parties before relying on it" in marks["[2022] XXSC 7"]
     assert all(mark == "yes" for citation, mark in marks.items() if citation in cited)
+
+
+def test_a_report_on_disk_is_byte_for_byte_what_was_hashed(held_run):
+    """The recorded hash is of the file's bytes. A text-mode write would change the line endings
+    on Windows, and every later comparison with the hash would then fail."""
+    sv, mid, rid = held_run
+    report = sv.runs.summary(mid, rid, actor_id=ARBITRATOR)["report"]
+    raw = Path(report["path"]).read_bytes()
+    assert hashlib.sha256(raw).hexdigest() == report["sha256"]
+    assert b"\r\n" not in raw

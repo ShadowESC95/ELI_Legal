@@ -78,13 +78,16 @@ def _fake_eli(tmp_path: Path) -> Path:
     editions = root / "eli" / "editions"
     (editions / "legal").mkdir(parents=True)
     (editions / "base").mkdir()
-    (editions / "__init__.py").write_text(V3_LOADER_STANDIN)
+    (editions / "__init__.py").write_text(V3_LOADER_STANDIN, encoding="utf-8")
     (editions / "legal" / "manifest.json").write_text(
-        json.dumps({"edition": "legal", "status": "scaffold"})
+        json.dumps({"edition": "legal", "status": "scaffold"}), encoding="utf-8"
     )
-    (editions / "legal" / "policy.py").write_text("def blocked_actions():\n    return set()\n")
+    (editions / "legal" / "policy.py").write_text(
+        "def blocked_actions():\n    return set()\n", encoding="utf-8"
+    )
     (editions / "base" / "policy.py").write_text(
-        "def system_prompt_addendum():\n    return ''\n\ndef output_disclaimer():\n    return None\n\ndef blocked_actions():\n    return set()\n"
+        "def system_prompt_addendum():\n    return ''\n\ndef output_disclaimer():\n    return None\n\ndef blocked_actions():\n    return set()\n",
+        encoding="utf-8",
     )
     return root
 
@@ -253,9 +256,12 @@ def test_install_writes_a_three_file_shim_and_backs_up_what_it_replaces(tmp_path
     backups = list(target.glob(".replaced_*"))
     assert (
         len(backups) == 1
-        and json.loads((backups[0] / "manifest.json").read_text())["status"] == "scaffold"
+        and json.loads((backups[0] / "manifest.json").read_text(encoding="utf-8"))["status"]
+        == "scaffold"
     )
-    assert "from eli_legal.edition import register" in (target / "__init__.py").read_text()
+    assert "from eli_legal.edition import register" in (target / "__init__.py").read_text(
+        encoding="utf-8"
+    )
     with pytest.raises(EliLegalError, match="no ELI edition registry"):
         edition.install_into_eli(tmp_path / "not_eli")
 

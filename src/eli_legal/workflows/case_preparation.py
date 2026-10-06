@@ -831,9 +831,11 @@ def write_report(
     stem = f"report_v{version}" + ("_approved" if final else "")
     markdown_path = directory / f"{stem}.md"
     data_path = directory / f"{stem}.json"
-    markdown_path.write_text(built.markdown, encoding="utf-8")
-    data_path.write_text(
-        json.dumps(built.data, indent=2, sort_keys=True, ensure_ascii=False), encoding="utf-8"
+    # Bytes, not text: the hash below is of exactly these bytes, and a text write would change
+    # the line endings on Windows and break every later comparison with it.
+    markdown_path.write_bytes(built.markdown.encode("utf-8"))
+    data_path.write_bytes(
+        json.dumps(built.data, indent=2, sort_keys=True, ensure_ascii=False).encode("utf-8")
     )
     return Report(
         matter_id=matter.matter_id,

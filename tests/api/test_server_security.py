@@ -1,6 +1,7 @@
 """What stands between the network and the application."""
 
 import argparse
+import os
 import ssl
 import time
 
@@ -376,7 +377,9 @@ def test_the_server_will_not_listen_beyond_this_machine_without_tls(tmp_path, mo
     assert not signed.problems() and signed.tls and signed.require_second_factor is True
     assert signed.cookie_name == "__Host-eli_legal_session"
     assert "legal.chambers.example" in signed.allowed_hosts and "localhost" in signed.allowed_hosts
-    assert cert.is_file() and key.is_file() and oct(key.stat().st_mode & 0o777) == "0o600"
+    assert cert.is_file() and key.is_file()
+    if os.name != "nt":  # permission bits mean nothing on Windows
+        assert oct(key.stat().st_mode & 0o777) == "0o600"
     assert len(tls.fingerprint(cert).split(":")) == 32
     running = serve.hardened(lambda *a: None, signed, cert, key)
     running.load()  # loads the pair exactly as the server will

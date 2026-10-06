@@ -44,14 +44,14 @@ def test_the_whole_lifecycle_from_ingestion_to_approved_release(lifecycle):
 def test_approved_report_is_the_reviewed_draft_with_only_its_banner_changed(lifecycle):
     approved = Path(lifecycle.report_path)
     draft = approved.with_name(approved.name.replace("_approved", ""))
-    a, d = approved.read_text(), draft.read_text()
+    a, d = approved.read_text(encoding="utf-8"), draft.read_text(encoding="utf-8")
     assert "APPROVED FOR RELIANCE** by Aoife Keane (arb.keane)" in a
     assert "DRAFT — NOT FOR RELIANCE" in d and "DRAFT — NOT FOR RELIANCE" not in a
     assert a.split("## 1. Matter")[1] == d.split("## 1. Matter")[1]
 
 
 def test_the_report_keeps_failed_authorities_visible_and_out_of_the_reliable_sections(lifecycle):
-    text = Path(lifecycle.report_path).read_text()
+    text = Path(lifecycle.report_path).read_text(encoding="utf-8")
     relied, not_relied = text.split("## 6. Findings not to be relied on")
     not_relied = not_relied.split("## 7.")[0]
     assert "[2011] XXSC 14" in not_relied and "[2019] XXSC 99" in not_relied
@@ -64,7 +64,7 @@ def test_the_report_keeps_failed_authorities_visible_and_out_of_the_reliable_sec
 
 def test_evidence_pack_accounts_for_the_run(lifecycle):
     pack = Path(lifecycle.evidence_pack)
-    manifest = json.loads((pack / "MANIFEST.json").read_text())
+    manifest = json.loads((pack / "MANIFEST.json").read_text(encoding="utf-8"))
     for name in (
         "run.json",
         "document_manifest.json",
@@ -77,15 +77,18 @@ def test_evidence_pack_accounts_for_the_run(lifecycle):
         "configuration.json",
     ):
         assert name in manifest["files"]
-    verification = json.loads((pack / "audit_verification.json").read_text())
+    verification = json.loads((pack / "audit_verification.json").read_text(encoding="utf-8"))
     assert (
         verification["chain_ok"]
         and verification["run_record_complete"]
         and verification["gaps"] == []
     )
-    documents = json.loads((pack / "document_manifest.json").read_text())
+    documents = json.loads((pack / "document_manifest.json").read_text(encoding="utf-8"))
     assert all(set(d) >= {"sha256", "ingested_by", "status"} and "text" not in d for d in documents)
-    events = [json.loads(line) for line in (pack / "audit_events.jsonl").read_text().splitlines()]
+    events = [
+        json.loads(line)
+        for line in (pack / "audit_events.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
     kinds = {e["event_type"] for e in events}
     assert {
         "run_started",
@@ -202,7 +205,10 @@ def test_a_report_edited_on_disk_cannot_be_approved(held_run):
     sv, mid, rid = held_run
     report = _to_review(sv, mid, rid)
     path = Path(report["path"])
-    path.write_text(path.read_text().replace("not of the essence", "of the essence"))
+    path.write_text(
+        path.read_text(encoding="utf-8").replace("not of the essence", "of the essence"),
+        encoding="utf-8",
+    )
     with pytest.raises(AuditIntegrityError, match="no longer matches"):
         _approve(sv, mid, rid, report)
 

@@ -226,7 +226,7 @@ def test_changing_the_model_is_a_governed_recorded_change(services, tmp_path):
             verifier_model="m",
         )
     env = tmp_path / ".env"
-    env.write_text("ELI_LEGAL_ENV=development\nELI_LEGAL_INFERENCE=none\n")
+    env.write_text("ELI_LEGAL_ENV=development\nELI_LEGAL_INFERENCE=none\n", encoding="utf-8")
     now = sv.config.set_model(
         actor_id="admin",
         backend="openai_compat",
@@ -237,7 +237,7 @@ def test_changing_the_model_is_a_governed_recorded_change(services, tmp_path):
     )
     assert now["active_model_id"] == "m@127.0.0.1" and now["active_verifier_id"] == "v@127.0.0.1"
     assert sv.ctx.model.available and sv.ctx.model.model_id == "m@127.0.0.1"
-    text = env.read_text()
+    text = env.read_text(encoding="utf-8")
     assert (
         "ELI_LEGAL_ENV=development" in text
         and "ELI_LEGAL_INFERENCE=openai_compat" in text

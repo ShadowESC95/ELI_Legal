@@ -28,7 +28,7 @@ def test_missing_audit_key_fails_closed(tmp_path):
 
 def test_a_short_or_world_readable_key_is_refused(tmp_path):
     short = tmp_path / "short.key"
-    short.write_text("abc")
+    short.write_text("abc", encoding="utf-8")
     short.chmod(0o600)
     with pytest.raises(MissingAuditKey):
         HmacAuditLedger(tmp_path / "a.db", short)
@@ -73,12 +73,13 @@ def test_deleting_every_event_is_detected(tmp_path):
 def test_removing_or_forging_the_head_anchor_is_detected(tmp_path):
     ledger = _ledger(tmp_path)
     anchor = ledger.anchor_file
-    original = anchor.read_text()
+    original = anchor.read_text(encoding="utf-8")
     anchor.unlink()
     assert "anchor missing" in ledger.report().error
     forged = Checkpoint.from_json(original)
     anchor.write_text(
-        Checkpoint(3, forged.head_sig, forged.key_id, forged.created_at, forged.mac).to_json()
+        Checkpoint(3, forged.head_sig, forged.key_id, forged.created_at, forged.mac).to_json(),
+        encoding="utf-8",
     )
     assert "signature mismatch" in ledger.report().error
 
@@ -86,14 +87,14 @@ def test_removing_or_forging_the_head_anchor_is_detected(tmp_path):
 def test_rolling_back_database_and_anchor_together_is_caught_by_an_off_machine_checkpoint(tmp_path):
     ledger = _ledger(tmp_path, events=3)
     old_db = (tmp_path / "audit.db").read_bytes()
-    old_anchor = ledger.anchor_file.read_text()
+    old_anchor = ledger.anchor_file.read_text(encoding="utf-8")
     for i in range(2):
         ledger.append(AuditEvent("test", "user", "m1", "r1", "act", f"later{i}", "ok"))
     external = ledger.checkpoint()
     for suffix in ("-wal", "-shm"):
         (tmp_path / f"audit.db{suffix}").unlink(missing_ok=True)
     (tmp_path / "audit.db").write_bytes(old_db)
-    ledger.anchor_file.write_text(old_anchor)
+    ledger.anchor_file.write_text(old_anchor, encoding="utf-8")
     assert ledger.report().ok, (
         "a consistent rollback is invisible locally; that is the stated limit"
     )

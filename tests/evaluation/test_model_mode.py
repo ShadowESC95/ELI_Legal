@@ -1,6 +1,7 @@
 """With a model configured: it may select and draft, but only from what it was given."""
 
 import re
+from pathlib import Path
 
 from eli_legal.application.services import build_services
 from eli_legal.demo import build_demo_workspace
@@ -92,7 +93,9 @@ def test_a_model_proposed_issue_is_labelled_for_the_reviewer_to_confirm(tmp_path
     assert [i.label for i in proposed] == [
         "Whether the closure of the Varen Strait excused the delay in delivery"
     ]
-    report = open(sv.runs.summary(mid, rid, actor_id=ARBITRATOR)["report"]["path"]).read()
+    report = Path(sv.runs.summary(mid, rid, actor_id=ARBITRATOR)["report"]["path"]).read_text(
+        encoding="utf-8"
+    )
     assert "proposed by the model — confirm or discard" in report
 
 
@@ -135,7 +138,9 @@ def test_only_a_grounded_neutral_argument_survives(tmp_path):
     assert (
         steps["analysis"]["outputs"]["model_items_rejected"] >= 3
     )  # bad numbers and labels were counted
-    report = open(sv.runs.summary(mid, rid, actor_id=ARBITRATOR)["report"]["path"]).read()
+    report = Path(sv.runs.summary(mid, rid, actor_id=ARBITRATOR)["report"]["path"]).read_text(
+        encoding="utf-8"
+    )
     assert "should find for" not in report and "[2020] XXSC 55" not in report
     assert "drafted by a model from the verified items cited" in report
 

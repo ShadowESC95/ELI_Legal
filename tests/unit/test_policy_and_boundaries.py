@@ -42,10 +42,10 @@ def test_an_action_nobody_listed_is_refused():
     "control", ["human_release_required", "audit_fail_closed", "matter_isolation_required"]
 )
 def test_a_policy_file_cannot_switch_off_a_core_control(tmp_path, control):
-    raw = json.loads(SETTINGS.policy_file.read_text())
+    raw = json.loads(SETTINGS.policy_file.read_text(encoding="utf-8"))
     raw["runtime"][control] = False
     path = tmp_path / "policy.json"
-    path.write_text(json.dumps(raw))
+    path.write_text(json.dumps(raw), encoding="utf-8")
     with pytest.raises(PolicyDenied, match=control):
         RuntimePolicy.from_file(path)
 

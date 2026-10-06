@@ -119,8 +119,8 @@ class ReviewService:
                 "the report hash given does not match the current report; review the current version"
             )
         draft_path = Path(report.artifact_ref)
-        draft = draft_path.read_text(encoding="utf-8") if draft_path.is_file() else ""
-        if hashlib.sha256(draft.encode("utf-8")).hexdigest() != report.sha256:
+        draft = draft_path.read_bytes() if draft_path.is_file() else b""
+        if hashlib.sha256(draft).hexdigest() != report.sha256:
             raise AuditIntegrityError("the report file on disk no longer matches its recorded hash")
         outstanding = sorted({warning_id(w) for w in report.warnings} - set(acknowledged))
         if outstanding:
@@ -155,7 +155,7 @@ class ReviewService:
             approved_by=f"{reviewer.display_name} ({actor_id})",
             approved_at=approved_at,
         )
-        if _body(final.markdown) != _body(draft):
+        if _body(final.markdown) != _body(draft.decode("utf-8")):
             raise VerificationGateFailed(
                 "the findings changed after the draft was built; restart the run and review the new draft"
             )

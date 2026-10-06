@@ -263,7 +263,10 @@ def verify_against_eli(eli_root: str | Path) -> list[str]:
 
     manifest_path = root / "capability_manifest.json"
     if manifest_path.is_file():
-        actions = {c["action"] for c in json.loads(manifest_path.read_text())["capabilities"]}
+        actions = {
+            c["action"]
+            for c in json.loads(manifest_path.read_text(encoding="utf-8"))["capabilities"]
+        }
         unknown = sorted(actions - policy.KNOWN_HOST_ACTIONS)
         blocked = policy.blocked_actions(actions)
         check(

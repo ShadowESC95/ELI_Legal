@@ -29,7 +29,7 @@ def test_the_check_catches_a_register_that_drifts_from_the_code(tmp_path, monkey
     fake = tmp_path / "registers"
     fake.mkdir()
     (tmp_path / "tests").mkdir()
-    (tmp_path / "tests" / "test_x.py").write_text("def test_real():\n    pass\n")
+    (tmp_path / "tests" / "test_x.py").write_text("def test_real():\n    pass\n", encoding="utf-8")
     rows = {
         "control_register.csv": [
             ["control_id", "control", "type", "implementation", "tests", "evidence", "owner_role"],
