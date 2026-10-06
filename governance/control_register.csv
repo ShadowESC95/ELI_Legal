@@ -1,0 +1,7 @@
+control_id,control,prevent_detect_respond,owner,evidence,test,status
+C-001,Matter-scoped RBAC,prevent,TBD,access decision logs,test_cross_matter_access,TBD
+C-002,Approved source registry,prevent,TBD,source manifest,test_unapproved_source,TBD
+C-003,Independent current-law check,detect,TBD,verification record,test_stale_authority,TBD
+C-004,Hard hold on failed verification,respond,TBD,workflow event,test_failed_verification_holds,TBD
+C-005,Named human release gate,prevent,TBD,review decision,test_missing_reviewer_blocks,TBD
+C-006,HMAC audit chain,detect,TBD,audit chain,test_audit_tamper_detected,TBD

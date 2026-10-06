@@ -1,0 +1,17 @@
+services:
+  eli-legal:
+    build: .
+    ports: ["127.0.0.1:8080:8080"]
+    environment:
+      ELI_LEGAL_DB_PATH: /app/data/eli_legal.sqlite3
+      ELI_LEGAL_AUDIT_KEY_FILE: /run/secrets/audit_hmac_key
+      ELI_LEGAL_NETWORK_DEFAULT: deny
+    volumes:
+      - ./data:/app/data
+      - ./artifacts:/app/artifacts
+      - ./config:/app/config:ro
+    secrets:
+      - audit_hmac_key
+secrets:
+  audit_hmac_key:
+    file: ./secrets/audit_hmac.key

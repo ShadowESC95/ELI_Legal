@@ -1,0 +1,7 @@
+responsibility,provider,deployer,technical_security_owner,status
+System design/compliance,R,A/C,C,TBD
+Instructions for use,R,A,C,TBD
+Matter permissions,C,A,R,TBD
+Human oversight,C,A,C,TBD
+Audit infrastructure,R,C,R,TBD
+Stop/restart authority,C,A,R,TBD

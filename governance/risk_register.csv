@@ -1,0 +1,2 @@
+risk_id,risk,cause,event,impact,owner,control_ids,residual_risk,status,review_date
+R-001,Stale authority accepted,Source status not checked,Outdated authority reaches analysis,Incorrect legal analysis,TBD,"C-003;C-004",TBD,open,TBD
