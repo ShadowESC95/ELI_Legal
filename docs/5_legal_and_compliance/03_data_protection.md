@@ -1,7 +1,20 @@
 # Data protection
 
-GDPR (Regulation (EU) 2016/679), with notes on the UK. Not legal advice. A deploying organisation
-must do its own assessment; this document is a starting point for it.
+**Regulation (EU) 2016/679 (GDPR).** It applies in every member state, alongside that state's own
+implementing law. The RAIMS use case names three articles as shaping the design, Articles 5, 25
+and 32, and takes Ireland's Data Protection Act 2018 as its example of national law; a deployer
+elsewhere reads its own state's act in the same places. Notes on the United Kingdom follow at
+the end. Not legal advice: a deploying organisation must do its own assessment.
+
+## The three articles the use case names
+
+| Article | What it requires | How the system is built to it | Requirement |
+|---|---|---|---|
+| **Art. 5** Principles | Lawfulness, fairness and transparency; purpose limitation; minimisation; accuracy; storage limitation; integrity and confidentiality; accountability | One matter, one purpose, no memory across matters and no training on matter data; the audit ledger holds identifiers and hashes, never text; facts are quoted word for word with their location; closing a matter can delete its content; access by role and matter | GDPR-05 |
+| **Art. 25** Data protection by design and by default | Measures built into the processing itself, with the protective setting as the default | Network denied by default; a model must run on the same machine; matter isolation enforced in the store, not left to the caller; the least access by default (an administrator sees no matter); logs minimised by a guard that refuses content | GDPR-25 |
+| **Art. 32** Security of processing | Measures appropriate to the risk | Proven identity, lock-out and a second factor; a decision needs the passphrase again; a hardened server over TLS; originals stored read-only under their hash; a tamper-evident ledger. **Encryption at rest, backup and patching are the deployer's** | GDPR-32 |
+
+Section 5 below takes Article 5 principle by principle.
 
 ## 1. What personal data is involved
 
@@ -20,8 +33,8 @@ decisions they record.
 | The maker of a local model | **Neither** | The model runs on the deployer's machine and sends nothing back. ELI Legal refuses a model on another machine |
 
 **Courts.** A supervisory authority is not competent to supervise courts acting in their judicial
-capacity (Article 55(3)); member states arrange that supervision separately (in Ireland, through
-a judge assigned under the Data Protection Act 2018). The rest of the GDPR still applies to them.
+capacity (Article 55(3)); each member state arranges that supervision separately under its own law (Ireland, for example,
+through a judge assigned under its Data Protection Act 2018). The rest of the GDPR still applies.
 
 **Criminal matters.** Processing by competent authorities for criminal-justice purposes falls
 under the Law Enforcement Directive (EU) 2016/680 and its national implementation, not the GDPR.
@@ -32,7 +45,7 @@ under the Law Enforcement Directive (EU) 2016/680 and its national implementatio
 |---|---|---|---|
 | Court or tribunal | Article 6(1)(e): task in the public interest or official authority | Article 9(2)(f): courts acting in their judicial capacity | Article 10: under official authority |
 | Arbitrator, mediator | Article 6(1)(f) legitimate interests, or (b) contract | Article 9(2)(f): establishment, exercise or defence of legal claims | Article 10 and national law |
-| Law firm, barrister | Article 6(1)(f) or (b), sometimes (c) | Article 9(2)(f) | Article 10 and national law (in Ireland, section 55 of the 2018 Act) |
+| Law firm, barrister | Article 6(1)(f) or (b), sometimes (c) | Article 9(2)(f) | Article 10 and the member state's law (for example section 55 of Ireland's 2018 Act) |
 
 Using a new tool does not need a new basis if the purpose is the same, but the deployer must
 check that the processing stays necessary and proportionate for that purpose.
@@ -64,8 +77,8 @@ watch that figure.
 Controllers must normally tell people how their data is used (Articles 13 and 14) and honour
 access, rectification, erasure, restriction and objection. In litigation these are qualified:
 by professional secrecy (Article 14(5)(d)), by member-state restrictions for judicial
-proceedings and the enforcement of civil claims (Article 23), and by legal privilege (in
-Ireland, sections 60 and 162 of the 2018 Act). The deployer's existing privacy notice and
+proceedings and the enforcement of civil claims (Article 23), and by legal privilege, each as
+implemented in the member state concerned (in Ireland, sections 60 and 162 of the 2018 Act). The deployer's existing privacy notice and
 procedures should be checked and, if needed, extended to mention AI-assisted preparation.
 
 Practical points:

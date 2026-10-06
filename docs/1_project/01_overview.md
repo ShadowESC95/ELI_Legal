@@ -2,6 +2,8 @@
 
 ## What it is
 
+**A high-risk AI system under the EU AI Act (Annex III, point 8(a)), built to that standard.**
+
 ELI Legal is case-preparation software for people who decide, mediate or argue disputes. It takes
 the papers in a matter, establishes what is said and by whom, finds the law and checks it, and
 assembles a source-linked analysis for a named human to review and approve. Then it stops.
@@ -79,9 +81,10 @@ identically whichever is used.
 ## Legal systems
 
 A legal system is described as data, in a jurisdiction pack: its courts, how it cites authority,
-and how a later decision or amendment affects an earlier one. Packs ship for Ireland, England and
-Wales, the European Union, United States federal law, Germany, France, international arbitration
-instruments, and a generic fallback. A pack contains no rules of law. The law comes from a source
+and how a later decision or amendment affects an earlier one. The default is the European Union
+pack, which recognises Union law and the decisions of any member state by their European Case
+Law Identifier. National packs ship for Ireland, Germany and France; others for England and
+Wales, United States federal law, international arbitration instruments, and a generic fallback. A pack contains no rules of law. The law comes from a source
 you approve and load. Every pack is marked unvalidated until a lawyer qualified in that system
 signs it off, and every report says so.
 
@@ -91,7 +94,7 @@ signs it off, and every report says so.
 |---|---|
 | Whole lifecycle, three profiles, eight packs | Built and tested |
 | Desktop application, server, browser application, command line | Built and tested on Linux |
-| Installers | Linux built and tested; Windows and macOS scripted, not yet built |
+| Installers | Linux built and tested (AppImage, `.run`, `.deb`); Windows and macOS scripted, not yet built |
 | Identity: passphrase, lock-out, second factor, step-up for decisions | Built and tested |
 | Accuracy on real matters | **Not measured.** Only a synthetic matter has been evaluated |
 | Live legal database connector | **None.** One connector reads a corpus you load yourself |

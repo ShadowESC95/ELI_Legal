@@ -59,13 +59,14 @@ reviewed by qualified counsel before you rely on them or deploy the system.
 | Document | What it covers |
 |---|---|
 | [01 Legal overview](5_legal_and_compliance/01_legal_overview.md) | Every legal concern in one table, with status and owner |
-| [02 EU AI Act](5_legal_and_compliance/02_eu_ai_act.md) | Classification, obligations by role, dates, what is and is not done |
-| [03 Data protection](5_legal_and_compliance/03_data_protection.md) | GDPR and UK GDPR: roles, lawful basis, special categories, DPIA |
+| [02 EU AI Act](5_legal_and_compliance/02_eu_ai_act.md) | **The governing regime.** High-risk under Annex III 8(a); every provision named in the use case, article by article, with evidence and state |
+| [03 Data protection](5_legal_and_compliance/03_data_protection.md) | GDPR, led by Articles 5, 25 and 32: roles, lawful basis, special categories, impact assessment |
 | [04 Professional and judicial duties](5_legal_and_compliance/04_professional_and_judicial_duties.md) | Privilege, confidentiality, competence, court rules on AI, judicial guidance, arbitration, mediation |
 | [05 Liability, intellectual property and licensing](5_legal_and_compliance/05_liability_ip_and_licensing.md) | Liability, product rules, source licences, model licences, open-source obligations, this product's own licence |
-| [06 Jurisdiction notes](5_legal_and_compliance/06_jurisdiction_notes.md) | Ireland, England and Wales, EU, United States, international arbitration |
+| [06 Jurisdiction notes](5_legal_and_compliance/06_jurisdiction_notes.md) | The Union layer that applies in every member state; the national layer to find in each; Ireland as the worked example; outside the Union |
 | [07 Open questions for counsel](5_legal_and_compliance/07_open_questions_for_counsel.md) | What a qualified lawyer must decide before deployment |
-| [08 RAIMS traceability](5_legal_and_compliance/08_raims_traceability.md) | How the system maps to the governance programme |
+| [08 RAIMS traceability](5_legal_and_compliance/08_raims_traceability.md) | Every instrument named in the use case, traced to requirement rows, controls and tests |
+| [09 ISO/IEC 42001](5_legal_and_compliance/09_iso_iec_42001.md) | The management-system clauses and Annex A controls the use case selects |
 
 Working forms for a deploying organisation ship with the software under
 `src/eli_legal/governance/templates/`: an impact assessment (fundamental rights and data

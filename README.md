@@ -60,16 +60,19 @@ access to any matter.
 ## Which legal systems
 
 Legal systems are data, not code: a **jurisdiction pack** describes a system's courts, how it
-cites authority and how a later decision or amendment affects an earlier one. Packs ship for
-Ireland, England and Wales, the EU, US federal law, Germany, France, international arbitration
-instruments, and a generic fallback. They hold structure and citation grammar only, contain no
+cites authority and how a later decision or amendment affects an earlier one. The default is the
+**European Union** pack, which recognises Union law and the decisions of any member state by
+their European Case Law Identifier. National packs ship for Ireland, Germany and France, and
+others for England and Wales, US federal law, international arbitration instruments, and a
+generic fallback. They hold structure and citation grammar only, contain no
 rules of law, and are marked unvalidated until a lawyer qualified in that jurisdiction signs them
 off. The law itself always comes from an approved source. See
 [docs/3_architecture/05_jurisdiction_packs.md](docs/3_architecture/05_jurisdiction_packs.md).
 
 ## Install and try it
 
-Installers are in `dist/installers` after a build (`packaging/linux/build.sh`); see
+Installers (an AppImage, a `.run` installer and a `.deb`) are in `dist/installers` after a build
+(`packaging/linux/build.sh`); see
 [Installation](docs/6_manuals/01_installation.md). From a source checkout:
 
 ```bash
@@ -154,8 +157,9 @@ eli-legal edition verify --eli-root /path/to/ELI_v3.0     # read-only check agai
 ## What this is not
 
 - **Not legal advice and not a decision-maker.** It prepares; a named, qualified person decides.
-- **Not conformity-assessed.** Used by or for a court or tribunal, or similarly in ADR, a system
-  like this is listed as high-risk in EU AI Act Annex III point 8(a). The registers under
+- **Not conformity-assessed.** ELI Legal is a high-risk AI system under the EU AI Act (Article
+  6(2) and Annex III, point 8(a)); the Chapter III duties apply to it from 2 December 2027 in
+  every member state. See [docs/5_legal_and_compliance/02_eu_ai_act.md](docs/5_legal_and_compliance/02_eu_ai_act.md). The registers under
   `src/eli_legal/governance/registers` map requirements to controls and say plainly which duties are organisational and
   remain undone. They are aids, to be checked against the official texts, not legal advice.
 - **Not validated on real matters.** The evaluation matter is synthetic. Accuracy thresholds on

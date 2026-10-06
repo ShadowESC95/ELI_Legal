@@ -94,7 +94,7 @@ Status: **met** means implemented and tested. **Partly** and **not met** say wha
 
 | ID | Requirement | Status |
 |---|---|---|
-| IN-01 | An installer that needs nothing else installed | Met on Linux (`.run`, `.deb`); scripted and unbuilt on Windows and macOS |
+| IN-01 | An installer that needs nothing else installed | Met on Linux (AppImage, `.run`, `.deb`); scripted and unbuilt on Windows and macOS |
 | IN-02 | Program and data kept apart; uninstalling never removes data | Met |
 | IN-03 | An installer whose integrity can be checked before it runs | Met (`--verify`, `SHA256SUMS`); builds are **not signed** |
 | IN-04 | Nothing starts by itself: no service, port or network call | Met |

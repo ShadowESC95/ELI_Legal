@@ -1,0 +1,8 @@
+#!/bin/sh
+# ELI Legal as an AppImage. With no arguments it opens the desktop application; with arguments it
+# is the command line and the server (for example: ELI_Legal.AppImage serve --help).
+HERE="$(dirname "$(readlink -f "$0")")"
+if [ $# -eq 0 ]; then
+  exec "$HERE/usr/lib/eli-legal/eli-legal-gui"
+fi
+exec "$HERE/usr/lib/eli-legal/eli-legal" "$@"

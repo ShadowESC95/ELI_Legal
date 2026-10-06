@@ -1,10 +1,55 @@
 # Jurisdiction notes
 
-Pointers to the rules and guidance on AI in legal work, by jurisdiction, as known in October
-2026. They are starting points for the user's own check, not a statement of the law. Items
-marked *(reported)* were confirmed from secondary sources only; read the primary text.
+ELI Legal is built for the **European Union's** regime: the AI Act (a high-risk system under
+Annex III, point 8(a)), the GDPR, and ISO/IEC 42001 as the management-system standard. That
+regime is the same in all twenty-seven member states. What differs from state to state is the
+national layer on top of it. This document sets out the Union layer, what to find in any member
+state, Ireland as the worked example the use case takes, and then the position outside the Union.
 
-## Ireland
+Pointers as known in October 2026. Starting points for the user's own check, not a statement of
+the law. Items marked *(reported)* were confirmed from secondary sources only.
+
+## The European Union: applies in every member state
+
+| Instrument | What it is | Where it is covered |
+|---|---|---|
+| Regulation (EU) 2024/1689 (AI Act), as amended by Regulation (EU) 2026/1744 | High-risk classification under Annex III 8(a); requirements, provider and deployer duties, conformity, monitoring | [EU AI Act](02_eu_ai_act.md) |
+| Regulation (EU) 2016/679 (GDPR) | Personal data in case papers | [Data protection](03_data_protection.md) |
+| Directive (EU) 2016/680 | Processing by competent authorities in criminal justice, in place of the GDPR | [Data protection](03_data_protection.md) |
+| Regulation (EU) 2024/2847 (Cyber Resilience Act) | Security duties for commercial software | [Liability, IP and licensing](05_liability_ip_and_licensing.md) |
+| Directive (EU) 2024/2853 (Product Liability) | Software as a product | [Liability, IP and licensing](05_liability_ip_and_licensing.md) |
+| Directive 2008/52/EC (Mediation) | Confidentiality of mediation in cross-border disputes | [Professional and judicial duties](04_professional_and_judicial_duties.md) |
+| Directive (EU) 2016/2102 (web accessibility of public bodies) | A court's browser application | [Liability, IP and licensing](05_liability_ip_and_licensing.md) |
+| ISO/IEC 42001:2023 | The management-system standard chosen in the use case | [ISO/IEC 42001](09_iso_iec_42001.md) |
+| CCBE guidance on generative AI for lawyers (2025) *(reported)*; CEPEJ European Ethical Charter (2018) | European bars' and the Council of Europe's positions | |
+
+**In the software.** The `EU` jurisdiction pack is the default. It recognises Union legislation,
+Court of Justice case numbers, and the European Case Law Identifier (ECLI) of a decision from
+any member state. National packs exist for Ireland, Germany and France (`IE`, `DE`, `FR`), each
+of which also applies the `EU` pack. For another member state, open the matter under `EU`: its
+decisions are recognised by ECLI, but citations in a purely national form are not, until a pack
+for that state is written. Every pack is structural and unvalidated until a lawyer qualified in
+that system signs it off.
+
+## What to find in any member state
+
+The Union layer leaves these to national law and national bodies. Before use in a member state,
+identify each:
+
+| National layer | Why it matters |
+|---|---|
+| The market surveillance authority designated under the AI Act | Where serious incidents are reported (Art. 73) and who supervises |
+| Rules or practice directions of the courts and tribunals on the use of AI | Verification, disclosure and declarations, with sanctions |
+| Guidance of the bar and the law society, and of the judiciary | Professional and judicial duties |
+| The act implementing the GDPR | Criminal-offence data, restrictions in legal proceedings, privilege, supervision of courts |
+| The arbitration law of the seat, and the mediation statute | Challenges to awards; confidentiality |
+| Who may give legal advice | The product is for qualified professionals |
+| Terms of the official and commercial legal sources | Whether they may be loaded into the tool |
+
+## Ireland: the local jurisdiction taken in the use case
+
+The use case places a hypothetical EU law firm in Ireland. What follows is the national layer
+there, as an example of what the table above produces for one member state.
 
 | Source | What it is |
 |---|---|
@@ -16,13 +61,23 @@ marked *(reported)* were confirmed from secondary sources only; read the primary
 | Data Protection Act 2018 | Sections 55 (criminal-offence data), 60 and 162 (restrictions; privilege), and the provisions on supervision of courts acting judicially |
 | Mediation Act 2017 | Confidentiality of mediation |
 | Legal Services Regulation Act 2015; Solicitors Acts | Who may practise; the regulator |
-| EU instruments | The AI Act, GDPR, Cyber Resilience Act and Product Liability Directive apply |
 
-**For an Irish user of ELI Legal:** sections 2 and 3 of
+**For a user in Ireland:** sections 2 and 3 of
 [Professional and judicial duties](04_professional_and_judicial_duties.md) are written with these
 directions in mind. The jurisdiction pack `IE` is structural and unvalidated.
 
-## England and Wales
+## Germany and France
+
+National packs `DE` and `FR` ship, structural and unvalidated. Both states' bars and courts have
+issued their own guidance on AI in legal work; a user there must find and follow it, using the
+table above.
+
+## Outside the Union
+
+The AI Act still reaches a provider who places the system on the Union market, and output used
+in the Union, wherever the provider is.
+
+### England and Wales
 
 | Source | What it is |
 |---|---|
@@ -34,21 +89,9 @@ directions in mind. The jurisdiction pack `IE` is structural and unvalidated.
 | Legal Services Act 2007 | Reserved legal activities |
 | Copyright, Designs and Patents Act 1988, section 29A | Text and data mining only for non-commercial research |
 
-The EU AI Act does not apply in the UK, but it applies to a provider who places the system on
-the EU market and to output used in the EU. The pack `GB-EAW` is structural and unvalidated.
+The pack `GB-EAW` is structural and unvalidated.
 
-## European Union
-
-| Source | What it is |
-|---|---|
-| Regulation (EU) 2024/1689 (AI Act) | See [EU AI Act](02_eu_ai_act.md) |
-| Regulation (EU) 2016/679 (GDPR); Directive (EU) 2016/680 | See [Data protection](03_data_protection.md) |
-| Regulation (EU) 2024/2847 (Cyber Resilience Act); Directive (EU) 2024/2853 (Product Liability) | See [Liability, IP and licensing](05_liability_ip_and_licensing.md) |
-| CCBE guidance on the use of generative AI by lawyers (2025) *(reported)* | European bars' common position |
-| CEPEJ European Ethical Charter (2018) and later tools | Council of Europe guidance for judicial systems |
-| National bar and court guidance | Germany and France, among others, have issued their own. The packs `DE` and `FR` are structural and unvalidated; a user there must find and follow the national rules |
-
-## United States
+### United States
 
 | Source | What it is |
 |---|---|

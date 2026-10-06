@@ -3,7 +3,7 @@
 **Done.** The whole lifecycle; three profiles; eight jurisdiction packs; local-corpus source;
 optional local model; tamper-evident audit with completeness; evidence pack; proven identity,
 lock-out, second factor and step-up for decisions; desktop application, secure server and
-browser application, command line; Linux installers; ELI v3 edition pack; registers checked
+browser application, command line; Linux installers including an AppImage; ELI v3 edition pack; registers checked
 against code.
 
 **Next, in order of what most limits real use.**

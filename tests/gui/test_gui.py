@@ -183,7 +183,7 @@ def test_a_run_started_from_the_dag_tab_executes_in_the_background_and_every_tab
     proofs = {audit.events.item(r, 4).text() for r in range(audit.events.rowCount())}
     assert "gui-passphrase" in proofs, "the ledger shows the run was done by a signed-in person"
     governance = d.page(GovernanceTab)
-    assert governance.requirements.rowCount() == 32 and governance.controls.rowCount() >= 33
+    assert governance.requirements.rowCount() == 35 and governance.controls.rowCount() >= 33
     assert not d.warnings, d.warnings
 
 

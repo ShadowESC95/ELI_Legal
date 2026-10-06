@@ -15,8 +15,9 @@ states what it did not check, and waits for a named person.
 Courts have sanctioned lawyers for citing authorities that did not exist (*Mata v Avianca*,
 S.D.N.Y., 2023, is the best known; in England and Wales the Divisional Court addressed the
 problem in *Ayinde v London Borough of Haringey* [2025] EWHC 1383 (Admin), warning of referral to
-regulators and of contempt). In Ireland, Practice Directions HC 142 (High Court) and CA 16 (Court
-of Appeal), in force from 1 September 2026, are reported to require that material produced with
+regulators and of contempt). National court rules now say the same thing in terms. Ireland's
+Practice Directions HC 142 (High Court) and CA 16 (Court of Appeal), in force from 1 September
+2026, are one example in a member state: they are reported to require that material produced with
 generative AI be appropriately and independently verified under human control before it is used
 in proceedings, and that every authority, citation and quotation be independently verified.
 
@@ -35,13 +36,16 @@ verification a court expects, and only a person can do it.
 
 ## 3. Telling the court, the tribunal or the other side
 
-- **Ireland.** The same practice directions are reported to require disclosure, where the court
+- **Under the AI Act**, a deployer must inform people who are subject to decisions made with the
+  assistance of a high-risk system (Art. 26(11)). That applies in every member state.
+- **National court rules** add to it. In Ireland, for example, the same practice directions are
+  reported to require disclosure, where the court
   directs, of whether generative AI was used in preparing a court document and the nature and
   extent of the use, and a declaration in affidavits and witness statements that generative AI
   was not used to generate their substantive content. Non-compliance may bring costs orders,
   documents being disregarded, strike-out, or referral to the regulator.
-- **Elsewhere.** Many courts, particularly in the United States, have standing orders requiring
-  disclosure or certification. Check the court you are in.
+- **Elsewhere.** Many courts, in other member states and outside the Union, have their own rules
+  or standing orders. Check the court you are in.
 
 How the tool helps: the audit trail and evidence pack record precisely what it did on a matter,
 with which model, on which documents, and what a person decided. That is the material from which
@@ -82,9 +86,9 @@ understand section 2 above. A supervising lawyer remains responsible for a junio
   separately so they cannot be missed.
 - **Independence and impartiality.** The tool treats both sides' material by the same rules.
   Read both sides' source passages, not only extracts.
-- **Guidance.** In England and Wales the judiciary's AI guidance (refreshed October 2025) sets
-  out risks and responsibilities for judicial office holders and their staff. In Ireland,
-  guidelines for judges have been issued through the Judicial Council. Read what applies to you.
+- **Guidance.** Judiciaries publish their own: Ireland's through the Judicial Council, for
+  example, and outside the Union the judiciary of England and Wales (refreshed October 2025).
+  The Council of Europe's CEPEJ charter applies across Europe. Read what applies to you.
 - **Open justice and records.** Decide in advance whether the report forms part of the court
   file, and how long it is kept.
 - **Telling the parties.** The AI Act requires deployers to inform people subject to decisions

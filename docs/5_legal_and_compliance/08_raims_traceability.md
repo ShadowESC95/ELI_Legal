@@ -4,6 +4,28 @@ What the Week 1 design committed to, where it now lives, and the test that shows
 is a trace to implementation and automated tests. It is not evidence of effectiveness on real
 matters.
 
+## The instruments named in the use case, and where each is addressed
+
+| Named in the Week 1 papers | Requirement rows | Document |
+|---|---|---|
+| EU AI Act, Reg. (EU) 2024/1689 as amended by Reg. (EU) 2026/1744: Art. 3 roles; Art. 25 | AIA-03 | [EU AI Act](02_eu_ai_act.md) section 2 |
+| Art. 4 AI literacy | AIA-04 | section 6 |
+| Art. 6(2)-(3), Annex III 8(a) classification; Art. 6(3) considered and not relied on | AIA-06 | section 1 |
+| Arts. 8-15: risk management, data governance, technical documentation (Annex IV), logging, transparency, human oversight, accuracy, robustness, cybersecurity | AIA-09 to AIA-15 | section 4 |
+| Arts. 16-27 provider and deployer obligations, incl. 26(2), 26(6), 27 | AIA-16, AIA-19, AIA-26, AIA-27 | sections 5, 6 |
+| Art. 43 conformity assessment by internal control (Annex VI); Arts. 47-49 | AIA-43 | section 7 |
+| Art. 50 transparency | AIA-50 | section 8 |
+| Arts. 72-73 post-market monitoring and serious incidents | AIA-72 | section 9 |
+| Application of Chapter III Sections 1-3 to Annex III systems from 2 December 2027 | — | section 3 |
+| GDPR, Reg. (EU) 2016/679: Arts. 5, 25, 32 | GDPR-05, GDPR-25, GDPR-32 (also GDPR-22, GDPR-35) | [Data protection](03_data_protection.md) |
+| Data Protection Act 2018 (the local example of national law) | DPA-NAT | [Jurisdiction notes](06_jurisdiction_notes.md) |
+| ISO/IEC 42001:2023: 6.1.2-6.1.3, 6.1.4, 7.5, 8.1-8.4, 9.1, 10.2 | ISO-6.1, ISO-6.1.4, ISO-7.5, ISO-8.1, ISO-9.1, ISO-10.2 | [ISO/IEC 42001](09_iso_iec_42001.md) |
+| ISO/IEC 42001 Annex A: A.5, A.6.2, A.6.2.8, A.7.4-A.7.5, intended use | ISO-6.1.4, ISO-A.6.2, ISO-A.6.2.8, ISO-A.7, ISO-A.9.4 | [ISO/IEC 42001](09_iso_iec_42001.md) |
+| Provider is the law firm; deployer is the tribunal | AIA-03; `provider_deployer_matrix.csv` | [EU AI Act](02_eu_ai_act.md) section 2 |
+
+Every row id above is in `requirements_register.csv` with its controls, and
+`eli-legal governance` fails if a control it names has lost its code or its tests.
+
 ## The three tests promised in the Week 1 presentation
 
 | Promised test | Result | Test |

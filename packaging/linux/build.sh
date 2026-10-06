@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Build the Linux installers: a self-extracting installer (.run), a Debian package (.deb) and a
-# plain archive (.tar.gz). Output goes to dist/installers with a SHA256SUMS file.
+# Build the Linux installers: a self-extracting installer (.run), a Debian package (.deb), an
+# AppImage and a plain archive (.tar.gz). Output goes to dist/installers with a SHA256SUMS file.
 #
 #   packaging/linux/build.sh            build everything
 #   SKIP_FREEZE=1 packaging/linux/build.sh   reuse build/dist/eli-legal from an earlier run
@@ -73,6 +73,39 @@ CONTROL
   find "$DEB" -type d -exec chmod 755 {} +
   find "$DEB/usr/share" -type f -exec chmod 644 {} +
   dpkg-deb --build --root-owner-group "$DEB" "$OUT/eli-legal_${VERSION}_${DEB_ARCH}.deb" >/dev/null
+fi
+
+echo "==> AppImage"
+# One file that runs without installing. appimagetool is taken from $APPIMAGETOOL, the PATH, or
+# build/tools; if it is nowhere, it is downloaded from the AppImage project (set NO_DOWNLOAD=1 to
+# forbid that and skip the AppImage).
+TOOL="${APPIMAGETOOL:-$(command -v appimagetool || true)}"
+[ -n "$TOOL" ] || TOOL="build/tools/appimagetool"
+if [ ! -x "$TOOL" ] && [ -z "${NO_DOWNLOAD:-}" ]; then
+  mkdir -p build/tools
+  curl -fsSL -o "$TOOL" "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-$ARCH.AppImage"
+  chmod 755 "$TOOL"
+fi
+if [ -x "$TOOL" ]; then
+  APPDIR="build/AppDir"
+  rm -rf "$APPDIR"
+  mkdir -p "$APPDIR/usr/lib" "$APPDIR/usr/share/metainfo"
+  cp -a "$STAGE" "$APPDIR/usr/lib/eli-legal"
+  cp packaging/linux/AppRun "$APPDIR/AppRun"
+  chmod 755 "$APPDIR/AppRun"
+  cp src/eli_legal/gui/assets/eli_legal_256.png "$APPDIR/eli-legal.png"
+  ln -s eli-legal.png "$APPDIR/.DirIcon"
+  sed -e 's|^Exec=.*|Exec=AppRun|' -e 's|^Icon=.*|Icon=eli-legal|' -e '/^Path=/d' \
+    packaging/eli-legal.desktop > "$APPDIR/eli-legal.desktop"
+  sed -e "s/@VERSION@/$VERSION/g" -e "s/@DATE@/$(date -u +%Y-%m-%d)/g" \
+    packaging/linux/legal.eli.desktop.appdata.xml > "$APPDIR/usr/share/metainfo/legal.eli.desktop.appdata.xml"
+  rm -f "$OUT/$NAME.AppImage"
+  ARCH="$ARCH" VERSION="$VERSION" "$TOOL" --appimage-extract-and-run --no-appstream "$APPDIR" "$OUT/$NAME.AppImage" >/dev/null 2>&1 \
+    || ARCH="$ARCH" VERSION="$VERSION" "$TOOL" --appimage-extract-and-run "$APPDIR" "$OUT/$NAME.AppImage"
+  chmod 755 "$OUT/$NAME.AppImage"
+  "$OUT/$NAME.AppImage" --appimage-extract-and-run --version >/dev/null
+else
+  echo "    appimagetool not available: AppImage skipped" >&2
 fi
 
 (cd "$OUT" && sha256sum -- * | grep -v ' SHA256SUMS$' > SHA256SUMS)

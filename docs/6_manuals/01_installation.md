@@ -4,6 +4,7 @@
 
 | Your system | Use | State |
 |---|---|---|
+| Linux (x86-64), nothing to install | `ELI_Legal-<version>-linux-x86_64.AppImage`: one file, run it | Built and tested |
 | Linux (Ubuntu, Debian and others, x86-64) | `ELI_Legal-<version>-linux-x86_64.run`, or the `.deb` on Debian and Ubuntu | Built and tested |
 | Windows 10 or 11 (64-bit) | `ELI_Legal-<version>-windows-x64-setup.exe` | Build script written; **not yet built or tested** |
 | macOS 13 or later | `ELI_Legal-<version>-macos-<arch>.dmg` | Build script written; **not yet built or tested** |
@@ -16,6 +17,22 @@ build them, see `packaging/README.md`.
 download against the published `SHA256SUMS` before running it.
 
 ## Linux
+
+### The AppImage
+
+One file. Nothing is installed and nothing else is needed.
+
+```
+chmod +x ELI_Legal-0.4.0-linux-x86_64.AppImage
+./ELI_Legal-0.4.0-linux-x86_64.AppImage                 # the desktop application
+./ELI_Legal-0.4.0-linux-x86_64.AppImage serve --help    # the server
+./ELI_Legal-0.4.0-linux-x86_64.AppImage doctor          # any command-line command
+```
+
+With no arguments it opens the desktop application; with arguments it is the command line and
+the server. Your data goes to the same folder as with any other installer (see below), so you
+can move between the AppImage and an installed copy. To remove it, delete the file. If your
+system has no FUSE, add `--appimage-extract-and-run` as the first argument.
 
 ### The installer
 

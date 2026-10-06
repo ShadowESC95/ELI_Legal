@@ -2,7 +2,7 @@
 
 | Target | Build with | Produces (in `dist/installers`) | Built and tested |
 |---|---|---|---|
-| Linux | `packaging/linux/build.sh` | `ELI_Legal-<v>-linux-<arch>.run` (installer), `eli-legal_<v>_<arch>.deb`, `.tar.gz` | Yes, on the development machine |
+| Linux | `packaging/linux/build.sh` | `ELI_Legal-<v>-linux-<arch>.AppImage`, `.run` (installer), `eli-legal_<v>_<arch>.deb`, `.tar.gz` | Yes, on the development machine |
 | Windows | `packaging\windows\build.ps1` | `ELI_Legal-<v>-windows-x64-setup.exe` (Inno Setup) | **No.** Written, not yet run |
 | macOS | `packaging/macos/build.sh` | `ELI_Legal-<v>-macos-<arch>.dmg` | **No.** Written, not yet run |
 | Any, from source | `./install.sh` or `install.ps1` | a private Python environment and launchers | `install.sh` on Linux; `install.ps1` not yet run |
@@ -22,6 +22,11 @@ All packaged builds use `packaging/pyinstaller/eli_legal.spec`: one folder holdi
   remove one without the mark.
 - **It can be verified.** `sh <installer>.run --verify` checks the embedded SHA-256 and installs
   nothing; every build writes `SHA256SUMS`.
+
+The AppImage is made with `appimagetool`, taken from `$APPIMAGETOOL`, the `PATH` or
+`build/tools`. If it is nowhere, the build downloads it from the AppImage project; set
+`NO_DOWNLOAD=1` to forbid that and skip the AppImage. With no arguments the AppImage opens the
+desktop application; with arguments it is the command line and server.
 
 ## Things a release still needs
 

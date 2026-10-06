@@ -97,7 +97,7 @@ Settings are environment variables beginning `ELI_LEGAL_`, or lines in `.env` in
 | Setting | Default | Meaning |
 |---|---|---|
 | `ELI_LEGAL_HOME` | per-user data folder | Where everything is kept |
-| `ELI_LEGAL_DEFAULT_JURISDICTION` | `IE` | Offered first when opening a matter |
+| `ELI_LEGAL_DEFAULT_JURISDICTION` | `EU` | Offered first when opening a matter |
 | `ELI_LEGAL_SESSION_HOURS` | 8 | Command-line session length |
 | `ELI_LEGAL_LOCKOUT_THRESHOLD`, `ELI_LEGAL_LOCKOUT_MINUTES` | 5, 15 | Failed attempts before a lock, and its length |
 | `ELI_LEGAL_SERVER_PORT` | 8443 | |

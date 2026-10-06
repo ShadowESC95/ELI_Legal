@@ -57,7 +57,9 @@ class Settings(BaseSettings):
     policy_file: Path = _config("policy.default.json")
     jurisdictions_dir: Path = _config("jurisdictions")
     workflow_file: Path = _config("workflows/case_preparation.json")
-    default_jurisdiction: str = "IE"
+    # Offered first when a matter is opened. EU: Union law, and any member state's decisions by
+    # their European Case Law Identifier. Choose a national pack where one exists.
+    default_jurisdiction: str = "EU"
     network_default: str = "deny"
     log_level: str = "INFO"
 
