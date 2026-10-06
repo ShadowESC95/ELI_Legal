@@ -27,8 +27,8 @@ DefaultGroupName=ELI Legal
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
-ArchitecturesAllowed=x64compatible
-ArchitecturesInstallIn64BitMode=x64compatible
+ArchitecturesAllowed=x64
+ArchitecturesInstallIn64BitMode=x64
 OutputDir={#Root}\dist\installers
 OutputBaseFilename=ELI_Legal-{#AppVersion}-windows-x64-setup
 SetupIconFile=eli_legal.ico
@@ -69,7 +69,7 @@ Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; Value
 Filename: "{app}\eli-legal-gui.exe"; Description: "Start ELI Legal"; Flags: nowait postinstall skipifsilent
 
 [Messages]
-FinishedLabel=ELI Legal is installed.%n%nYour matters, the audit ledger and its key are kept in your user data folder (%LOCALAPPDATA%\ELI Legal), separate from the program. Uninstalling never removes them.
+FinishedLabel=ELI Legal is installed.%n%nYour matters, the audit ledger and its key are kept in your user data folder (AppData\Local\ELI Legal), separate from the program. Uninstalling never removes them.
 
 [Code]
 function NeedsAddPath(Dir: string): Boolean;

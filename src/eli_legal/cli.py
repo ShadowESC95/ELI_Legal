@@ -1025,6 +1025,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    for stream in (sys.stdout, sys.stderr):
+        # A console that cannot show a character (common on Windows) must not stop the program.
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(errors="replace")
     try:
         return int(args.handler(args))
     except EliLegalError as exc:
