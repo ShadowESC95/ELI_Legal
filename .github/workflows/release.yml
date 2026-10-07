@@ -38,6 +38,10 @@ jobs:
           sh dist/installers/ELI_Legal-*-linux-*.run --uninstall
           dist/installers/ELI_Legal-*-linux-*.AppImage --appimage-extract-and-run --version
           dist/installers/ELI_Legal-*-linux-*.AppImage --appimage-extract-and-run demo
+      - name: The desktop window opens and takes key presses
+        run: |
+          sudo apt-get install -y xvfb xdotool
+          xvfb-run -a -s "-screen 0 1280x800x24" sh packaging/linux/window_smoke.sh dist/installers/ELI_Legal-*-linux-*.AppImage
       - uses: actions/upload-artifact@v4
         with:
           name: linux
