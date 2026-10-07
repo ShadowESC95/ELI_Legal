@@ -21,6 +21,7 @@ if [ -z "${SKIP_FREEZE:-}" ]; then
 fi
 [ -x "$STAGE/eli-legal" ] || { echo "no frozen build at $STAGE" >&2; exit 1; }
 "$STAGE/eli-legal" --help >/dev/null
+"$PY" packaging/linux/check_bundle.py "$STAGE/_internal"
 cp packaging/INSTALL_NOTICE.txt "$STAGE/_internal/INSTALL_NOTICE.txt"
 # The oldest C library the bundled files need: the installer says so if a machine is older.
 GLIBC="$(find "$STAGE" -type f \( -name '*.so*' -o -name 'eli-legal*' \) -print0 | xargs -0 objdump -T 2>/dev/null \
