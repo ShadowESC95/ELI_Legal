@@ -49,9 +49,16 @@ class LlmStats:
 class LegalModel:
     """Thin wrapper that returns parsed JSON or None; a failed call never becomes a finding."""
 
-    def __init__(self, inference: InferencePort | None) -> None:
+    def __init__(self, inference: InferencePort | None, compliance: str = "") -> None:
         self.inference = inference
         self.stats = LlmStats()
+        # The law and standards that apply to the matter, compiled from its packages. It is
+        # appended to the fixed rules, never put in their place.
+        self.compliance = compliance
+
+    @property
+    def system(self) -> str:
+        return f"{SYSTEM_BASE}\n\n{self.compliance}" if self.compliance else SYSTEM_BASE
 
     @property
     def available(self) -> bool:
@@ -67,7 +74,7 @@ class LegalModel:
         self.stats.calls += 1
         try:
             raw = self.inference.generate(
-                system=SYSTEM_BASE, prompt=prompt, max_tokens=max_tokens, json_mode=True
+                system=self.system, prompt=prompt, max_tokens=max_tokens, json_mode=True
             )
         except InferenceUnavailable as exc:
             self.stats.failures += 1

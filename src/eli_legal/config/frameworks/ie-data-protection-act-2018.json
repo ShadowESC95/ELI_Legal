@@ -1,0 +1,74 @@
+{
+  "id": "ie-data-protection-act-2018",
+  "as_at": "2026-10-09",
+  "status_note": "A summary written for ELI Legal, in its own words. It is not the text of the instrument and has not been validated by a qualified lawyer. Check the official text before relying on any statement in it. Section numbers are given as a guide; confirm them against the Act as amended.",
+  "licence_note": "",
+  "source_url": "https://www.irishstatutebook.ie/eli/2018/act/7/enacted/en/html",
+  "recommend_for": [
+    "adjudicator",
+    "neutral_facilitator",
+    "party_representative"
+  ],
+  "example": false,
+  "rules": {},
+  "title": "Data Protection Act 2018 (Ireland)",
+  "short_title": "IE Data Protection Act",
+  "scope": "national",
+  "jurisdictions": [
+    "IE"
+  ],
+  "instrument": "Data Protection Act 2018 (No. 7 of 2018)",
+  "issuer": "Oireachtas",
+  "version": "2018",
+  "description": "Ireland's act completing the GDPR. It is the example of national implementing law the use case takes; in another member state, use that state's act.",
+  "requirements": [
+    {
+      "id": "s55",
+      "reference": "s. 55",
+      "title": "Criminal-offence data",
+      "text": "Personal data relating to criminal convictions and offences is processed only under the conditions the Act sets.",
+      "effect": "note",
+      "addressed_to": [
+        "deployer"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "privilege",
+      "reference": "s. 162",
+      "title": "Legal privilege",
+      "text": "Data-subject rights do not extend to material protected by legal privilege. Privileged material is filed with the privileged scope and stays within those entitled to it.",
+      "effect": "enforced",
+      "addressed_to": [
+        "deployer",
+        "user"
+      ],
+      "profiles": [],
+      "controls": [
+        "C-01",
+        "C-43"
+      ],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "courts",
+      "reference": "provisions on courts acting in a judicial capacity",
+      "title": "Supervision of the courts",
+      "text": "Processing by the courts acting in their judicial capacity is supervised separately from the Data Protection Commission.",
+      "effect": "note",
+      "addressed_to": [
+        "deployer"
+      ],
+      "profiles": [
+        "adjudicator"
+      ],
+      "controls": [],
+      "instruction": "",
+      "statement": ""
+    }
+  ]
+}

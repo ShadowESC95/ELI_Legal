@@ -12,7 +12,12 @@ from eli_legal.gui import theme
 from eli_legal.gui.tabs.base import Tab
 from eli_legal.gui.widgets import button, card, fill, fit, label, row, selected_id, table
 
-_KIND = {"document": "Document", "finding": "Finding", "authority": "Authority"}
+_KIND = {
+    "document": "Document",
+    "finding": "Finding",
+    "authority": "Authority",
+    "law": "Law or standard",
+}
 
 
 class _Input(QPlainTextEdit):

@@ -13,9 +13,14 @@ distribution; an installer must ship them.
 | cffi | 2.1.1 | MIT-0 |
 | click | 8.5.0 | BSD-3-Clause |
 | cryptography | 50.0.2 | Apache-2.0 OR BSD-3-Clause |
+| diskcache | 5.6.3 | Apache Software License |
 | fastapi | 0.142.2 | MIT |
 | h11 | 0.16.0 | MIT License |
 | idna | 3.20 | BSD-3-Clause |
+| Jinja2 | 3.1.6 | BSD License |
+| llama_cpp_python | 0.3.36 | MIT |
+| MarkupSafe | 3.0.4 | BSD-3-Clause |
+| numpy | 2.5.3 | BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 |
 | opentelemetry-api | 1.45.0 | Apache-2.0 |
 | pycparser | 3.0 | BSD-3-Clause |
 | pydantic | 2.13.5 | MIT |

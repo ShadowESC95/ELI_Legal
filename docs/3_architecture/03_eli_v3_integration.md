@@ -65,3 +65,18 @@ Finance, healthcare, VR or anything else follows the same four steps: its own pa
 rules and store; a `manifest.json` in v3's schema; a policy module with the three hooks; and an
 `eli.editions` entry point to a `register(host, entitled=...)` function. Nothing of ELI Legal is
 needed by another edition, and nothing of another edition is needed by ELI Legal.
+
+## Opening ELI Legal from ELI v3 (bundles)
+
+ELI v3 can open ELI Legal in place of its own window, or beside it. ELI Legal is a *bundle*: a
+separate application on ELI v3's core. The contract is ELI v3's `eli/bundles` (see its
+`docs/BUNDLES.md`); other bundles (ELI VR, Healthcare, Finance) use the same one.
+
+| How ELI Legal is installed | How ELI v3 finds it | Runs |
+|---|---|---|
+| In ELI v3's Python environment (`pip install eli-legal`) | the `eli.bundles` entry point (`eli_legal.bundle:describe`) | inside ELI v3's process, with ELI v3's loaded model unless another is chosen |
+| On its own (AppImage, installer) | `eli-legal bundle register` writes `legal.json` into ELI v3's `bundles` folder | as its own program |
+
+From ELI v3: the start-up question (ELI v3 or a bundle), `eli --bundle legal`, `eli --bundles`, or
+the Bundles menu. Opened this way ELI Legal keeps its data in its own folder, never ELI v3's, and
+keeps every control it has on its own.

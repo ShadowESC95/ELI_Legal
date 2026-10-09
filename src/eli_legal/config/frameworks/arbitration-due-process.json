@@ -1,0 +1,86 @@
+{
+  "id": "arbitration-due-process",
+  "as_at": "2026-10-09",
+  "status_note": "A summary written for ELI Legal, in its own words. It is not the text of the instrument and has not been validated by a qualified lawyer. Check the official text before relying on any statement in it.",
+  "licence_note": "",
+  "source_url": "https://uncitral.un.org/en/texts/arbitration/modellaw/commercial_arbitration",
+  "recommend_for": [
+    "adjudicator"
+  ],
+  "example": false,
+  "rules": {},
+  "title": "International arbitration: due process under the UNCITRAL Model Law and the New York Convention",
+  "short_title": "Arbitration due process",
+  "scope": "international",
+  "jurisdictions": [
+    "INT-ARB"
+  ],
+  "instrument": "UNCITRAL Model Law on International Commercial Arbitration (1985, amended 2006), Arts. 18, 24(3), 31, 34(2)(a)(ii); Convention on the Recognition and Enforcement of Foreign Arbitral Awards (1958), Art. V(1)(b)",
+  "issuer": "United Nations Commission on International Trade Law",
+  "version": "2006",
+  "description": "The core of due process in arbitration. Many seats have adopted the Model Law, among them Ireland (Arbitration Act 2010) and Germany (Tenth Book of the ZPO).",
+  "requirements": [
+    {
+      "id": "ML18",
+      "reference": "Model Law Art. 18",
+      "title": "Equal treatment and a full opportunity to present one's case",
+      "text": "The parties are treated with equality and each is given a full opportunity of presenting its case.",
+      "effect": "instruction",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "Set out the material and arguments of each party with equal care; never omit a party's position because it is shorter or less clearly put.",
+      "statement": ""
+    },
+    {
+      "id": "ML24-3",
+      "reference": "Model Law Art. 24(3)",
+      "title": "What the tribunal may rely on is shared",
+      "text": "Everything one party supplies is communicated to the other, and any document on which the tribunal may rely is communicated to the parties.",
+      "effect": "attestation",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [
+        "adjudicator"
+      ],
+      "controls": [],
+      "instruction": "",
+      "statement": "Any document or authority in this report on which the tribunal may rely, including any found by research, has been or will be communicated to the parties."
+    },
+    {
+      "id": "ML31",
+      "reference": "Model Law Art. 31",
+      "title": "The award and its reasons are the tribunal's",
+      "text": "The award is made, reasoned and signed by the arbitrators.",
+      "effect": "instruction",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [
+        "adjudicator"
+      ],
+      "controls": [],
+      "instruction": "Do not draft an award, a decision or reasons for one, in whole or in part.",
+      "statement": ""
+    },
+    {
+      "id": "ML34-NYC-V",
+      "reference": "Model Law Art. 34(2)(a)(ii); New York Convention Art. V(1)(b)",
+      "title": "The risk to the award",
+      "text": "An award can be set aside, or refused recognition, where a party was unable to present its case. Material not put to the parties is the usual way that happens.",
+      "effect": "note",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [
+        "adjudicator"
+      ],
+      "controls": [],
+      "instruction": "",
+      "statement": ""
+    }
+  ]
+}

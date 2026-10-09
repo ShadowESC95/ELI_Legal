@@ -1,0 +1,115 @@
+{
+  "id": "aba-formal-opinion-512",
+  "as_at": "2026-10-09",
+  "status_note": "A summary written for ELI Legal, in its own words. It is not the text of the instrument and has not been validated by a qualified lawyer. Check the official text before relying on any statement in it.",
+  "licence_note": "",
+  "source_url": "https://www.americanbar.org/news/abanews/aba-news-archives/2024/07/aba-issues-first-ethics-guidance-ai-tools/",
+  "recommend_for": [
+    "party_representative"
+  ],
+  "example": false,
+  "rules": {},
+  "title": "ABA Formal Opinion 512: generative artificial intelligence tools",
+  "short_title": "ABA Op. 512",
+  "scope": "professional",
+  "jurisdictions": [
+    "US-FED"
+  ],
+  "instrument": "American Bar Association Standing Committee on Ethics and Professional Responsibility, Formal Opinion 512 (29 July 2024)",
+  "issuer": "American Bar Association",
+  "version": "2024",
+  "description": "How the Model Rules of Professional Conduct apply to a lawyer's use of generative AI. State rules govern; check yours.",
+  "requirements": [
+    {
+      "id": "MR1.1",
+      "reference": "Model Rule 1.1",
+      "title": "Competence",
+      "text": "The lawyer understands the capacities and limits of the tool and reviews its output to the standard competence requires.",
+      "effect": "attestation",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [
+        "party_representative"
+      ],
+      "controls": [],
+      "instruction": "",
+      "statement": "I understand what this tool checks and does not check, and I have reviewed its output to the standard my duty of competence requires."
+    },
+    {
+      "id": "MR1.6",
+      "reference": "Model Rule 1.6",
+      "title": "Confidentiality",
+      "text": "Client information is protected; informed consent may be needed before it is put into a tool that could disclose it. This system sends nothing off the machine.",
+      "effect": "enforced",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [],
+      "controls": [
+        "C-02",
+        "C-04"
+      ],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "MR1.4",
+      "reference": "Model Rule 1.4",
+      "title": "Communication with the client",
+      "text": "The client is told about the use of generative AI where it is relevant to decisions about the representation.",
+      "effect": "note",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "MR3.3",
+      "reference": "Model Rules 3.1, 3.3, 8.4(c)",
+      "title": "Candour to the tribunal",
+      "text": "No false statement of law or fact is made to a tribunal.",
+      "effect": "attestation",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [
+        "party_representative"
+      ],
+      "controls": [],
+      "instruction": "",
+      "statement": "I will not put any statement of law or fact from this work before a tribunal without verifying it myself."
+    },
+    {
+      "id": "MR5.1-5.3",
+      "reference": "Model Rules 5.1-5.3",
+      "title": "Supervision",
+      "text": "Supervising lawyers make reasonable efforts to ensure others' use of the tool complies with the rules.",
+      "effect": "note",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "MR1.5",
+      "reference": "Model Rule 1.5",
+      "title": "Fees",
+      "text": "Fees for AI-assisted work are reasonable.",
+      "effect": "note",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "",
+      "statement": ""
+    }
+  ]
+}

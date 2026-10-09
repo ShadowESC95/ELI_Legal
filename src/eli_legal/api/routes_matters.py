@@ -17,6 +17,7 @@ from eli_legal.workflows.agents import agent_for, layers
 from . import schemas
 from .auth import Access
 from .config import ServerConfig
+from .routes_oversight import _public
 
 _UNSAFE_NAME = re.compile(r"[\x00-\x1f\x7f/\\]")
 
@@ -53,7 +54,7 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
         packs = [sv.ctx.jurisdictions.get(code) for code in sv.ctx.jurisdictions.codes()]
         return {
             "version": __version__,
-            "model": sv.config.current(),
+            "model": _public(sv.config.current()),
             "network_default": sv.ctx.settings.network_default,
             "audit": {"ok": chain.ok, "events": chain.count, "error": chain.error},
             "second_factor_required": cfg.require_second_factor,
@@ -136,6 +137,8 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
             parties=[(p.name, p.role) for p in body.parties],
             stated_issues=body.stated_issues,
             represented_party=body.represented_party,
+            frameworks=body.frameworks,
+            recommended_frameworks=body.recommended_frameworks,
         )
         return js(m)
 

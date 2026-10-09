@@ -377,6 +377,8 @@ def cmd_matter(args: argparse.Namespace) -> int:
             parties=[tuple(_pair(p, 2, "NAME:ROLE")) for p in args.party],
             stated_issues=args.issue,
             represented_party=args.represents,
+            frameworks=args.framework,
+            recommended_frameworks=not args.no_recommended_frameworks,
         )
         print(matter.matter_id)
     elif c == "list":
@@ -412,6 +414,11 @@ def cmd_matter(args: argparse.Namespace) -> int:
         sv.matters.set_reviewers(args.matter, actor_id=actor, reviewer_ids=args.user_id)
     elif c == "sources":
         sv.matters.set_sources(args.matter, actor_id=actor, source_ids=args.source_id)
+    elif c == "frameworks":
+        if args.pack_id:
+            sv.frameworks.set_for_matter(args.matter, actor_id=actor, pack_ids=args.pack_id)
+        for state in sv.frameworks.for_matter(args.matter, actor_id=actor):
+            print(f"{state.pack.pack_id:32} {state.pack.title}  [{state.why}]")
     elif c == "set":
         sv.matters.update(
             args.matter,
@@ -758,12 +765,157 @@ def cmd_demo(args: argparse.Namespace) -> int:
     from eli_legal.demo_run import run_demo
 
     root = Path(args.dir) if args.dir else Path(tempfile.mkdtemp(prefix="eli_legal_demo_"))
-    inference = (
+    inference: Any = (
         OpenAICompatInference(base_url=args.model_url, model=args.model) if args.model else None
     )
+    if args.gguf:
+        from eli_legal.adapters.inference.gguf import GgufInference
+
+        inference = GgufInference(
+            args.gguf, n_ctx=args.gguf_context, n_gpu_layers=args.gguf_gpu_layers
+        )
     print(f"ELI Legal demonstration — synthetic dispute, fictional law — workspace: {root}\n")
     result = run_demo(root, inference=inference)
     return 0 if result.final_status == "approved_for_reliance" else 1
+
+
+def cmd_bundle(args: argparse.Namespace) -> int:
+    from eli_legal import bundle
+
+    target = Path(args.into) if getattr(args, "into", None) else None
+    if args.bundle_cmd == "register":
+        path = bundle.register(target)
+        print(
+            f"registered with ELI v3: {path}\nELI v3 will offer to open ELI Legal (its Bundles menu, or: eli --bundle legal)"
+        )
+    elif args.bundle_cmd == "unregister":
+        removed = bundle.unregister(target)
+        print("\n".join(f"removed {p}" for p in removed) or "ELI Legal was not registered")
+    else:
+        _out(
+            {
+                **bundle.describe(),
+                "command": bundle.own_command(),
+                "registers_in": [str(p) for p in bundle.v3_bundle_dirs()],
+            }
+        )
+    return 0
+
+
+def cmd_framework(args: argparse.Namespace) -> int:
+    from eli_legal.legal.frameworks import pack_to_dict
+
+    sv = _services(args)
+    actor = _actor(args)
+    c = args.framework_cmd
+    if c == "list":
+        for state in sv.frameworks.list(actor_id=actor):
+            p = state.pack
+            print(
+                f"{p.pack_id:32} {p.scope:15} {','.join(p.jurisdictions):10} {p.short_title}  [{state.why}]"
+            )
+    elif c == "show":
+        state = sv.frameworks.get(args.pack_id, actor_id=actor)
+        _out({**state.as_dict(), "pack": pack_to_dict(state.pack)})
+    elif c == "import":
+        path = Path(args.file)
+        state = sv.frameworks.import_file(
+            path.name,
+            path.read_bytes(),
+            actor_id=actor,
+            title=args.title,
+            pack_id=args.pack_id,
+            issuer=args.issuer,
+            version=args.pack_version,
+        )
+        print(
+            f"imported {state.pack.pack_id}: {len(state.pack.requirements)} requirement(s); {state.why}"
+        )
+    elif c == "approve":
+        with _confirmed(args, f"approve the package {args.pack_id}") as who:
+            print(sv.frameworks.approve(args.pack_id, actor_id=who).why)
+    elif c == "validate":
+        with _confirmed(args, f"record a validation of {args.pack_id}") as who:
+            print(sv.frameworks.validate(args.pack_id, actor_id=who, lawyer=args.by).why)
+    elif c == "withdraw":
+        print(sv.frameworks.withdraw(args.pack_id, actor_id=actor).why)
+    elif c == "reinstate":
+        with _confirmed(args, f"reinstate {args.pack_id}") as who:
+            print(sv.frameworks.reinstate(args.pack_id, actor_id=who).why)
+    elif c == "remove":
+        sv.frameworks.remove(args.pack_id, actor_id=actor)
+        print(f"removed {args.pack_id}")
+    elif c == "export":
+        text = sv.frameworks.export(args.pack_id, actor_id=actor)
+        if args.out:
+            Path(args.out).write_text(text, encoding="utf-8")
+            print(f"written to {args.out}")
+        else:
+            print(text, end="")
+    elif c == "context":
+        print(sv.frameworks.context_for(args.matter, actor_id=actor) or "No package applies.")
+    return 0
+
+
+def cmd_model(args: argparse.Namespace) -> int:
+    from eli_legal.settings import ENV_FILE
+
+    sv = _services(args)
+    c = args.model_cmd
+    if c == "show":
+        _out(sv.config.current())
+        return 0
+    if c == "list":
+        sv.ctx.authorizer().require_global(_actor(args), "config.manage")
+        found = sv.config.gguf_models()
+        print(
+            "GGUF models on this machine:"
+            if found
+            else "No GGUF model was found in ELI's model folders."
+        )
+        for m in found:
+            print(f"  {m.name:60} {m.size / 1e9:6.1f} GB  {m.location}\n    {m.path}")
+        if not sv.config.current()["gguf_supported"]:
+            print(
+                "  (llama.cpp for Python is not installed here, so these cannot run: pip install 'eli-legal[gguf]')"
+            )
+        try:
+            served = sv.config.available_models(sv.ctx.settings.inference_url)
+        except EliLegalError:
+            served = []
+        print(
+            f"Model server at {sv.ctx.settings.inference_url}: "
+            + (", ".join(served) or "none answered")
+        )
+        return 0
+    model, verifier = args.model, args.verifier
+    if args.backend == "gguf":
+        by_name = {m.name: str(m.path) for m in sv.config.gguf_models()}
+        model = by_name.get(model, model)
+        verifier = by_name.get(verifier, verifier)
+        if model and not Path(model).is_file():
+            raise SystemExit(f"no GGUF file {model!r}; see: eli-legal model list")
+    options = {
+        k: v
+        for k, v in (
+            ("gguf_context", args.context),
+            ("gguf_gpu_layers", args.gpu_layers),
+            ("gguf_threads", args.threads),
+        )
+        if v is not None
+    }
+    with _confirmed(args, "change the model") as who:
+        current = sv.config.set_model(
+            actor_id=who,
+            backend=args.backend,
+            url=args.url,
+            model=model,
+            verifier_model=verifier,
+            persist_to=ENV_FILE,
+            **options,
+        )
+    print(f"model: {current['active_model_id']}   verifier: {current['active_verifier_id']}")
+    return 0
 
 
 # ── parser ───────────────────────────────────────────────────────────────────
@@ -865,6 +1017,18 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--party", action="append", default=[], help="NAME:ROLE")
     a.add_argument("--issue", action="append", default=[])
     a.add_argument("--represents", help="party name (party-representative profile)")
+    a.add_argument(
+        "--framework",
+        action="append",
+        default=[],
+        metavar="PACKAGE",
+        help="a law or standards package to apply (repeatable); see: eli-legal framework list",
+    )
+    a.add_argument(
+        "--no-recommended-frameworks",
+        action="store_true",
+        help="apply only the packages named, not the recommended ones as well",
+    )
     s.add_parser("list")
     s.add_parser("show").add_argument("matter")
     for name in ("grant", "revoke"):
@@ -877,6 +1041,9 @@ def build_parser() -> argparse.ArgumentParser:
     a = s.add_parser("sources")
     a.add_argument("matter")
     a.add_argument("source_id", nargs="*")
+    a = s.add_parser("frameworks", help="show, or set, the law and standards packages applied")
+    a.add_argument("matter")
+    a.add_argument("pack_id", nargs="*")
     a = s.add_parser("set")
     a.add_argument("matter")
     a.add_argument("--relevant-date")
@@ -1020,6 +1187,61 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--dir")
     p.add_argument("--model", help="local model name, e.g. qwen2.5:14b")
     p.add_argument("--model-url", default="http://127.0.0.1:11434/v1")
+    p.add_argument(
+        "--gguf", metavar="FILE", help="a GGUF model file to run in process with llama.cpp"
+    )
+    p.add_argument("--gguf-context", type=int, default=8192)
+    p.add_argument("--gguf-gpu-layers", type=int, default=0)
+
+    p = add(
+        "framework", cmd_framework, "law and standards packages: list, inspect, import, approve"
+    )
+    s = p.add_subparsers(dest="framework_cmd", required=True)
+    s.add_parser("list")
+    s.add_parser("show").add_argument("pack_id")
+    a = s.add_parser("import", help="a JSON package, a CSV register, or a document of rules")
+    a.add_argument("file")
+    a.add_argument("--title", default="")
+    a.add_argument("--id", dest="pack_id", default="")
+    a.add_argument("--issuer", default="")
+    a.add_argument("--version", dest="pack_version", default="1")
+    s.add_parser("approve").add_argument("pack_id")
+    a = s.add_parser("validate", help="record a qualified lawyer's validation of a package")
+    a.add_argument("pack_id")
+    a.add_argument("--by", required=True, help="the lawyer's name")
+    s.add_parser("withdraw").add_argument("pack_id")
+    s.add_parser("reinstate").add_argument("pack_id")
+    s.add_parser("remove").add_argument("pack_id")
+    a = s.add_parser("export")
+    a.add_argument("pack_id")
+    a.add_argument("--out")
+    s.add_parser("context", help="what the model is told on a matter").add_argument("matter")
+
+    p = add("bundle", cmd_bundle, "make this copy available to ELI v3 as a bundle")
+    s = p.add_subparsers(dest="bundle_cmd", required=True)
+    s.add_parser("show")
+    for name in ("register", "unregister"):
+        s.add_parser(name).add_argument(
+            "--into", help="ELI v3's bundles folder, if not the usual one"
+        )
+
+    p = add("model", cmd_model, "show, find or choose the model")
+    s = p.add_subparsers(dest="model_cmd", required=True)
+    s.add_parser("show")
+    s.add_parser("list", help="GGUF models found on this machine, and a model server's models")
+    a = s.add_parser("use", help="choose a GGUF file, a server model, ELI v3's model, or none")
+    a.add_argument("backend", choices=["gguf", "openai_compat", "eli_v3", "none"])
+    a.add_argument(
+        "model",
+        nargs="?",
+        default="",
+        help="GGUF file (path or name from 'model list'), or a server's model name",
+    )
+    a.add_argument("--verifier", default="")
+    a.add_argument("--url", default="")
+    a.add_argument("--context", type=int)
+    a.add_argument("--gpu-layers", type=int)
+    a.add_argument("--threads", type=int)
     return parser
 
 

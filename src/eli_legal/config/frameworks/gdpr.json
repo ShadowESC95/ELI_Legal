@@ -1,0 +1,183 @@
+{
+  "id": "gdpr",
+  "as_at": "2026-10-09",
+  "status_note": "A summary written for ELI Legal, in its own words. It is not the text of the instrument and has not been validated by a qualified lawyer. Check the official text before relying on any statement in it.",
+  "licence_note": "EU legislation may be reused under Commission Decision 2011/833/EU. The wording of this summary is the software's own.",
+  "source_url": "https://eur-lex.europa.eu/eli/reg/2016/679/oj",
+  "recommend_for": [
+    "adjudicator",
+    "neutral_facilitator",
+    "party_representative"
+  ],
+  "example": false,
+  "rules": {},
+  "title": "General Data Protection Regulation",
+  "short_title": "GDPR",
+  "scope": "regional",
+  "jurisdictions": [
+    "EU"
+  ],
+  "instrument": "Regulation (EU) 2016/679",
+  "issuer": "European Parliament and Council of the European Union",
+  "version": "2016/679",
+  "description": "The papers in a dispute hold personal data, often special-category or criminal-offence data. The deployer is the controller. National law in each member state completes the Regulation.",
+  "requirements": [
+    {
+      "id": "Art5-1-bc",
+      "reference": "Art. 5(1)(b)-(c)",
+      "title": "Purpose limitation and data minimisation",
+      "text": "Personal data in the papers is used only for this matter; logs hold identifiers and hashes, not content; nothing is carried between matters.",
+      "effect": "enforced",
+      "addressed_to": [
+        "provider",
+        "deployer"
+      ],
+      "profiles": [],
+      "controls": [
+        "C-02",
+        "C-18"
+      ],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "Art5-1-c-model",
+      "reference": "Art. 5(1)(c)",
+      "title": "Only the personal data the task needs",
+      "text": "Personal details are mentioned only where the task needs them.",
+      "effect": "instruction",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "Mention a person's personal details only where the task needs them, and refer to people by the name or role the documents give them.",
+      "statement": ""
+    },
+    {
+      "id": "Art5-1-d",
+      "reference": "Art. 5(1)(d)",
+      "title": "Accuracy",
+      "text": "Personal data is reproduced exactly as the documents give it.",
+      "effect": "instruction",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "Quote personal data exactly as it appears in the documents. Never infer, complete or correct a person's details.",
+      "statement": ""
+    },
+    {
+      "id": "Art9-model",
+      "reference": "Art. 9",
+      "title": "Special categories of personal data",
+      "text": "Special-category data is neither inferred nor speculated about.",
+      "effect": "instruction",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "Never infer or speculate about anyone's health, ethnic origin, political opinions, religious or philosophical beliefs, trade-union membership, genetic or biometric data, sex life or sexual orientation. Mention such matters only as the documents state them and only where the task needs it.",
+      "statement": ""
+    },
+    {
+      "id": "Art6-9-10",
+      "reference": "Arts. 6, 9 and 10",
+      "title": "A lawful basis",
+      "text": "There is a lawful basis for the processing, and a condition for any special-category or criminal-offence data.",
+      "effect": "attestation",
+      "addressed_to": [
+        "deployer"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "",
+      "statement": "There is a lawful basis for processing the personal data in this matter, including any special-category or criminal-offence data."
+    },
+    {
+      "id": "Art22",
+      "reference": "Art. 22",
+      "title": "No decision based solely on automated processing",
+      "text": "No decision with legal or similarly significant effect on a person is based solely on this output; a named person reviews it and decides.",
+      "effect": "enforced",
+      "addressed_to": [
+        "deployer"
+      ],
+      "profiles": [],
+      "controls": [
+        "C-13",
+        "C-14"
+      ],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "Art25",
+      "reference": "Art. 25",
+      "title": "Data protection by design and by default",
+      "text": "Network denied by default; models run on the same machine; records isolated by matter; logs minimised.",
+      "effect": "enforced",
+      "addressed_to": [
+        "provider"
+      ],
+      "profiles": [],
+      "controls": [
+        "C-02",
+        "C-04",
+        "C-18"
+      ],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "Art32",
+      "reference": "Art. 32",
+      "title": "Security of processing",
+      "text": "Access by role and matter, proven identity, tamper-evident records and a hardened server. Encryption at rest and backups are the deployer's.",
+      "effect": "enforced",
+      "addressed_to": [
+        "provider",
+        "deployer"
+      ],
+      "profiles": [],
+      "controls": [
+        "C-01",
+        "C-16",
+        "C-29",
+        "C-35"
+      ],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "Art35",
+      "reference": "Art. 35",
+      "title": "Data-protection impact assessment",
+      "text": "The controller assesses the impact of the processing before it starts, where it is likely to result in a high risk.",
+      "effect": "note",
+      "addressed_to": [
+        "deployer"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "Art33-34",
+      "reference": "Arts. 33-34",
+      "title": "Personal-data breaches",
+      "text": "A breach is notified to the supervisory authority within 72 hours unless it is unlikely to result in a risk, and to the people affected where the risk is high.",
+      "effect": "note",
+      "addressed_to": [
+        "deployer"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "",
+      "statement": ""
+    }
+  ]
+}

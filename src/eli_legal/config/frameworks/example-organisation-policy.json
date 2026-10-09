@@ -1,0 +1,98 @@
+{
+  "id": "example-organisation-policy",
+  "as_at": "2026-10-09",
+  "status_note": "An example showing every kind of requirement. Export it, change it, and import it as your own.",
+  "licence_note": "",
+  "source_url": "",
+  "recommend_for": [],
+  "example": true,
+  "rules": {
+    "status_max_age_days": 14,
+    "forbidden_terms": [
+      "guaranteed",
+      "certain to succeed"
+    ]
+  },
+  "title": "Example organisation policy (a template to copy)",
+  "short_title": "Example policy",
+  "scope": "organisational",
+  "jurisdictions": [
+    "*"
+  ],
+  "instrument": "Example: a firm's or tribunal's own rules for AI-assisted work",
+  "issuer": "Example",
+  "version": "1",
+  "description": "Shows a disclosure, a rule for the model, a reviewer confirmation, a note, a shorter status limit and forbidden terms.",
+  "requirements": [
+    {
+      "id": "P1",
+      "reference": "1",
+      "title": "Disclosure on every report",
+      "text": "Every report carries the organisation's disclosure statement.",
+      "effect": "disclosure",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "",
+      "statement": "Prepared with the assistance of ELI Legal, an AI system, and reviewed by a named person before reliance."
+    },
+    {
+      "id": "P2",
+      "reference": "2",
+      "title": "Defined terms",
+      "text": "Use the documents' own defined terms.",
+      "effect": "instruction",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "Use the defined terms the documents use for the parties and the agreements.",
+      "statement": ""
+    },
+    {
+      "id": "P3",
+      "reference": "3",
+      "title": "Second reader",
+      "text": "A second person reads every report before it is relied on.",
+      "effect": "attestation",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "",
+      "statement": "A second person has read this report before it is relied on."
+    },
+    {
+      "id": "P4",
+      "reference": "4",
+      "title": "Plain English",
+      "text": "Plain English throughout.",
+      "effect": "instruction",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "Write in plain English; avoid Latin phrases where an English one will do.",
+      "statement": ""
+    },
+    {
+      "id": "P5",
+      "reference": "5",
+      "title": "Firm-managed machines",
+      "text": "Client data stays on machines the organisation manages.",
+      "effect": "note",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "",
+      "statement": ""
+    }
+  ]
+}

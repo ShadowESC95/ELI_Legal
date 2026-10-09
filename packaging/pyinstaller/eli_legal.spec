@@ -35,13 +35,28 @@ excluded = [
     "PySide6.QtQml", "PySide6.QtQuick", "PySide6.QtQuick3D", "PySide6.QtMultimedia", "PySide6.QtPdf", "PySide6.Qt3DCore",
     "PySide6.QtCharts", "PySide6.QtDataVisualization", "PySide6.QtBluetooth", "PySide6.QtNfc", "PySide6.QtSensors",
     "PySide6.QtSerialPort", "PySide6.QtPositioning", "PySide6.QtLocation", "PySide6.QtTest", "PySide6.QtSql",
-    "tkinter", "pytest", "mypy", "ruff", "IPython", "matplotlib", "numpy", "PyInstaller",
+    "tkinter", "pytest", "mypy", "ruff", "IPython", "matplotlib", "PyInstaller",
 ]
+
+# GGUF models run in process through llama.cpp when it is installed in the build environment.
+binaries = []
+try:
+    import llama_cpp  # noqa: F401
+    from PyInstaller.utils.hooks import collect_dynamic_libs
+
+    hidden += collect_submodules("llama_cpp")
+    datas += collect_data_files("llama_cpp")
+    binaries += collect_dynamic_libs("llama_cpp")
+    print("ELI Legal build: llama.cpp included (GGUF models supported)")
+except ImportError:
+    excluded.append("numpy")
+    print("ELI Legal build: llama.cpp not installed; GGUF models will not run in this build")
 
 a = Analysis(
     [str(ROOT / "packaging" / "pyinstaller" / "entry_cli.py"), str(ROOT / "packaging" / "pyinstaller" / "entry_gui.py")],
     pathex=[str(SRC)],
     datas=datas,
+    binaries=binaries,
     hiddenimports=hidden,
     excludes=excluded,
     noarchive=False,

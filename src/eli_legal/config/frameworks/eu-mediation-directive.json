@@ -1,0 +1,75 @@
+{
+  "id": "eu-mediation-directive",
+  "as_at": "2026-10-09",
+  "status_note": "A summary written for ELI Legal, in its own words. It is not the text of the instrument and has not been validated by a qualified lawyer. Check the official text before relying on any statement in it.",
+  "licence_note": "EU legislation may be reused under Commission Decision 2011/833/EU. The wording of this summary is the software's own.",
+  "source_url": "https://eur-lex.europa.eu/eli/dir/2008/52/oj",
+  "recommend_for": [
+    "neutral_facilitator"
+  ],
+  "example": false,
+  "rules": {},
+  "title": "Mediation in civil and commercial matters",
+  "short_title": "Mediation Directive",
+  "scope": "regional",
+  "jurisdictions": [
+    "EU"
+  ],
+  "instrument": "Directive 2008/52/EC",
+  "issuer": "European Parliament and Council of the European Union",
+  "version": "2008/52/EC",
+  "description": "Confidentiality and quality of mediation in cross-border disputes; most member states apply the same rules to domestic mediation.",
+  "requirements": [
+    {
+      "id": "Art7",
+      "reference": "Art. 7",
+      "title": "Confidentiality of mediation",
+      "text": "Information arising out of or in connection with the mediation is kept confidential; material one party gives in confidence is left out of anything shared with the other.",
+      "effect": "enforced",
+      "addressed_to": [
+        "deployer",
+        "user"
+      ],
+      "profiles": [],
+      "controls": [
+        "C-01",
+        "C-02",
+        "C-43"
+      ],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "Art3-b",
+      "reference": "Art. 3(b)",
+      "title": "An effective, impartial and competent mediator",
+      "text": "The mediator conducts the mediation impartially and does not evaluate the parties' positions unless asked to.",
+      "effect": "instruction",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [
+        "neutral_facilitator"
+      ],
+      "controls": [],
+      "instruction": "Do not evaluate the strength of either party's position, propose terms of settlement, or suggest what either party should accept.",
+      "statement": ""
+    },
+    {
+      "id": "Art4",
+      "reference": "Art. 4",
+      "title": "Quality of mediation",
+      "text": "Mediators follow a code of conduct and are trained; neutrality and the parties' self-determination are not handed to a tool.",
+      "effect": "note",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [
+        "neutral_facilitator"
+      ],
+      "controls": [],
+      "instruction": "",
+      "statement": ""
+    }
+  ]
+}

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 
 from eli_legal.domain.enums import ClaimKind, ClaimStatus, Profile, VerificationType
@@ -18,6 +18,7 @@ from eli_legal.domain.models import Claim, Issue, Matter, VerificationResult
 from eli_legal.domain.profiles import profile_spec
 from eli_legal.legal.citations import CitationExtractor
 from eli_legal.legal.dates import find_dates
+from eli_legal.legal.frameworks import Rules, contains_forbidden
 from eli_legal.legal.llm import PROMPT_VERSIONS, LegalModel, fenced
 
 VERIFIER_ID = "deterministic/analysis-boundary-1"
@@ -98,6 +99,7 @@ class Analyst:
     model: LegalModel
     extractor: CitationExtractor
     date_order: str = "dmy"
+    rules: Rules = field(default_factory=Rules)
 
     def arguments_for_issue(
         self,
@@ -154,6 +156,10 @@ class Analyst:
             relied = [labels[str(x)] for x in item.get("relies_on") or [] if str(x) in labels]
             # An argument belongs to a named party and rests on something; otherwise it is not one.
             if party is None or not content or not relied:
+                self.model.stats.rejected_items += 1
+                continue
+            # A term the matter's law and standards forbid in drafted text discards the draft.
+            if contains_forbidden(content, self.rules):
                 self.model.stats.rejected_items += 1
                 continue
             # The system, not the model, supplies the attribution, so nothing a model drafts can

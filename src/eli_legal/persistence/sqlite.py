@@ -357,6 +357,14 @@ class Store:
         rows = self._all("SELECT data FROM registry WHERE kind=? AND id=?", (kind, record_id))
         return codec.loads(cls, rows[0][0]) if rows else None
 
+    def delete_registry(self, kind: str, record_id: str) -> int:
+        with self._tx() as con:
+            return int(
+                con.execute(
+                    "DELETE FROM registry WHERE kind=? AND id=?", (kind, record_id)
+                ).rowcount
+            )
+
     def list_registry(self, kind: str, cls: type[T]) -> _List[T]:
         rows = self._all("SELECT data FROM registry WHERE kind=? ORDER BY id", (kind,))
         return [codec.loads(cls, r[0]) for r in rows]

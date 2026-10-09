@@ -2,7 +2,7 @@
 
 Generated from the server's routes by `scripts/generate_reference_docs.py`. Do not edit by hand.
 
-The server exposes 71 operations under `/v1`, plus `/health` and the browser application at `/`.
+The server exposes 83 operations under `/v1`, plus `/health` and the browser application at `/`.
 It has no other routes: no general assistant, no shell, no device or media control, no plug-ins.
 
 ## Conventions
@@ -69,8 +69,8 @@ request body (`Content-Type: application/octet-stream`); optional query fields `
 | `GET` | `/v1/system` | yes | What this installation is, for the screens that need to offer choices. |
 | `GET` | `/v1/workflow` | yes | The steps as a graph, and each step as an agent with a fixed mandate. |
 | `GET` | `/v1/config` | yes | The model in use, the runtime policy and the server's settings. |
-| `GET` | `/v1/config/models` | yes | The models a local inference server offers. Only an address on this machine can be asked, so the server cannot be made to call anywhere else. |
-| `POST` | `/v1/config/model` | yes | Change the model. Only one on this machine is accepted. A decision; recorded. |
+| `GET` | `/v1/config/models` | yes | The models that can be chosen: GGUF files found on this machine (by reference, never by path), and those a model server on this machine offers. Only an address on this machine can be asked, so the server cannot be made to call anywhere else. |
+| `POST` | `/v1/config/model` | yes | Change the model. A decision, recorded. For GGUF, give the references from the list. |
 
 ## Matters and documents
 
@@ -89,6 +89,8 @@ request body (`Content-Type: application/octet-stream`); optional query fields `
 | `POST` | `/v1/matters/{matter_id}/documents` | yes | File a document. The body is the file itself; its name and filing details are in the query. It is stored once, read-only, addressed by its SHA-256, and then read. |
 | `GET` | `/v1/matters/{matter_id}/documents/{document_id}/passages` | yes | A document as the located passages every finding points back to. |
 | `POST` | `/v1/matters/{matter_id}/chat` | yes | Ask about the matter. The answer is its sources; nothing can be decided here. |
+| `GET` | `/v1/matters/{matter_id}/frameworks` | yes | The packages applied to a matter, and exactly what the model is told about them. |
+| `PUT` | `/v1/matters/{matter_id}/frameworks` | yes | Choose the packages that apply to a matter, from its next run. |
 
 ## Audit and governance
 
@@ -112,6 +114,21 @@ request body (`Content-Type: application/octet-stream`); optional query fields `
 | `POST` | `/v1/sources/{source_id}/import` | yes | Load a corpus from a folder on the server. Only folders inside the import area can be named, so this cannot be used to read anything else on the machine. |
 | `GET` | `/v1/sources/{source_id}/authorities` | yes | What a source holds: each authority with its citation and current status. |
 | `GET` | `/v1/authorities/{authority_id}` | yes | The text of one authority as located passages. |
+
+## Law and standards packages
+
+| Method | Path | Sign-in | What it does |
+|---|---|---|---|
+| `GET` | `/v1/frameworks` | yes | Every law and standards package, with its standing: usable or not, and why. |
+| `GET` | `/v1/frameworks/recommended` | yes | The packages recommended for a kind of matter in a legal system. |
+| `GET` | `/v1/frameworks/{pack_id}` | yes | One package in full: every requirement and how the system meets it. |
+| `GET` | `/v1/frameworks/{pack_id}/export` | yes | The package as JSON, to edit and import again as the organisation's own. |
+| `POST` | `/v1/frameworks/upload` | yes | Import a package: JSON, a CSV requirements register, or a document of the organisation's rules. The body is the file. It cannot be used until approved. |
+| `POST` | `/v1/frameworks/{pack_id}/approve` | yes | Approve an organisation's package for use. A decision. |
+| `POST` | `/v1/frameworks/{pack_id}/validate` | yes | Record that a qualified lawyer checked this exact version against its source. A decision. |
+| `POST` | `/v1/frameworks/{pack_id}/withdraw` | yes | Stop a package being applied to any matter from the next run. |
+| `POST` | `/v1/frameworks/{pack_id}/reinstate` | yes | Allow a withdrawn package again. A decision. |
+| `DELETE` | `/v1/frameworks/{pack_id}` | yes | Delete an organisation's package. |
 
 ## Runs, findings, review and release
 

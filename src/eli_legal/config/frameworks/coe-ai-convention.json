@@ -1,0 +1,157 @@
+{
+  "id": "coe-ai-convention",
+  "as_at": "2026-10-09",
+  "status_note": "A summary written for ELI Legal, in its own words. It is not the text of the instrument and has not been validated by a qualified lawyer. Check the official text before relying on any statement in it. The Convention binds the states that ratify it and reaches users through national law.",
+  "licence_note": "",
+  "source_url": "https://www.coe.int/en/web/artificial-intelligence/the-framework-convention-on-artificial-intelligence",
+  "recommend_for": [
+    "adjudicator",
+    "neutral_facilitator"
+  ],
+  "example": false,
+  "rules": {},
+  "title": "Council of Europe Framework Convention on Artificial Intelligence and Human Rights, Democracy and the Rule of Law",
+  "short_title": "CoE AI Convention",
+  "scope": "international",
+  "jurisdictions": [
+    "*"
+  ],
+  "instrument": "Council of Europe Treaty Series No. 225 (2024)",
+  "issuer": "Council of Europe",
+  "version": "CETS 225",
+  "description": "The first international treaty on AI. It applies to AI used by public authorities, including courts.",
+  "requirements": [
+    {
+      "id": "Art5",
+      "reference": "Art. 5",
+      "title": "Integrity of democratic processes and the rule of law",
+      "text": "AI is not used to undermine judicial independence or access to justice.",
+      "effect": "enforced",
+      "addressed_to": [
+        "deployer"
+      ],
+      "profiles": [],
+      "controls": [
+        "C-13",
+        "C-14"
+      ],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "Art7",
+      "reference": "Art. 7",
+      "title": "Human dignity and individual autonomy",
+      "text": "People are treated with respect for their dignity and autonomy.",
+      "effect": "instruction",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "Describe what a person said or did as the documents record it; do not characterise who they are.",
+      "statement": ""
+    },
+    {
+      "id": "Art8",
+      "reference": "Art. 8",
+      "title": "Transparency and oversight",
+      "text": "The system's role and limits can be seen and overseen.",
+      "effect": "enforced",
+      "addressed_to": [
+        "provider",
+        "deployer"
+      ],
+      "profiles": [],
+      "controls": [
+        "C-14",
+        "C-26",
+        "C-31"
+      ],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "Art9",
+      "reference": "Art. 9",
+      "title": "Accountability and responsibility",
+      "text": "Someone is accountable for every use and every decision.",
+      "effect": "enforced",
+      "addressed_to": [
+        "deployer"
+      ],
+      "profiles": [],
+      "controls": [
+        "C-14",
+        "C-16",
+        "C-30"
+      ],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "Art10",
+      "reference": "Art. 10",
+      "title": "Equality and non-discrimination",
+      "text": "Every party's material is treated by the same standard.",
+      "effect": "instruction",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "Apply the same standard to each party's material and set out the arguments open to each party with equal care.",
+      "statement": ""
+    },
+    {
+      "id": "Art11",
+      "reference": "Art. 11",
+      "title": "Privacy and personal data",
+      "text": "Personal data is protected.",
+      "effect": "enforced",
+      "addressed_to": [
+        "provider"
+      ],
+      "profiles": [],
+      "controls": [
+        "C-02",
+        "C-18"
+      ],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "Art12",
+      "reference": "Art. 12",
+      "title": "Reliability",
+      "text": "Outputs are checked before they are relied on.",
+      "effect": "enforced",
+      "addressed_to": [
+        "provider"
+      ],
+      "profiles": [],
+      "controls": [
+        "C-08",
+        "C-09",
+        "C-10",
+        "C-11"
+      ],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "Art14-15",
+      "reference": "Arts. 14-15",
+      "title": "Remedies and procedural safeguards",
+      "text": "Remedies are available for violations of rights, and the record needed to pursue them is kept.",
+      "effect": "note",
+      "addressed_to": [
+        "deployer"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "",
+      "statement": ""
+    }
+  ]
+}

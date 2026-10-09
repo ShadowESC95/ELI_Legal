@@ -34,6 +34,7 @@ is signed in, with their roles.
 | 🧾 Audit Trail | The ledger for the matter, including how each actor's identity was proved; verify the chain; reconcile a run's record; export a checkpoint or the evidence pack. |
 | 🛡 Governance | The requirement, control, risk and responsibility registers; monitoring computed from control evidence; incidents. |
 | 📚 Sources | The approved-source register; register, approve or revoke a source; load a corpus; read what a source holds and each authority's status history. |
+| 📜 Laws & Standards | The law, regulation and standards packages: the library, your organisation's own, and which apply to the open matter. See [Laws & Standards](11_laws_and_standards.md). |
 | ⚙ Settings | Your passphrase; users and roles; the model; the legal systems installed; the policy; this installation. |
 
 ## What it will not let you do

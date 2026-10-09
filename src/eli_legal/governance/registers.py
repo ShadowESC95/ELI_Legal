@@ -87,6 +87,15 @@ def check_registers(root: Path | None = None) -> list[str]:
             problems.append(f"{cid} needs an owner role and the evidence it produces")
 
     known = set(control_ids)
+    from eli_legal.legal.frameworks import load_shipped
+
+    for pack in load_shipped().values():
+        for req in pack.requirements:
+            problems += [
+                f"package {pack.pack_id} {req.req_id} names unknown control {c}"
+                for c in req.controls
+                if c not in control_ids
+            ]
     referenced: set[str] = set()
     for risk in _rows(governance / "risk_register.csv"):
         rid = risk["risk_id"]

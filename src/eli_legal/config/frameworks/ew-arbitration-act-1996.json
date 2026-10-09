@@ -1,0 +1,56 @@
+{
+  "id": "ew-arbitration-act-1996",
+  "as_at": "2026-10-09",
+  "status_note": "A summary written for ELI Legal, in its own words. It is not the text of the instrument and has not been validated by a qualified lawyer. Check the official text before relying on any statement in it.",
+  "licence_note": "",
+  "source_url": "https://www.legislation.gov.uk/ukpga/1996/23",
+  "recommend_for": [
+    "adjudicator"
+  ],
+  "example": false,
+  "rules": {},
+  "title": "Arbitration Act 1996: the tribunal's general duty",
+  "short_title": "Arbitration Act 1996",
+  "scope": "national",
+  "jurisdictions": [
+    "GB-EAW"
+  ],
+  "instrument": "Arbitration Act 1996, ss. 33 and 68 (as amended by the Arbitration Act 2025)",
+  "issuer": "UK Parliament",
+  "version": "1996 as amended 2025",
+  "description": "The duty of an arbitral tribunal seated in England, Wales or Northern Ireland to act fairly.",
+  "requirements": [
+    {
+      "id": "s33",
+      "reference": "s. 33",
+      "title": "Act fairly and impartially",
+      "text": "The tribunal acts fairly and impartially between the parties, giving each a reasonable opportunity of putting its case and dealing with that of its opponent.",
+      "effect": "attestation",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [
+        "adjudicator"
+      ],
+      "controls": [],
+      "instruction": "",
+      "statement": "Each party has had, or will have, a reasonable opportunity to deal with the material on which I rely, including any authority found by research."
+    },
+    {
+      "id": "s68",
+      "reference": "s. 68",
+      "title": "Serious irregularity",
+      "text": "A failure to comply with section 33 can be a serious irregularity on which an award is challenged.",
+      "effect": "note",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [
+        "adjudicator"
+      ],
+      "controls": [],
+      "instruction": "",
+      "statement": ""
+    }
+  ]
+}

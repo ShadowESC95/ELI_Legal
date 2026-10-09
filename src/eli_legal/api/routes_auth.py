@@ -32,6 +32,7 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
                     "user.manage",
                     "source.manage",
                     "config.manage",
+                    "framework.manage",
                     "audit.read",
                     "audit.verify",
                 )

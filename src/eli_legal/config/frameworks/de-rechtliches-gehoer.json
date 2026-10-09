@@ -1,0 +1,54 @@
+{
+  "id": "de-rechtliches-gehoer",
+  "as_at": "2026-10-09",
+  "status_note": "A summary written for ELI Legal, in its own words. It is not the text of the instrument and has not been validated by a qualified lawyer. Check the official text before relying on any statement in it.",
+  "licence_note": "",
+  "source_url": "",
+  "recommend_for": [
+    "adjudicator"
+  ],
+  "example": false,
+  "rules": {},
+  "title": "Right to be heard (Germany)",
+  "short_title": "DE right to be heard",
+  "scope": "national",
+  "jurisdictions": [
+    "DE"
+  ],
+  "instrument": "Grundgesetz Art. 103(1); Zivilprozessordnung § 139(2) and § 1042(1)",
+  "issuer": "Bundestag",
+  "version": "current",
+  "description": "The constitutional right to be heard, the court's duty to point out what the parties have overlooked, and equal treatment in arbitration.",
+  "requirements": [
+    {
+      "id": "GG103-ZPO139",
+      "reference": "Art. 103(1) GG; § 139(2) ZPO",
+      "title": "No surprise decisions",
+      "text": "A court may base its decision on a point a party has evidently overlooked or thought irrelevant only after pointing it out and giving the opportunity to comment.",
+      "effect": "attestation",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [
+        "adjudicator"
+      ],
+      "controls": [],
+      "instruction": "",
+      "statement": "Before I rely on a legal point or authority the parties have not addressed, I will point it out to them and give them the opportunity to comment."
+    },
+    {
+      "id": "ZPO1042",
+      "reference": "§ 1042(1) ZPO",
+      "title": "Equal treatment in arbitration",
+      "text": "The parties are treated equally and each is given the right to be heard.",
+      "effect": "instruction",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "Set out each party's position with equal care and completeness.",
+      "statement": ""
+    }
+  ]
+}

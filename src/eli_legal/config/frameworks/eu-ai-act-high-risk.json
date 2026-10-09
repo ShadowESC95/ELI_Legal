@@ -1,0 +1,307 @@
+{
+  "id": "eu-ai-act-high-risk",
+  "as_at": "2026-10-09",
+  "status_note": "A summary written for ELI Legal, in its own words. It is not the text of the instrument and has not been validated by a qualified lawyer. Check the official text before relying on any statement in it.",
+  "licence_note": "EU legislation may be reused under Commission Decision 2011/833/EU. The wording of this summary is the software's own.",
+  "source_url": "https://eur-lex.europa.eu/eli/reg/2024/1689/oj",
+  "recommend_for": [
+    "adjudicator",
+    "neutral_facilitator",
+    "party_representative"
+  ],
+  "example": false,
+  "rules": {},
+  "title": "EU AI Act: high-risk AI system under Annex III, point 8(a)",
+  "short_title": "EU AI Act",
+  "scope": "regional",
+  "jurisdictions": [
+    "EU"
+  ],
+  "instrument": "Regulation (EU) 2024/1689, as amended by Regulation (EU) 2026/1744",
+  "issuer": "European Parliament and Council of the European Union",
+  "version": "2024/1689 as amended by 2026/1744",
+  "description": "ELI Legal is a high-risk AI system under Article 6(2) and Annex III, point 8(a): it is intended to assist a judicial authority, or to be used in a similar way in alternative dispute resolution, in researching and interpreting facts and the law and in applying the law to a concrete set of facts. Article 6(3) was considered and is not relied on. The requirements of Chapter III, Sections 1 to 3 apply to Annex III systems from 2 December 2027, in every member state.",
+  "requirements": [
+    {
+      "id": "Art6-AnnexIII-8a",
+      "reference": "Art. 6(2); Annex III, point 8(a)",
+      "title": "Used within its intended purpose",
+      "text": "The system is used only to assist a person in researching and interpreting the facts and the law of this dispute and relating them to each other. It does not decide, and its output is not the decision.",
+      "effect": "enforced",
+      "addressed_to": [
+        "provider",
+        "deployer"
+      ],
+      "profiles": [],
+      "controls": [
+        "C-13",
+        "C-24"
+      ],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "Art5-persons",
+      "reference": "Art. 5; Annex III",
+      "title": "No assessment of persons",
+      "text": "The system makes no assessment of any person's character, credibility or likelihood of offending and infers no personal characteristic.",
+      "effect": "instruction",
+      "addressed_to": [
+        "provider"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "Do not assess any person's character, credibility, honesty or likelihood of offending, and do not infer personal characteristics such as health, ethnic origin, religion, political opinion or sexual orientation.",
+      "statement": ""
+    },
+    {
+      "id": "Art9",
+      "reference": "Art. 9",
+      "title": "Risks are controlled throughout the work",
+      "text": "Known risks to the matter (a wrong, outdated or misquoted authority, an unread or hostile document) are identified and held for a person to decide, and the residual risks are stated in the report.",
+      "effect": "enforced",
+      "addressed_to": [
+        "provider"
+      ],
+      "profiles": [],
+      "controls": [
+        "C-11",
+        "C-12",
+        "C-21",
+        "C-22"
+      ],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "Art10",
+      "reference": "Art. 10",
+      "title": "Data with recorded provenance",
+      "text": "Every document and every legal source has a recorded origin, version and date, and only approved legal sources are used.",
+      "effect": "enforced",
+      "addressed_to": [
+        "provider"
+      ],
+      "profiles": [],
+      "controls": [
+        "C-03",
+        "C-05",
+        "C-09"
+      ],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "Art12",
+      "reference": "Art. 12",
+      "title": "Events are recorded automatically",
+      "text": "Every step, tool call, source version, model and prompt version, hold, decision and release is recorded in a tamper-evident log from the first run.",
+      "effect": "enforced",
+      "addressed_to": [
+        "provider"
+      ],
+      "profiles": [],
+      "controls": [
+        "C-16",
+        "C-17",
+        "C-18",
+        "C-31"
+      ],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "Art13",
+      "reference": "Art. 13",
+      "title": "Output that can be interpreted, with its limits stated",
+      "text": "The report says what was verified, by which check and by whom, what was not, and the limits of the document.",
+      "effect": "enforced",
+      "addressed_to": [
+        "provider"
+      ],
+      "profiles": [],
+      "controls": [
+        "C-14",
+        "C-26",
+        "C-27",
+        "C-42"
+      ],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "Art14-4",
+      "reference": "Art. 14(4)(a)-(e)",
+      "title": "Human oversight",
+      "text": "A named person who understands the system's capacities and limits reviews the output, can decide not to use it or to override it, and can stop the work at any time.",
+      "effect": "enforced",
+      "addressed_to": [
+        "provider",
+        "deployer"
+      ],
+      "profiles": [],
+      "controls": [
+        "C-12",
+        "C-14",
+        "C-19",
+        "C-30"
+      ],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "Art14-4-b",
+      "reference": "Art. 14(4)(b)",
+      "title": "Awareness of automation bias",
+      "text": "The person overseeing the system remains aware of the tendency to rely too readily on its output.",
+      "effect": "attestation",
+      "addressed_to": [
+        "deployer",
+        "user"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "",
+      "statement": "I have checked the findings I rely on against their sources, rather than relying on how the report presents them."
+    },
+    {
+      "id": "Art15",
+      "reference": "Art. 15",
+      "title": "Accuracy, robustness and cybersecurity",
+      "text": "Each authority is checked for existence, current status and quotation separately; text addressed to an AI system is held; identities are proven; the network is denied by default.",
+      "effect": "enforced",
+      "addressed_to": [
+        "provider"
+      ],
+      "profiles": [],
+      "controls": [
+        "C-04",
+        "C-07",
+        "C-08",
+        "C-09",
+        "C-10",
+        "C-29"
+      ],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "Art26-2",
+      "reference": "Art. 26(2)",
+      "title": "Oversight by competent people",
+      "text": "The deployer assigns human oversight to people who have the competence, training and authority it needs.",
+      "effect": "attestation",
+      "addressed_to": [
+        "deployer"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "",
+      "statement": "I have the competence, training and authority to oversee this system's use on this matter."
+    },
+    {
+      "id": "Art4",
+      "reference": "Art. 4",
+      "title": "AI literacy",
+      "text": "People who operate or use the system have a sufficient level of AI literacy for the context in which it is used.",
+      "effect": "note",
+      "addressed_to": [
+        "provider",
+        "deployer"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "Art26-6",
+      "reference": "Art. 26(6); Art. 19",
+      "title": "Logs are kept",
+      "text": "The deployer keeps the automatically generated logs for at least six months, unless other law provides otherwise.",
+      "effect": "note",
+      "addressed_to": [
+        "deployer"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "Art26-11",
+      "reference": "Art. 26(11)",
+      "title": "Informing the people affected",
+      "text": "People subject to decisions made with the assistance of a high-risk AI system are told that it is used.",
+      "effect": "attestation",
+      "addressed_to": [
+        "deployer"
+      ],
+      "profiles": [
+        "adjudicator",
+        "neutral_facilitator"
+      ],
+      "controls": [],
+      "instruction": "",
+      "statement": "The parties have been, or will be, told that an AI system assisted the preparation of this matter."
+    },
+    {
+      "id": "Art27",
+      "reference": "Art. 27",
+      "title": "Fundamental-rights impact assessment",
+      "text": "A deployer that is a body governed by public law, or a private body providing public services, assesses the impact on fundamental rights before first use.",
+      "effect": "note",
+      "addressed_to": [
+        "deployer"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "Art50",
+      "reference": "Art. 50",
+      "title": "Machine-generated text is identifiable",
+      "text": "Text generated by an AI system is identifiable as such.",
+      "effect": "disclosure",
+      "addressed_to": [
+        "provider",
+        "deployer"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "",
+      "statement": "Any passage marked as drafted by a model was generated by an AI system. Such passages are labelled and kept apart from findings taken word for word from the documents."
+    },
+    {
+      "id": "Art86",
+      "reference": "Art. 86",
+      "title": "Explanation of the system's role",
+      "text": "A person affected by a decision taken on the basis of a high-risk system's output may obtain an explanation of the role the system played. The evidence pack for the run records what the system did.",
+      "effect": "note",
+      "addressed_to": [
+        "deployer"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "Art72-73",
+      "reference": "Arts. 72-73",
+      "title": "Monitoring and serious incidents",
+      "text": "The provider monitors the system after it is placed on the market, and serious incidents are reported to the market surveillance authority of the member state where they occurred.",
+      "effect": "note",
+      "addressed_to": [
+        "provider",
+        "deployer"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "",
+      "statement": ""
+    }
+  ]
+}

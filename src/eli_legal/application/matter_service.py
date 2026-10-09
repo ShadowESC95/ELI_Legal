@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 
 from eli_legal.application.container import AppContext
+from eli_legal.application.framework_service import default_frameworks
 from eli_legal.domain.enums import ActorType, MatterStatus, Profile
 from eli_legal.domain.errors import (
     AccountLocked,
@@ -391,7 +392,12 @@ class MatterService:
         parties: Sequence[tuple[str, str]] = (),
         stated_issues: Sequence[str] = (),
         represented_party: str | None = None,
+        frameworks: Sequence[str] | None = None,
+        recommended_frameworks: bool = True,
     ) -> Matter:
+        """Open a matter. Its law and standards packages are the recommended ones for its kind
+        and legal system, plus any named in ``frameworks``; or only those named, when
+        ``recommended_frameworks`` is false."""
         spec = profile_spec(profile)
         authz = self.ctx.authorizer()
         authz.require_global(actor_id, "matter.create")
@@ -428,6 +434,9 @@ class MatterService:
             represented_party_id=represented,
             authorised_user_ids={actor_id},
         )
+        matter.framework_ids = default_frameworks(
+            self.ctx, matter, frameworks, recommended=recommended_frameworks
+        )
         self.ctx.store.put_matter(matter)
         packs = self.ctx.jurisdictions.for_matter(matter)
         self.ctx.log(
@@ -443,6 +452,7 @@ class MatterService:
                 "jurisdiction": jurisdiction,
                 "governing_law": matter.governing_law,
                 "packs": [p.code for p in packs],
+                "frameworks": list(matter.framework_ids),
                 "parties": len(party_list),
             },
         )

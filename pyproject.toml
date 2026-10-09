@@ -29,6 +29,11 @@ dev = [
 gui = [
   "PySide6>=6.6",
 ]
+# Runs GGUF model files in process with llama.cpp, as ELI v2 and v3 do. It is compiled on
+# install where no prebuilt wheel exists, which needs CMake and a C/C++ compiler.
+gguf = [
+  "llama-cpp-python>=0.3",
+]
 # Lets the server make its own certificate when none is supplied (OpenSSL is used otherwise).
 server = [
   "cryptography>=42",
@@ -52,6 +57,10 @@ eli-legal-gui = "eli_legal.gui.app:main"
 [project.entry-points."eli.editions"]
 legal = "eli_legal.edition:register"
 
+# How ELI v3 finds ELI Legal as a bundle it can open in place of its own window.
+[project.entry-points."eli.bundles"]
+legal = "eli_legal.bundle:describe"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 
@@ -59,6 +68,7 @@ where = ["src"]
 eli_legal = [
   "config/*.json",
   "config/jurisdictions/*.json",
+  "config/frameworks/*.json",
   "config/workflows/*.json",
   "edition/*.json",
   "edition/personas/*.json",
@@ -91,3 +101,9 @@ packages = ["eli_legal"]
 [[tool.mypy.overrides]]
 module = ["eli.*", "pypdf.*"]
 ignore_missing_imports = true
+
+# llama.cpp for Python is optional and untyped; its numpy stubs need a newer Python than ours.
+[[tool.mypy.overrides]]
+module = ["llama_cpp", "llama_cpp.*", "numpy", "numpy.*"]
+ignore_missing_imports = true
+follow_imports = "skip"

@@ -38,7 +38,7 @@ from eli_legal.domain.errors import (
     VerificationGateFailed,
 )
 
-from . import routes_auth, routes_matters, routes_oversight, routes_runs
+from . import routes_auth, routes_frameworks, routes_matters, routes_oversight, routes_runs
 from .auth import Access
 from .config import ServerConfig
 from .security import Shield
@@ -127,7 +127,7 @@ def create_app(services: Services | None = None, config: ServerConfig | None = N
             status_code=500,
         )
 
-    for module in (routes_auth, routes_matters, routes_runs, routes_oversight):
+    for module in (routes_auth, routes_matters, routes_runs, routes_oversight, routes_frameworks):
         module.register(app, sv, cfg, access)
 
     # ── the browser application ──────────────────────────────────────────────

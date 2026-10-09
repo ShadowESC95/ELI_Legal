@@ -36,6 +36,8 @@ from eli_legal.settings import Settings
 from eli_legal.workflows.case_preparation import warning_id
 
 ADMIN, ARBITRATOR, SECRETARY, GOVERNANCE = "admin", "arb.keane", "sec.byrne", "gov.hale"
+# The packages the demonstration applies on top of those recommended for its kind of matter.
+DEMO_FRAMEWORKS = ("eu-ai-act-high-risk", "gdpr", "arbitration-due-process")
 
 
 @dataclass(slots=True)
@@ -114,6 +116,8 @@ def setup_demo(services: Services, workspace: DemoWorkspace) -> str:
         relevant_date=RELEVANT_DATE,
         parties=PARTIES,
         stated_issues=STATED_ISSUES,
+        # Examplia is fictional; the use case it illustrates is an EU arbitration.
+        frameworks=DEMO_FRAMEWORKS,
     )
     mid = matter.matter_id
     sv.matters.grant(mid, actor_id=ARBITRATOR, user_id=SECRETARY)

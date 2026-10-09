@@ -31,6 +31,22 @@ class NullInference:
         raise InferenceUnavailable("no inference backend is configured")
 
 
+class UnavailableInference:
+    """A configured model that cannot be used right now: the file is gone, llama.cpp is not
+    installed, the host is not running. The system runs as if no model were set, and says why."""
+
+    model_id = "none"
+    available = False
+
+    def __init__(self, reason: str) -> None:
+        self.reason = reason
+
+    def generate(
+        self, *, system: str, prompt: str, max_tokens: int = 2048, json_mode: bool = False
+    ) -> str:
+        raise InferenceUnavailable(self.reason)
+
+
 def _is_loopback_host(host: str) -> bool:
     if host == "localhost":
         return True

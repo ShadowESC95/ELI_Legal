@@ -11,7 +11,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from eli_legal.adapters.inference.local import NullInference, OpenAICompatInference
+from eli_legal.adapters.inference.local import (
+    NullInference,
+    OpenAICompatInference,
+    UnavailableInference,
+)
 from eli_legal.adapters.local.hmac_audit import HmacAuditLedger
 from eli_legal.adapters.local.network import NetworkGuard
 from eli_legal.adapters.local.parsers import LocalDocumentParser
@@ -21,6 +25,7 @@ from eli_legal.domain.errors import InvalidInput, NotFound, PolicyDenied
 from eli_legal.domain.models import AuditEvent, Matter, User
 from eli_legal.domain.policy import RuntimePolicy
 from eli_legal.governance.holds import HoldBook
+from eli_legal.legal.framework_library import FrameworkLibrary
 from eli_legal.legal.jurisdictions import JurisdictionRegistry
 from eli_legal.legal.llm import LegalModel
 from eli_legal.legal.source_registry import SourceRegistry
@@ -51,6 +56,7 @@ class AppContext:
     model: LegalModel
     verifier_model: LegalModel
     holds: HoldBook
+    frameworks: FrameworkLibrary
     extra_connectors: dict[str, LegalSourcePort] = field(default_factory=dict)
 
     # ── identity and authorisation ───────────────────────────────────────────
@@ -119,8 +125,28 @@ class AppContext:
 
 
 def _inference_from_settings(settings: Settings, guard: NetworkGuard, model: str) -> InferencePort:
+    if settings.inference == "eli_v3":
+        from eli_legal.adapters.eli_v3.inference import EliV3Inference
+
+        return EliV3Inference() if model else NullInference()
     if settings.inference == "none" or not model:
         return NullInference()
+    if settings.inference == "gguf":
+        from eli_legal.adapters.inference.gguf import GgufInference, llama_available
+
+        if not llama_available():
+            return UnavailableInference(
+                "the configured GGUF model cannot run: llama.cpp for Python is not installed here"
+            )
+        try:
+            return GgufInference(
+                model,
+                n_ctx=settings.gguf_context,
+                n_gpu_layers=settings.gguf_gpu_layers,
+                n_threads=settings.gguf_threads,
+            )
+        except (InvalidInput, OSError) as exc:  # the file was moved or deleted
+            return UnavailableInference(f"the configured GGUF model cannot be used: {exc}")
     if settings.inference == "openai_compat":
         return OpenAICompatInference(
             base_url=settings.inference_url,
@@ -178,4 +204,5 @@ def build_context(
         model=model,
         verifier_model=verifier_model,
         holds=HoldBook(store=store, audit=audit),
+        frameworks=FrameworkLibrary(store),
     )

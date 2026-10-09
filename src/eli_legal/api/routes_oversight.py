@@ -9,7 +9,7 @@ from urllib.parse import urlsplit
 from fastapi import Depends, FastAPI, HTTPException
 
 from eli_legal.application.services import Services
-from eli_legal.domain.errors import InvalidInput
+from eli_legal.domain.errors import EliLegalError, InvalidInput
 from eli_legal.governance.registers import REGISTER_FILES, load_register
 from eli_legal.legal.source_registry import RegisteredSource
 from eli_legal.persistence import codec
@@ -129,7 +129,7 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
     def config(actor: Actor) -> Any:
         """The model in use, the runtime policy and the server's settings."""
         return {
-            "model": sv.config.current(),
+            "model": _public(sv.config.current()),
             "policy": js(sv.ctx.policy),
             "server": {
                 "second_factor_required": cfg.require_second_factor,
@@ -142,25 +142,64 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
 
     @app.get("/v1/config/models")
     def models(actor: Actor, url: str = "") -> Any:
-        """The models a local inference server offers. Only an address on this machine can be
-        asked, so the server cannot be made to call anywhere else."""
+        """The models that can be chosen: GGUF files found on this machine (by reference, never
+        by path), and those a model server on this machine offers. Only an address on this
+        machine can be asked, so the server cannot be made to call anywhere else."""
         sv.ctx.authorizer().require_global(actor, "config.manage")
         target = url or sv.ctx.settings.inference_url
         if not is_loopback(urlsplit(target).hostname or ""):
             raise InvalidInput("only an inference server on this machine can be queried")
-        return {"url": target, "models": sv.config.available_models(target)}
+        try:
+            served = sv.config.available_models(target)
+        except EliLegalError:
+            served = []
+        return {
+            "url": target,
+            "models": served,
+            "gguf": [m.as_dict(with_path=False) for m in sv.config.gguf_models()],
+            "gguf_supported": sv.config.current()["gguf_supported"],
+        }
 
     @app.post("/v1/config/model")
     def set_model(body: schemas.ModelIn, actor: Actor) -> Any:
-        """Change the model. Only one on this machine is accepted. A decision; recorded."""
+        """Change the model. A decision, recorded. For GGUF, give the references from the list."""
         from eli_legal.settings import ENV_FILE
 
-        sv.config.set_model(
-            actor_id=actor,
-            backend=body.backend,
-            url=body.url or sv.ctx.settings.inference_url,
-            model=body.model,
-            verifier_model=body.verifier_model,
-            persist_to=ENV_FILE,
+        options = {
+            k: v
+            for k, v in (
+                ("gguf_context", body.gguf_context),
+                ("gguf_gpu_layers", body.gguf_gpu_layers),
+                ("gguf_threads", body.gguf_threads),
+            )
+            if v is not None
+        }
+        if body.backend == "gguf":
+            sv.config.set_model_by_ref(
+                actor_id=actor, ref=body.model, verifier_ref=body.verifier_model,
+                persist_to=ENV_FILE, **options,
+            )  # fmt: skip
+        else:
+            sv.config.set_model(
+                actor_id=actor,
+                backend=body.backend,
+                url=body.url or sv.ctx.settings.inference_url,
+                model=body.model,
+                verifier_model=body.verifier_model,
+                persist_to=ENV_FILE,
+                **options,
+            )
+        return _public(sv.config.current())
+
+
+def _public(current: dict[str, Any]) -> dict[str, Any]:
+    """The model configuration without the GGUF file paths, which are this machine's business."""
+    out = dict(current)
+    if out.get("backend") == "gguf":
+        from pathlib import Path
+
+        out["model"] = Path(out["model"]).name if out.get("model") else ""
+        out["verifier_model"] = (
+            Path(out["verifier_model"]).name if out.get("verifier_model") else ""
         )
-        return sv.config.current()
+    return out

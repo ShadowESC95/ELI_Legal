@@ -22,6 +22,7 @@ from eli_legal.gui.tabs.base import Tab
 from eli_legal.gui.tabs.chat_tab import ChatTab
 from eli_legal.gui.tabs.documents_tab import DocumentsTab
 from eli_legal.gui.tabs.findings_tab import FindingsTab
+from eli_legal.gui.tabs.frameworks_tab import FrameworksTab
 from eli_legal.gui.tabs.governance_tab import GovernanceTab
 from eli_legal.gui.tabs.matter_tab import MatterTab
 from eli_legal.gui.tabs.review_tab import ReviewTab
@@ -83,6 +84,7 @@ class MainWindow(QMainWindow):
             AuditTab(session),
             GovernanceTab(session),
             SourcesTab(session),
+            FrameworksTab(session),
             SettingsTab(session, self.sign_out),
         ]
         for page in self.pages:
@@ -185,8 +187,14 @@ class MainWindow(QMainWindow):
         model = sv.ctx.model
         set_chip(
             self.chips["model"],
-            f"● Model: {model.model_id}" if model.available else "● No model",
-            theme.ACCENT if model.available else theme.IDLE,
+            f"● Model: {model.model_id}"
+            if model.available
+            else (
+                "● Model unavailable" if getattr(model.inference, "reason", "") else "● No model"
+            ),
+            theme.ACCENT
+            if model.available
+            else (theme.WARN if getattr(model.inference, "reason", "") else theme.IDLE),
         )
         user = session.user
         roles = ", ".join(sorted(r.replace("_", " ") for r in user.roles)) if user else ""

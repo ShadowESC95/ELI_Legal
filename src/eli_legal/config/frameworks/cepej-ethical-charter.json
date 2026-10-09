@@ -1,0 +1,111 @@
+{
+  "id": "cepej-ethical-charter",
+  "as_at": "2026-10-09",
+  "status_note": "A summary written for ELI Legal, in its own words. It is not the text of the instrument and has not been validated by a qualified lawyer. Check the official text before relying on any statement in it.",
+  "licence_note": "",
+  "source_url": "https://www.coe.int/en/web/cepej/cepej-european-ethical-charter-on-the-use-of-artificial-intelligence-ai-in-judicial-systems-and-their-environment",
+  "recommend_for": [
+    "adjudicator",
+    "neutral_facilitator"
+  ],
+  "example": false,
+  "rules": {},
+  "title": "European Ethical Charter on the use of artificial intelligence in judicial systems and their environment",
+  "short_title": "CEPEJ Charter",
+  "scope": "international",
+  "jurisdictions": [
+    "*"
+  ],
+  "instrument": "CEPEJ(2018)14",
+  "issuer": "European Commission for the Efficiency of Justice (CEPEJ), Council of Europe",
+  "version": "2018",
+  "description": "Five principles for AI in judicial systems, used by courts across Europe as a test of a tool and its deployment.",
+  "requirements": [
+    {
+      "id": "P1",
+      "reference": "Principle 1",
+      "title": "Respect for fundamental rights",
+      "text": "The tool's design and use are compatible with fundamental rights, including access to a judge and a fair trial.",
+      "effect": "enforced",
+      "addressed_to": [
+        "provider",
+        "deployer"
+      ],
+      "profiles": [],
+      "controls": [
+        "C-13",
+        "C-14"
+      ],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "P2",
+      "reference": "Principle 2",
+      "title": "Non-discrimination",
+      "text": "No conclusion is drawn from a person's membership of a group.",
+      "effect": "instruction",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "Draw no conclusion from a person's membership of a group or from characteristics such as origin, sex, age or social status.",
+      "statement": ""
+    },
+    {
+      "id": "P3",
+      "reference": "Principle 3",
+      "title": "Quality and security",
+      "text": "Sources are certified, data is not altered, and the environment is secure.",
+      "effect": "enforced",
+      "addressed_to": [
+        "provider"
+      ],
+      "profiles": [],
+      "controls": [
+        "C-03",
+        "C-05",
+        "C-16"
+      ],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "P4",
+      "reference": "Principle 4",
+      "title": "Transparency, impartiality and fairness",
+      "text": "How the output was produced can be inspected, and nothing is hidden from the parties' scrutiny.",
+      "effect": "enforced",
+      "addressed_to": [
+        "provider"
+      ],
+      "profiles": [],
+      "controls": [
+        "C-26",
+        "C-27",
+        "C-42"
+      ],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "P5",
+      "reference": "Principle 5",
+      "title": "Under user control",
+      "text": "Users remain informed actors in control of their choices and can depart from anything the tool produces.",
+      "effect": "enforced",
+      "addressed_to": [
+        "provider",
+        "deployer"
+      ],
+      "profiles": [],
+      "controls": [
+        "C-12",
+        "C-14"
+      ],
+      "instruction": "",
+      "statement": ""
+    }
+  ]
+}

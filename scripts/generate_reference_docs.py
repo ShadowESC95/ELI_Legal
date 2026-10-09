@@ -23,6 +23,7 @@ SECTIONS = (
     ("Matters and documents", ("/v1/matters",)),
     ("Audit and governance", ("/v1/audit", "/v1/governance", "/v1/monitoring")),
     ("Approved legal sources", ("/v1/sources", "/v1/authorities")),
+    ("Law and standards packages", ("/v1/frameworks",)),
 )
 
 

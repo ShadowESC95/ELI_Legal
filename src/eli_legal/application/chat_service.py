@@ -23,6 +23,14 @@ from eli_legal.legal.analysis import figures, outcome_language
 from eli_legal.legal.case_law_retriever import CaseLawRetriever
 from eli_legal.legal.citations import CitationExtractor
 from eli_legal.legal.current_law_citator import CurrentLawCitator
+from eli_legal.legal.frameworks import (
+    FrameworkPack,
+    Rules,
+    combined_rules,
+    compile_context,
+    contains_forbidden,
+    search,
+)
 from eli_legal.legal.issue_mapper import stems
 from eli_legal.legal.llm import PROMPT_VERSIONS, LegalModel, fenced
 from eli_legal.security.redaction import content_hash
@@ -43,8 +51,8 @@ _ASKS_OUTCOME = re.compile(
 HELP = (
     "Ask about this matter in your own words, for example “when was the notice received?” or "
     "“what do the sources say about notice of termination?”. I answer from the matter's "
-    "documents, this run's findings and the approved legal sources, and show where each passage "
-    "comes from.\n\nCommands: /status  /holds  /tasks  /limits  /help\n\nI do not say who should "
+    "documents, this run's findings, the approved legal sources and the law and standards that "
+    "apply, and show where each passage comes from.\n\nCommands: /status  /holds  /tasks  /limits  /law  /help\n\nI do not say who should "
     "succeed or how anything should be decided, and no hold, verification, approval or release "
     "can be made from chat. Use the Review tab for those."
 )
@@ -129,6 +137,13 @@ class ChatService:
         if command == "/help":
             answer.notes.append(HELP)
             return answer
+        if command == "/law":
+            for pack in self._packs(matter):
+                state = self.ctx.frameworks.state(pack)
+                answer.notes.append(f"{pack.title} ({pack.version}): {state.why}")
+            if not matter.framework_ids:
+                answer.notes.append("No law or standards package applies to this matter.")
+            return answer
         if run is None:
             answer.notes.append("No run has been started on this matter yet.")
             return answer
@@ -184,19 +199,45 @@ class ChatService:
                 "That asks for the decision. I do not say who should succeed or how an issue "
                 "should be decided; that is for you. Here is the material that bears on it."
             )
-        answer.sources = self._sources(matter, run, question)
+        packs = self._packs(matter)
+        answer.sources = self._sources(matter, run, question) + self._law(matter, packs, question)
         if not answer.sources:
             answer.notes.append(
                 "Nothing in the matter's documents, findings or approved sources matched that. "
                 "Absence here is not evidence of absence: try other words."
             )
             return answer
-        model = LegalModel(self.ctx.model.inference)
+        model = LegalModel(
+            self.ctx.model.inference, compliance=compile_context(packs, matter.profile.value)
+        )
         if answer.mode != "refused" and use_model and model.available:
             usable = [s for s in answer.sources if s.usable]
             if usable:
-                self._summarise(matter, question, usable, model, answer)
+                self._summarise(matter, question, usable, model, answer, combined_rules(packs))
         return answer
+
+    def _packs(self, matter: Matter) -> list[FrameworkPack]:
+        return [p for i in matter.framework_ids if (p := self.ctx.frameworks.get(i)) is not None]
+
+    def _law(self, matter: Matter, packs: list[FrameworkPack], question: str) -> list[ChatSource]:
+        """Requirements of the law and standards that apply, where the question is about them."""
+        words = re.findall(r"[a-z0-9]+", question.lower())
+        out = []
+        for n, (pack, req, _score) in enumerate(
+            search(packs, words, matter.profile.value, limit=4), start=1
+        ):
+            out.append(
+                ChatSource(
+                    label=f"L{n}",
+                    kind="law",
+                    title=f"{pack.short_title} · {req.title}",
+                    locator=req.reference,
+                    text=req.text,
+                    note=self.ctx.frameworks.state(pack).why if pack.origin == "shipped" else "",
+                    usable=True,
+                )
+            )
+        return out
 
     def _sources(self, matter: Matter, run: Run | None, question: str) -> list[ChatSource]:
         ctx, mid = self.ctx, matter.matter_id
@@ -312,6 +353,7 @@ class ChatService:
         usable: list[ChatSource],
         model: LegalModel,
         answer: ChatAnswer,
+        rules: Rules,
     ) -> None:
         by_label = {s.label: s for s in usable}
         listing = "\n".join(f"{s.label} [{s.title} {s.locator}]: {s.text}" for s in usable)
@@ -319,7 +361,7 @@ class ChatService:
             f"Task {PROMPT_VERSIONS['chat_answer']}. Question from an authorised user: {question}\n"
             "Answer in at most five short sentences using only the numbered sources below "
             "(D = passage of a document in the matter, F = a verified finding, A = passage of "
-            "an authority). Give the labels each sentence relies on. If the sources do not "
+            "an authority, L = a requirement of the law and standards that apply). Give the labels each sentence relies on. If the sources do not "
             "answer the question, reply with an empty list. Do not add any fact, figure, case "
             "or statute that is not in the sources. Do not say who should succeed or how "
             'anything should be decided. Reply as {"sentences": [{"text": "...", '
@@ -347,7 +389,8 @@ class ChatService:
             basis = " ".join(f"{by_label[c].text} {by_label[c].title}" for c in cites)
             invented = figures(text, date_order).missing_from(figures(basis, date_order))
             new_citations = set(extractor.keys(text)) - set(extractor.keys(basis))
-            if invented or new_citations or outcome_language(text, matter.profile):
+            forbidden = contains_forbidden(text, rules)
+            if invented or new_citations or forbidden or outcome_language(text, matter.profile):
                 answer.dropped += 1
                 continue
             answer.lines.append((text, cites))

@@ -37,7 +37,7 @@ Send = Callable[[Message], Awaitable[None]]
 App = Callable[[Scope, Receive, Send], Awaitable[None]]
 
 UNSAFE = frozenset({"POST", "PUT", "PATCH", "DELETE"})
-_UPLOAD = re.compile(r"^/v1/matters/[^/]+/documents$")
+_UPLOAD = re.compile(r"^/v1/(?:matters/[^/]+/documents|frameworks/upload)$")
 
 CONTENT_SECURITY_POLICY = (
     "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; "

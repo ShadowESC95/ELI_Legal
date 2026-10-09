@@ -1,0 +1,119 @@
+{
+  "id": "ew-judicial-ai-guidance",
+  "as_at": "2026-10-09",
+  "status_note": "A summary written for ELI Legal, in its own words. It is not the text of the instrument and has not been validated by a qualified lawyer. Check the official text before relying on any statement in it.",
+  "licence_note": "",
+  "source_url": "https://www.judiciary.uk/guidance-and-resources/artificial-intelligence-ai-judicial-guidance-october-2025/",
+  "recommend_for": [
+    "adjudicator"
+  ],
+  "example": false,
+  "rules": {},
+  "title": "Artificial Intelligence (AI): Guidance for Judicial Office Holders (England and Wales)",
+  "short_title": "E&W judicial AI guidance",
+  "scope": "national",
+  "jurisdictions": [
+    "GB-EAW"
+  ],
+  "instrument": "Courts and Tribunals Judiciary, AI Judicial Guidance (refreshed 8 October 2025)",
+  "issuer": "Courts and Tribunals Judiciary",
+  "version": "2025-10",
+  "description": "Guidance to judges, their clerks and assistants on the risks of AI and their responsibilities when using it.",
+  "requirements": [
+    {
+      "id": "understand",
+      "reference": "Guidance",
+      "title": "Understand AI and its limits",
+      "text": "AI output can be inaccurate, incomplete, out of date or biased, and must be understood as such.",
+      "effect": "note",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "confidentiality",
+      "reference": "Guidance",
+      "title": "Confidentiality and privacy",
+      "text": "Private or confidential information is not entered into a public AI tool. This system runs on the user's own machine.",
+      "effect": "enforced",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [],
+      "controls": [
+        "C-02",
+        "C-04"
+      ],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "accuracy",
+      "reference": "Guidance",
+      "title": "Accountability and accuracy",
+      "text": "Information from an AI tool is checked for accuracy before it is used or relied on.",
+      "effect": "attestation",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [
+        "adjudicator"
+      ],
+      "controls": [],
+      "instruction": "",
+      "statement": "I have checked the accuracy of any information from this tool before relying on it."
+    },
+    {
+      "id": "bias",
+      "reference": "Guidance",
+      "title": "Awareness of bias",
+      "text": "The risk of bias in AI output is kept in mind.",
+      "effect": "instruction",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "Do not characterise either party by reference to group characteristics; keep to what the documents say.",
+      "statement": ""
+    },
+    {
+      "id": "security",
+      "reference": "Guidance",
+      "title": "Security",
+      "text": "Devices and accounts are secured.",
+      "effect": "enforced",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [],
+      "controls": [
+        "C-29",
+        "C-38",
+        "C-39"
+      ],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "responsibility",
+      "reference": "Guidance",
+      "title": "Personal responsibility",
+      "text": "Judicial office holders are personally responsible for material produced in their name.",
+      "effect": "note",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [
+        "adjudicator"
+      ],
+      "controls": [],
+      "instruction": "",
+      "statement": ""
+    }
+  ]
+}

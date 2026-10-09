@@ -1,0 +1,58 @@
+{
+  "id": "ie-mediation-act-2017",
+  "as_at": "2026-10-09",
+  "status_note": "A summary written for ELI Legal, in its own words. It is not the text of the instrument and has not been validated by a qualified lawyer. Check the official text before relying on any statement in it. Section numbers are given as a guide; confirm them against the Act.",
+  "licence_note": "",
+  "source_url": "https://www.irishstatutebook.ie/eli/2017/act/27/enacted/en/html",
+  "recommend_for": [
+    "neutral_facilitator"
+  ],
+  "example": false,
+  "rules": {},
+  "title": "Mediation Act 2017 (Ireland)",
+  "short_title": "IE Mediation Act",
+  "scope": "national",
+  "jurisdictions": [
+    "IE"
+  ],
+  "instrument": "Mediation Act 2017 (No. 27 of 2017)",
+  "issuer": "Oireachtas",
+  "version": "2017",
+  "description": "Confidentiality of mediation and the conduct of mediators in Ireland.",
+  "requirements": [
+    {
+      "id": "s10",
+      "reference": "s. 10",
+      "title": "Confidentiality of mediation communications",
+      "text": "Communications and records made in the course of a mediation are confidential and are not disclosed in proceedings, subject to the exceptions in the Act.",
+      "effect": "enforced",
+      "addressed_to": [
+        "deployer",
+        "user"
+      ],
+      "profiles": [],
+      "controls": [
+        "C-01",
+        "C-43"
+      ],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "neutral",
+      "reference": "the Act's provisions on the mediator's conduct",
+      "title": "Impartial conduct",
+      "text": "The mediator acts impartially and does not decide for the parties.",
+      "effect": "instruction",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [
+        "neutral_facilitator"
+      ],
+      "controls": [],
+      "instruction": "Do not propose terms of settlement or say what either party should accept.",
+      "statement": ""
+    }
+  ]
+}

@@ -6,6 +6,8 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from eli_legal.paths import user_data_dir
+
 _PACKAGED_CONFIG = Path(__file__).resolve().parent / "config"
 
 
@@ -20,13 +22,7 @@ def home_dir() -> Path | None:
     if explicit:
         return Path(explicit).expanduser()
     if getattr(sys, "frozen", False):
-        if os.name == "nt":
-            root = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
-            return Path(root) / "ELI Legal"
-        if sys.platform == "darwin":
-            return Path.home() / "Library" / "Application Support" / "ELI Legal"
-        root = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
-        return Path(root) / "eli-legal"
+        return user_data_dir()
     return None
 
 
@@ -64,12 +60,23 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     # Inference. "none" runs every step that does not need a model.
-    inference: str = "none"  # none | openai_compat (ELI v3 supplies its own when hosting)
+    #   gguf           a GGUF model file run in this process by llama.cpp (as ELI v2 and v3 do)
+    #   openai_compat  a model server on this machine (Ollama, llama.cpp server, LM Studio)
+    #   eli_v3         ELI v3's own loaded model, when ELI Legal is launched from ELI v3
+    inference: str = "none"
     inference_url: str = "http://127.0.0.1:11434/v1"
-    inference_model: str = ""
+    inference_model: str = ""  # a model name for a server; a file path for gguf
     inference_api_key: str = ""
     verifier_model: str = ""  # a different model, used only to check propositions
     inference_timeout: float = 300.0
+    # GGUF: context length, layers on the graphics card (0: none, -1: all) and threads (0: auto).
+    gguf_context: int = 8192
+    gguf_gpu_layers: int = 0
+    gguf_threads: int = 0
+    # Extra folders to look for GGUF models in, separated as on PATH.
+    models_dirs: str = ""
+    # Offer to choose a model when an administrator signs in and none is set.
+    model_prompt: bool = True
 
     # How long a command-line sign-in lasts before the passphrase is needed again.
     session_hours: float = 8.0

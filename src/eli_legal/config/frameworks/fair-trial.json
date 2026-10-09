@@ -1,0 +1,102 @@
+{
+  "id": "fair-trial",
+  "as_at": "2026-10-09",
+  "status_note": "A summary written for ELI Legal, in its own words. It is not the text of the instrument and has not been validated by a qualified lawyer. Check the official text before relying on any statement in it.",
+  "licence_note": "",
+  "source_url": "",
+  "recommend_for": [
+    "adjudicator"
+  ],
+  "example": false,
+  "rules": {},
+  "title": "Right to a fair trial: ECHR Article 6 and EU Charter Article 47",
+  "short_title": "Fair trial",
+  "scope": "international",
+  "jurisdictions": [
+    "*"
+  ],
+  "instrument": "European Convention on Human Rights, Art. 6(1); Charter of Fundamental Rights of the European Union, Art. 47",
+  "issuer": "Council of Europe; European Union",
+  "version": "current",
+  "description": "A fair hearing before an independent and impartial tribunal, with equality of arms and the right to be heard on everything the decision rests on.",
+  "requirements": [
+    {
+      "id": "Adversarial-flag",
+      "reference": "Art. 6(1) ECHR; Art. 47 Charter",
+      "title": "Adversarial proceedings",
+      "text": "Every authority the system found that no party cited is marked in the report.",
+      "effect": "enforced",
+      "addressed_to": [
+        "provider"
+      ],
+      "profiles": [],
+      "controls": [
+        "C-42"
+      ],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "Adversarial-confirm",
+      "reference": "Art. 6(1) ECHR; Art. 47 Charter",
+      "title": "Being heard on what the decision rests on",
+      "text": "The parties are heard on every point and authority the decision relies on.",
+      "effect": "attestation",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [
+        "adjudicator"
+      ],
+      "controls": [],
+      "instruction": "",
+      "statement": "Any authority or point not raised by the parties that I rely on will first be put to the parties."
+    },
+    {
+      "id": "Equality-of-arms",
+      "reference": "Art. 6(1) ECHR",
+      "title": "Equality of arms",
+      "text": "Each party's material is presented with equal care.",
+      "effect": "instruction",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "Present each party's material and arguments with equal care and in comparable terms; do not favour the party whose papers are longer or better organised.",
+      "statement": ""
+    },
+    {
+      "id": "Independence",
+      "reference": "Art. 6(1) ECHR",
+      "title": "An independent and impartial tribunal",
+      "text": "The system gives a decision-maker or neutral no view on who should succeed.",
+      "effect": "enforced",
+      "addressed_to": [
+        "provider"
+      ],
+      "profiles": [],
+      "controls": [
+        "C-13"
+      ],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "Reasons",
+      "reference": "Art. 6(1) ECHR",
+      "title": "A reasoned decision",
+      "text": "The decision and its reasons are the decision-maker's own; nothing in the report is a reason for decision.",
+      "effect": "note",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [
+        "adjudicator"
+      ],
+      "controls": [],
+      "instruction": "",
+      "statement": ""
+    }
+  ]
+}

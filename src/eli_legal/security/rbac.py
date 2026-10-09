@@ -98,7 +98,9 @@ DEFAULT_ROLE_ACTIONS: dict[str, set[str]] = {
     },
     ROLE_PARALEGAL: _READ | _OPERATE,
     ROLE_REVIEWER: _READ | _VERIFY | _REVIEW,
-    ROLE_LEGAL_ADMIN: _DECISION_MAKER | _AUDIT | {"user.manage", "source.manage", "config.manage"},
+    ROLE_LEGAL_ADMIN: _DECISION_MAKER
+    | _AUDIT
+    | {"user.manage", "source.manage", "config.manage", "framework.manage"},
     ROLE_GOVERNANCE: {
         "matter.read",
         "workflow.hold",
@@ -108,6 +110,7 @@ DEFAULT_ROLE_ACTIONS: dict[str, set[str]] = {
         "incident.manage",
         "source.manage",
         "config.manage",
+        "framework.manage",
     }
     | _AUDIT,
     ROLE_AUDITOR: set(_AUDIT),

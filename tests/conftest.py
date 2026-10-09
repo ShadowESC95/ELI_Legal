@@ -25,11 +25,13 @@ class FakeInference:
         self.model_id = model_id
         self.script = script or {}
         self.prompts: list[str] = []
+        self.systems: list[str] = []
 
     def generate(
         self, *, system: str, prompt: str, max_tokens: int = 2048, json_mode: bool = False
     ) -> str:
         self.prompts.append(prompt)
+        self.systems.append(system)
         for task, reply in self.script.items():
             if f"Task {task}/" in prompt:
                 value = reply(prompt) if callable(reply) else reply

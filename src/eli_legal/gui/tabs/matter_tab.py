@@ -47,8 +47,18 @@ def _pairs(text: str) -> list[tuple[str, str]]:
 
 
 class NewMatterDialog(QDialog):
-    def __init__(self, parent: QWidget, jurisdictions: list[str], default: str) -> None:
+    def __init__(
+        self,
+        parent: QWidget,
+        jurisdictions: list[str],
+        default: str,
+        frameworks: Any = None,
+        recommend: Any = None,
+    ) -> None:
         super().__init__(parent)
+        # frameworks: usable package states; recommend(profile, jurisdiction) -> recommended ids
+        self._frameworks = list(frameworks or [])
+        self._recommend = recommend
         self.setWindowTitle("Open a matter")
         self.setMinimumWidth(620)
         form = QFormLayout(self)
@@ -93,6 +103,26 @@ class NewMatterDialog(QDialog):
         form.addRow("Parties", self.parties)
         form.addRow("Issues", self.issues)
         form.addRow("Represents", self.represents)
+        self.laws = QListWidget()
+        self.laws.setMaximumHeight(150)
+        for state in self._frameworks:
+            item = QListWidgetItem(f"{state.pack.title}  ·  {state.pack.scope}")
+            item.setData(Qt.ItemDataRole.UserRole, state.pack.pack_id)
+            item.setToolTip(state.why)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Unchecked)
+            self.laws.addItem(item)
+        if self._frameworks:
+            form.addRow(
+                "Law and standards",
+                label(
+                    "Ticked: the packages recommended for this kind of matter and legal system. "
+                    "Change them here, or later in Laws & Standards.",
+                    "muted",
+                    wrap=True,
+                ),
+            )
+            form.addRow("", self.laws)
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
@@ -100,6 +130,7 @@ class NewMatterDialog(QDialog):
         buttons.rejected.connect(self.reject)
         form.addRow(buttons)
         self.profile.currentIndexChanged.connect(self._profile_changed)
+        self.jurisdiction.currentTextChanged.connect(lambda _t: self._tick_recommended())
         self._profile_changed()
 
     def _profile_changed(self) -> None:
@@ -115,6 +146,21 @@ class NewMatterDialog(QDialog):
         self.represents.setEnabled(
             Profile(self.profile.currentData()) is Profile.PARTY_REPRESENTATIVE
         )
+        self._tick_recommended()
+
+    def _tick_recommended(self) -> None:
+        if not self._recommend or not hasattr(self, "laws"):
+            return
+        wanted = set(
+            self._recommend(self.profile.currentData(), self.jurisdiction.currentText().strip())
+        )
+        for i in range(self.laws.count()):
+            item = self.laws.item(i)
+            item.setCheckState(
+                Qt.CheckState.Checked
+                if item.data(Qt.ItemDataRole.UserRole) in wanted
+                else Qt.CheckState.Unchecked
+            )
 
     def values(self) -> dict[str, Any]:
         qd = self.relevant.date()
@@ -135,6 +181,12 @@ class NewMatterDialog(QDialog):
                 i.strip() for i in self.issues.toPlainText().splitlines() if i.strip()
             ],
             "represented_party": self.represents.text().strip() or None,
+            "frameworks": [
+                str(self.laws.item(i).data(Qt.ItemDataRole.UserRole))
+                for i in range(self.laws.count())
+                if self.laws.item(i).checkState() == Qt.CheckState.Checked
+            ],
+            "recommended_frameworks": False,
         }
 
 
@@ -291,7 +343,16 @@ class MatterTab(Tab):
 
     def _new(self) -> None:
         packs = self.sv.ctx.jurisdictions.codes()
-        dialog = NewMatterDialog(self, packs, self.sv.ctx.settings.default_jurisdiction)
+        states = [s for s in self.sv.frameworks.list(actor_id=self.actor) if s.usable]
+        dialog = NewMatterDialog(
+            self,
+            packs,
+            self.sv.ctx.settings.default_jurisdiction,
+            frameworks=states,
+            recommend=lambda profile, code: self.sv.frameworks.recommended(
+                profile, code, actor_id=self.actor
+            ),
+        )
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         values = dialog.values()

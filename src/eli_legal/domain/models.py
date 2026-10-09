@@ -76,6 +76,8 @@ class Matter:
     parties: list[Party] = field(default_factory=list)
     stated_issues: list[str] = field(default_factory=list)
     represented_party_id: str | None = None  # party-representative profile only
+    # The law and standards packages that apply, in the order they were chosen.
+    framework_ids: list[str] = field(default_factory=list)
     created_at: datetime = field(default_factory=utcnow)
     closed_at: datetime | None = None
 
@@ -237,6 +239,8 @@ class Run:
     model_versions: dict[str, str] = field(default_factory=dict)
     tool_versions: dict[str, str] = field(default_factory=dict)
     prompt_versions: dict[str, str] = field(default_factory=dict)
+    # Each law and standards package the run was prepared under: id -> version@fingerprint.
+    framework_versions: dict[str, str] = field(default_factory=dict)
     workflow_id: str = ""
     workflow_version: str = ""
     policy_version: str = ""

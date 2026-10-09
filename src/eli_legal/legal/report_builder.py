@@ -8,7 +8,7 @@ their own section with the reason, never mixed with those that may be relied on.
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -36,6 +36,7 @@ from eli_legal.domain.profiles import profile_spec
 from eli_legal.governance.gates import effective_results
 from eli_legal.legal.citations import normalise_citation
 from eli_legal.legal.evidence_mapper import IssueEvidence, PotentialConflict
+from eli_legal.legal.frameworks import FrameworkPack, Requirement
 from eli_legal.legal.issue_mapper import stems
 from eli_legal.legal.jurisdictions import JurisdictionPack
 from eli_legal.persistence import codec
@@ -71,6 +72,10 @@ class ReportContext:
     evidence_maps: Sequence[IssueEvidence] = ()
     conflicts: Sequence[PotentialConflict] = ()
     packs: Sequence[JurisdictionPack] = ()
+    # The law and standards packages the run was prepared under, and each one's standing.
+    frameworks: Sequence[FrameworkPack] = ()
+    framework_standing: Mapping[str, str] = field(default_factory=dict)
+    framework_validated: Mapping[str, bool] = field(default_factory=dict)
     audience: str = ""
     model_notes: Sequence[str] = ()
     approved_by: str | None = None
@@ -449,7 +454,9 @@ class LegalReportBuilder:
         add(f"_Regulatory note for this profile:_ {spec.regulatory_note}")
         add("")
 
-        add("## 9. Run record")
+        self._frameworks_section(ctx, add, lines)
+
+        add("## 10. Run record")
         add("")
         lines += _table(
             ["Item", "Value"],
@@ -463,6 +470,11 @@ class LegalReportBuilder:
                     ", ".join(f"{k}={v}" for k, v in sorted(run.model_versions.items())) or "none",
                 ],
                 ["Prompts", ", ".join(sorted(run.prompt_versions.values())) or "none"],
+                [
+                    "Law and standards",
+                    ", ".join(f"{k}={v}" for k, v in sorted(run.framework_versions.items()))
+                    or "none",
+                ],
                 [
                     "Tools",
                     ", ".join(f"{k}={v}" for k, v in sorted(run.tool_versions.items())) or "none",
@@ -539,10 +551,89 @@ class LegalReportBuilder:
         return "no"
 
     @staticmethod
+    def _frameworks_section(
+        ctx: ReportContext, add: Callable[[str], None], lines: list[str]
+    ) -> None:
+        profile = ctx.matter.profile.value
+        add("## 9. Law and standards applied")
+        add("")
+        if not ctx.frameworks:
+            add("_No law or standards package was applied to this matter._")
+            add("")
+            return
+        add(
+            "Chosen for this matter and recorded with the run. Each requirement is met in one of "
+            "five ways: by the system's own controls; as a rule given to the model in every call; "
+            "by a reviewer's confirmation (listed in section 8 and acknowledged at approval); by a "
+            "disclosure below; or, for an obligation of an organisation rather than of this "
+            "work, by noting it here. Nothing here says the work complies: people decide that."
+        )
+        add("")
+        how: dict[str, Callable[[Requirement], str]] = {
+            "enforced": lambda r: "Enforced by " + ", ".join(r.controls),
+            "instruction": lambda r: "Given to the model as a rule",
+            "attestation": lambda r: "Reviewer confirms",
+            "disclosure": lambda r: "Disclosed below",
+            "note": lambda r: "For the " + " / ".join(r.addressed_to),
+        }
+        disclosures: list[str] = []
+        for pack in ctx.frameworks:
+            add(f"### {pack.title}")
+            add("")
+            add(
+                f"_{pack.instrument or pack.issuer}. Version {pack.version}; "
+                f"{ctx.framework_standing.get(pack.pack_id, '')}._"
+            )
+            add("")
+            rows = []
+            for r in pack.applicable(profile):
+                rows.append([r.reference or r.req_id, r.title, how[r.effect](r)])
+                if r.effect == "disclosure":
+                    disclosures.append(
+                        f"{r.confirmation} ({pack.short_title}, {r.reference or r.title})"
+                    )
+            lines.extend(_table(["Provision", "Requirement", "How it is met"], rows))
+            limits = []
+            if pack.rules.status_max_age_days:
+                limits.append(
+                    f"an authority's status must have been confirmed within {pack.rules.status_max_age_days} days"
+                )
+            if pack.rules.forbidden_terms:
+                limits.append(
+                    "model-drafted text containing "
+                    + ", ".join(f"“{t}”" for t in pack.rules.forbidden_terms)
+                    + " is discarded"
+                )
+            if limits:
+                add("Tightens the system: " + "; ".join(limits) + ".")
+                add("")
+        if disclosures:
+            add("### Disclosures")
+            add("")
+            for d in dict.fromkeys(disclosures):
+                add(f"> {d}")
+                add("")
+
+    @staticmethod
     def _warnings(
         ctx: ReportContext, claims: Sequence[Claim], withheld: int, verified: Sequence[Claim]
     ) -> list[str]:
         w: list[str] = []
+        profile = ctx.matter.profile.value
+        if not ctx.frameworks:
+            w.append(
+                "no_frameworks: No law or standards package was applied to this matter, so the model was given no rules beyond the system's own and no compliance confirmations were asked for."
+            )
+        for fw in ctx.frameworks:
+            if fw.origin == "shipped" and not ctx.framework_validated.get(fw.pack_id):
+                w.append(
+                    f"framework_unvalidated:{fw.pack_id}: {fw.title} is a summary prepared for this software, checked against its source as at {fw.as_at or 'an unrecorded date'}, and not validated by a qualified lawyer. Check the official text."
+                )
+            for r in fw.applicable(profile):
+                if r.effect == "attestation":
+                    w.append(
+                        f"framework_confirm:{fw.pack_id}/{r.req_id}: {r.confirmation} ({fw.short_title}, {r.reference or r.title})"
+                    )
         for pack in ctx.packs:
             if pack.pack_status == "fallback":
                 w.append(

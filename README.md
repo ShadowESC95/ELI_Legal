@@ -91,9 +91,25 @@ eli-legal serve                     # the server and browser application, on thi
 | Server and browser application | `eli-legal serve` | A chambers, firm or tribunal, over HTTPS |
 | Command line | `eli-legal` | Administration and scripted use |
 
-All three show the same eleven screens or commands over the same services: **Matter · Evidence ·
-Chat · DAG · Agents · Findings · Review · Audit Trail · Governance · Sources · Settings**. There
+All three show the same screens or commands over the same services: **Matter · Evidence · Chat ·
+DAG · Agents · Findings · Review · Audit Trail · Governance · Sources · Laws & Standards ·
+Settings**. There
 is no general assistant, no shell and no web access in any of them.
+
+## Law and standards
+
+Each matter applies packages of law, regulation and standards: the EU AI Act (Annex III 8(a)),
+GDPR, the Council of Europe convention, fair-trial and arbitration due process, national packages,
+ISO/IEC 42001, professional guidance, and your organisation's own (imported from JSON, CSV or a
+document, approved before use). The model is told their rules, the system enforces what it can,
+the reviewer confirms the rest, and the report lists every requirement. See
+[docs/6_manuals/11_laws_and_standards.md](docs/6_manuals/11_laws_and_standards.md).
+
+## Models
+
+GGUF files run in process with llama.cpp, as in ELI v2 and v3, and are found in ELI's model
+folders; or a model server on this machine; or ELI v3's model when opened from ELI v3. See
+[docs/6_manuals/12_models.md](docs/6_manuals/12_models.md).
 
 ## Identity
 
@@ -152,7 +168,11 @@ no matter content. See [docs/3_architecture/03_eli_v3_integration.md](docs/3_arc
 
 ```bash
 eli-legal edition verify --eli-root /path/to/ELI_v3.0     # read-only check against a checkout
+eli-legal bundle register                                 # let ELI v3 open this copy
 ```
+
+ELI v3 can open ELI Legal in place of its own window (`eli --bundle legal`, or its start-up
+question and Bundles menu).
 
 ## What this is not
 

@@ -9,6 +9,7 @@ from eli_legal.application.chat_service import ChatService
 from eli_legal.application.config_service import ConfigService
 from eli_legal.application.container import AppContext, build_context
 from eli_legal.application.delivery_service import DeliveryService
+from eli_legal.application.framework_service import FrameworkService
 from eli_legal.application.incident_service import IncidentService
 from eli_legal.application.ingestion_service import IngestionService
 from eli_legal.application.matter_service import MatterService, UserService
@@ -45,6 +46,7 @@ class Services:
     incidents: IncidentService
     monitoring: MonitoringService
     chat: ChatService
+    frameworks: FrameworkService
     config: ConfigService
 
     def audit_trail(self, *, actor_id: str, matter_id: str | None = None) -> list[dict[str, Any]]:
@@ -110,5 +112,6 @@ def build_services(
         incidents=IncidentService(ctx),
         monitoring=MonitoringService(ctx),
         chat=ChatService(ctx),
+        frameworks=FrameworkService(ctx),
         config=ConfigService(ctx),
     )

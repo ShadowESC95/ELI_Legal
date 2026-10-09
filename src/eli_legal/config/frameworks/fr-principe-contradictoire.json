@@ -1,0 +1,56 @@
+{
+  "id": "fr-principe-contradictoire",
+  "as_at": "2026-10-09",
+  "status_note": "A summary written for ELI Legal, in its own words. It is not the text of the instrument and has not been validated by a qualified lawyer. Check the official text before relying on any statement in it.",
+  "licence_note": "",
+  "source_url": "",
+  "recommend_for": [
+    "adjudicator"
+  ],
+  "example": false,
+  "rules": {},
+  "title": "Adversarial principle (France)",
+  "short_title": "FR contradictoire",
+  "scope": "national",
+  "jurisdictions": [
+    "FR"
+  ],
+  "instrument": "Code de procédure civile, art. 16 et art. 1510",
+  "issuer": "République française",
+  "version": "current",
+  "description": "The judge's duty to observe the adversarial principle, and its counterpart in international arbitration.",
+  "requirements": [
+    {
+      "id": "CPC16",
+      "reference": "art. 16 CPC",
+      "title": "Points of law raised by the court",
+      "text": "The judge observes and enforces the adversarial principle and may not base a decision on a point of law raised of the court's own motion without first inviting the parties' observations.",
+      "effect": "attestation",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [
+        "adjudicator"
+      ],
+      "controls": [],
+      "instruction": "",
+      "statement": "I will not base a decision on a point of law I raised myself without first inviting the parties to comment."
+    },
+    {
+      "id": "CPC1510",
+      "reference": "art. 1510 CPC",
+      "title": "International arbitration",
+      "text": "Whatever the procedure, the arbitral tribunal guarantees equal treatment of the parties and respects the adversarial principle.",
+      "effect": "note",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [
+        "adjudicator"
+      ],
+      "controls": [],
+      "instruction": "",
+      "statement": ""
+    }
+  ]
+}

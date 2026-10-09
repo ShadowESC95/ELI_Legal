@@ -147,7 +147,7 @@ def test_a_person_can_sign_in_read_the_matter_and_take_a_decision_in_the_browser
             "return JSON.stringify([...document.querySelectorAll('nav.tabs .tab')].map(t=>t.textContent));"
         )
     )
-    assert len(tabs) == 11 and all(
+    assert len(tabs) == 12 and all(
         any(w in t for t in tabs) for w in ("Chat", "DAG", "Agents", "Audit Trail", "Settings")
     )
     assert "Aoife Keane" in page.text("header.top") and "Audit verified" in page.text("header.top")

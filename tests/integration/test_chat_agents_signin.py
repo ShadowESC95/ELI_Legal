@@ -249,6 +249,7 @@ def test_changing_the_model_is_a_governed_recorded_change(services, tmp_path):
         "from": "none",
         "to": "m@127.0.0.1",
         "verifier": "v@127.0.0.1",
+        "backend": "openai_compat",
     }
     from eli_legal.domain.errors import NetworkDenied
 

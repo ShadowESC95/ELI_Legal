@@ -1,0 +1,96 @@
+{
+  "id": "ie-practice-directions-genai",
+  "as_at": "2026-10-09",
+  "status_note": "A summary written for ELI Legal, in its own words. It is not the text of the instrument and has not been validated by a qualified lawyer. Check the official text before relying on any statement in it. Parts of it rest on published reports of the instrument rather than on its text.",
+  "licence_note": "",
+  "source_url": "https://courts.ie/news/court-of-appeal---high-court---new-practice-directions-issued-on-the-responsible-use-of-generative-artificial-intelligence-in-court-documents",
+  "recommend_for": [
+    "party_representative"
+  ],
+  "example": false,
+  "rules": {},
+  "title": "Practice Directions HC 142 and CA 16: generative AI in court documents (Ireland)",
+  "short_title": "IE GenAI Practice Directions",
+  "scope": "national",
+  "jurisdictions": [
+    "IE"
+  ],
+  "instrument": "High Court Practice Direction HC 142; Court of Appeal Practice Direction CA 16 (in force 1 September 2026)",
+  "issuer": "President of the High Court; President of the Court of Appeal",
+  "version": "2026",
+  "description": "Court users are responsible for their court documents, however prepared; AI-assisted material is independently verified under human control.",
+  "requirements": [
+    {
+      "id": "verify",
+      "reference": "HC 142; CA 16",
+      "title": "Independent verification under human control",
+      "text": "Material generated with AI is appropriately and independently verified before use in proceedings, and every authority, citation and quotation is independently verified.",
+      "effect": "attestation",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [
+        "party_representative"
+      ],
+      "controls": [],
+      "instruction": "",
+      "statement": "Before any material from this work is used in a court document, every authority, citation and quotation in it will be independently verified under human control."
+    },
+    {
+      "id": "responsibility",
+      "reference": "HC 142; CA 16",
+      "title": "Responsibility for court documents",
+      "text": "Every person is responsible for the content of the documents they put before the court, however prepared.",
+      "effect": "note",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "disclose",
+      "reference": "HC 142; CA 16",
+      "title": "Disclosure where directed",
+      "text": "Where the court directs, a party discloses whether generative AI was used in preparing a court document and the nature and extent of its use. The audit trail and evidence pack record what this system did.",
+      "effect": "note",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "affidavits",
+      "reference": "HC 142; CA 16",
+      "title": "Affidavits and witness statements",
+      "text": "Generative AI is not used to generate the substantive content of an affidavit or witness statement.",
+      "effect": "instruction",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "Never draft, complete or rephrase the substantive content of an affidavit or witness statement; that evidence must be the witness's own.",
+      "statement": ""
+    },
+    {
+      "id": "sanctions",
+      "reference": "HC 142; CA 16",
+      "title": "Consequences",
+      "text": "Non-compliance can lead to costs orders, documents being disregarded, claims or defences being struck out, or referral of a practitioner to the regulator.",
+      "effect": "note",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "",
+      "statement": ""
+    }
+  ]
+}

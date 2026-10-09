@@ -10,12 +10,14 @@ from pathlib import Path
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
     QLineEdit,
     QMessageBox,
+    QVBoxLayout,
     QWidget,
 )
 
@@ -26,7 +28,7 @@ from eli_legal.gui import theme
 from eli_legal.gui.main_window import MainWindow
 from eli_legal.gui.session import Session
 from eli_legal.gui.widgets import label
-from eli_legal.settings import Settings
+from eli_legal.settings import ENV_FILE, Settings
 
 
 def _ensure_key(settings: Settings) -> bool:
@@ -143,6 +145,74 @@ def create_application(argv: list[str] | None = None) -> QApplication:
     return app
 
 
+class ModelChoiceDialog(QDialog):
+    """Shown when an administrator signs in and no model is set: choose one now, or later."""
+
+    def __init__(self, services: Services) -> None:
+        super().__init__()
+        self.setWindowTitle("ELI Legal: choose a model")
+        self.resize(760, 420)
+        from eli_legal.gui.model_picker import ModelPicker
+
+        self.picker = ModelPicker(services)
+        if self.picker.backend.findData("gguf") >= 0 and services.config.gguf_models():
+            self.picker.backend.setCurrentIndex(self.picker.backend.findData("gguf"))
+        self.never = QCheckBox("Do not ask again (choose one later in Settings, Model)")
+        buttons = QDialogButtonBox()
+        buttons.addButton("Use this model", QDialogButtonBox.ButtonRole.AcceptRole)
+        buttons.addButton("Not now", QDialogButtonBox.ButtonRole.RejectRole)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout = QVBoxLayout(self)
+        layout.addWidget(
+            label(
+                "No model is set. ELI Legal works without one, but a model lets it select facts more fully, "
+                "link them to issues and draft the arguments open to each party. Every model runs on this "
+                "machine; nothing is sent anywhere. Choosing one is recorded under your name.",
+                "muted",
+                wrap=True,
+            )
+        )
+        layout.addWidget(self.picker)
+        layout.addWidget(self.never)
+        layout.addWidget(buttons)
+
+
+def _model_at_start(session: Session, phrase: str) -> None:
+    """Say if the configured model cannot be used, and offer an administrator the choice of
+    one if none is set. The passphrase just given confirms the choice."""
+    sv = session.sv
+    current = sv.config.current()
+    reason = getattr(sv.ctx.model.inference, "reason", "")
+    if reason:
+        QMessageBox.warning(
+            None,
+            "Model",
+            reason[:1].upper()
+            + reason[1:]
+            + ".\n\nELI Legal will run without a model until this is put right in Settings, Model.",
+        )
+        return
+    if current["backend"] != "none" or not sv.ctx.settings.model_prompt:
+        return
+    if not sv.ctx.authorizer().bindings.can(session.user_id, "config.manage"):
+        return
+    dialog = ModelChoiceDialog(sv)
+    accepted = dialog.exec() == QDialog.DialogCode.Accepted
+    if dialog.never.isChecked():
+        from eli_legal.application.config_service import _update_env_file
+
+        _update_env_file(ENV_FILE, {"ELI_LEGAL_MODEL_PROMPT": "false"})
+        sv.ctx.settings.model_prompt = False
+    if accepted:
+        values = dialog.picker.values()
+        session.decide_with(
+            dialog,
+            phrase,
+            lambda: sv.config.set_model(actor_id=session.user_id, persist_to=ENV_FILE, **values),
+        )
+
+
 def main(argv: list[str] | None = None) -> int:
     app = create_application(argv)
     settings = Settings()
@@ -178,6 +248,7 @@ def main(argv: list[str] | None = None) -> int:
                 "Unknown user, wrong passphrase or wrong code.\n\nIf you have no passphrase yet, an administrator must set your first one.",
             )
             continue
+        _model_at_start(session, dialog.phrase.text())
         window = MainWindow(session)
         window.show()
         app.exec()

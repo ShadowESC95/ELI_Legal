@@ -92,6 +92,7 @@ class MonitoringService:
                     ("model", earlier.model_versions, later.model_versions),
                     ("tool", earlier.tool_versions, later.tool_versions),
                     ("prompt", earlier.prompt_versions, later.prompt_versions),
+                    ("law and standards", earlier.framework_versions, later.framework_versions),
                     ("policy", {"v": earlier.policy_version}, {"v": later.policy_version}),
                     ("workflow", {"v": earlier.workflow_version}, {"v": later.workflow_version}),
                 ):

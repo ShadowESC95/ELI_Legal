@@ -1,0 +1,101 @@
+{
+  "id": "svamc-ai-guidelines",
+  "as_at": "2026-10-09",
+  "status_note": "A summary written for ELI Legal, in its own words. It is not the text of the instrument and has not been validated by a qualified lawyer. Check the official text before relying on any statement in it. Parts of it rest on published reports of the instrument rather than on its text.",
+  "licence_note": "",
+  "source_url": "https://svamc.org/svamc-publishes-guidelines-on-the-use-of-artificial-intelligence-in-arbitration/",
+  "recommend_for": [
+    "adjudicator"
+  ],
+  "example": false,
+  "rules": {},
+  "title": "SVAMC Guidelines on the Use of Artificial Intelligence in Arbitration",
+  "short_title": "SVAMC AI Guidelines",
+  "scope": "professional",
+  "jurisdictions": [
+    "INT-ARB"
+  ],
+  "instrument": "Silicon Valley Arbitration & Mediation Center, Guidelines on the Use of AI in Arbitration (1st ed., 2024)",
+  "issuer": "Silicon Valley Arbitration & Mediation Center",
+  "version": "2024",
+  "description": "Soft-law guidance for arbitrators and parties, often adopted in a first procedural order.",
+  "requirements": [
+    {
+      "id": "G1",
+      "reference": "Guideline 1",
+      "title": "Understanding uses, limitations and risks",
+      "text": "Participants understand what an AI tool does and where it can fail.",
+      "effect": "note",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "G2",
+      "reference": "Guideline 2",
+      "title": "Safeguarding confidentiality",
+      "text": "Confidential material is not exposed through an AI tool.",
+      "effect": "enforced",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [],
+      "controls": [
+        "C-02",
+        "C-04"
+      ],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "G3",
+      "reference": "Guideline 3",
+      "title": "Disclosure",
+      "text": "Whether AI use must be disclosed is decided case by case.",
+      "effect": "note",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [],
+      "controls": [],
+      "instruction": "",
+      "statement": ""
+    },
+    {
+      "id": "G6",
+      "reference": "Guideline 6",
+      "title": "Non-delegation of decision-making",
+      "text": "Arbitrators do not delegate any part of their decision.",
+      "effect": "instruction",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [
+        "adjudicator"
+      ],
+      "controls": [],
+      "instruction": "Do not reach, suggest or draft any decision of the tribunal, whether on procedure, evidence or the merits.",
+      "statement": ""
+    },
+    {
+      "id": "G7",
+      "reference": "Guideline 7",
+      "title": "Respect for due process",
+      "text": "An arbitrator does not rely on AI-generated information outside the record without disclosing it to the parties and, as far as practical, letting them comment.",
+      "effect": "attestation",
+      "addressed_to": [
+        "user"
+      ],
+      "profiles": [
+        "adjudicator"
+      ],
+      "controls": [],
+      "instruction": "",
+      "statement": "Any information from this work outside the record that I rely on will be disclosed to the parties for comment."
+    }
+  ]
+}

@@ -226,7 +226,7 @@
 
   // ── frame ──────────────────────────────────────────────────────────────────
   const TABS = [['matter', '📁 Matter'], ['evidence', '📄 Evidence'], ['chat', '💬 Chat'], ['dag', '🕸 DAG'], ['agents', '🤖 Agents'],
-    ['findings', '🔎 Findings'], ['review', '⚖ Review'], ['audit', '🧾 Audit Trail'], ['governance', '🛡 Governance'], ['sources', '📚 Sources'], ['settings', '⚙ Settings']];
+    ['findings', '🔎 Findings'], ['review', '⚖ Review'], ['audit', '🧾 Audit Trail'], ['governance', '🛡 Governance'], ['sources', '📚 Sources'], ['laws', '📜 Laws & Standards'], ['settings', '⚙ Settings']];
   const VIEWS = {};
 
   function render() {
@@ -273,6 +273,7 @@
     const sources = await api('GET', '/v1/sources');
     const m = S.matter;
     const create = async () => {
+      const packs = (await api('GET', '/v1/frameworks')).filter((f) => f.usable);
       const v = await ask('Open a matter', [
         { name: 'name', label: 'Name', required: true }, { name: 'purpose', label: 'What the work product is for', type: 'textarea', required: true },
         { name: 'profile', label: 'Who it is for', type: 'select', options: S.sys.profiles.map((p) => [p.profile, p.label]) },
@@ -280,11 +281,13 @@
         { name: 'forum', label: 'Court, tribunal or forum' }, { name: 'procedural_rules', label: 'Procedural rules' },
         { name: 'relevant_date', label: 'Relevant date (the law is checked as at this date)', type: 'date' },
         { name: 'parties', label: 'Parties, one per line as  Name: role', type: 'textarea', hint: 'Harbour Freight Ltd: claimant' },
-        { name: 'issues', label: 'Issues, one per line', type: 'textarea' }], 'Open');
+        { name: 'issues', label: 'Issues, one per line', type: 'textarea' },
+        { name: 'recommended', label: 'Apply the law and standards packages recommended for this kind of matter and legal system', type: 'checkbox', value: true },
+        { name: 'frameworks', label: 'Also apply (change them later in Laws & Standards)', type: 'select', multiple: true, options: packs.map((f) => [f.id, `${f.short_title} · ${f.scope}`]) }], 'Open');
       if (!v) return;
       const made = await attempt(() => api('POST', '/v1/matters', {
         name: v.name, purpose: v.purpose, profile: v.profile, jurisdiction: v.jurisdiction, forum: v.forum, procedural_rules: v.procedural_rules,
-        relevant_date: v.relevant_date || null, stated_issues: lines(v.issues),
+        relevant_date: v.relevant_date || null, stated_issues: lines(v.issues), frameworks: v.frameworks, recommended_frameworks: v.recommended,
         parties: lines(v.parties).map((l) => { const [name, role] = l.split(':'); return { name: name.trim(), role: (role || 'party').trim() }; }) }), 'Matter opened.');
       if (made && made !== true) { S.matters = await api('GET', '/v1/matters'); await openMatter(made.matter_id); }
     };
@@ -611,6 +614,60 @@
     s ? card(`What ${s.name} holds`, table([['Citation', 'citation'], ['Title', 'title', 'clip'], ['Status', (a) => h('span', { class: a.status === 'in_force' ? 'good' : 'warn' }, words(a.status))]], held, { onRow: open, empty: 'Nothing loaded.' })) : null), card(null, text.childNodes.length ? text : [text, h('p', { class: 'muted' }, 'Select an authority to read it and its status history.')]));
   };
 
+  // ── Laws & Standards ───────────────────────────────────────────────────────
+  const HOW = { enforced: 'enforced by the system', instruction: 'given to the model', attestation: 'reviewer confirms', disclosure: 'disclosed in the report', note: 'for the organisation' };
+  VIEWS.laws = async () => {
+    const all = await api('GET', '/v1/frameworks');
+    const picked = all.find((f) => f.id === S.picked.law) || all[0];
+    const detail = picked ? await api('GET', `/v1/frameworks/${encodeURIComponent(picked.id)}`) : null;
+    const may = S.user.may || {};
+    const act = (verb, done, method = 'POST') => async () => { if (await attempt(() => api(method, `/v1/frameworks/${encodeURIComponent(picked.id)}${verb}`), done)) show(); };
+    const upload = async () => {
+      const file = h('input', { type: 'file', accept: '.json,.csv,.pdf,.docx,.odt,.rtf,.txt,.md,.html,.htm,.eml' });
+      const v = await ask('Import a law or standards package', [{ name: 'title', label: 'Title (taken from the file if blank)' }, { name: 'pack_id', label: 'Identifier (optional)' }, { name: 'issuer', label: 'Issued by' }, { name: 'version', label: 'Version', value: '1' }], 'Choose the file…',
+        'A JSON package (as Export writes), a CSV requirements register (id, reference, title, text, effect), or your organisation\'s rules as a document. It cannot be used on a matter until it is approved.');
+      if (!v) return;
+      file.addEventListener('change', async () => {
+        const f = file.files[0]; if (!f) return;
+        const q = new URLSearchParams({ filename: f.name, title: v.title, pack_id: v.pack_id, issuer: v.issuer, version: v.version || '1' });
+        const r = await attempt(() => api('POST', `/v1/frameworks/upload?${q}`, f, { raw: true }));
+        if (r && r !== true) { note(`${r.title}: ${r.requirements} requirement(s); ${r.standing}.`, r.usable ? 'good' : 'bad'); S.picked.law = r.id; show(); }
+      });
+      file.click();
+    };
+    const validate = async () => {
+      const v = await ask('Record a lawyer\'s validation', [{ name: 'lawyer', label: 'Name of the qualified lawyer who checked this version against its official text', required: true }], 'Record');
+      if (v && await attempt(() => api('POST', `/v1/frameworks/${encodeURIComponent(picked.id)}/validate`, v), 'Validation recorded.')) show();
+    };
+    const exportPack = () => attempt(() => download('GET', `/v1/frameworks/${encodeURIComponent(picked.id)}/export`, `${picked.id}.json`));
+    let mine = null, recommended = [];
+    if (S.matter) {
+      mine = await api('GET', `${M()}/frameworks`);
+      recommended = await api('GET', `/v1/frameworks/recommended?profile=${encodeURIComponent(S.matter.profile)}&jurisdiction=${encodeURIComponent(S.matter.jurisdiction)}`);
+    }
+    const applied = new Set(S.matter ? S.matter.framework_ids || [] : []);
+    const boxes = all.filter((f) => f.usable).map((f) => [f.id, h('input', { type: 'checkbox', checked: applied.has(f.id) }), `${recommended.includes(f.id) ? '★ ' : ''}${f.title} (${f.standing})`]);
+    const save = async () => {
+      if (await attempt(() => api('PUT', `${M()}/frameworks`, { ids: boxes.filter(([, b]) => b.checked).map(([id]) => id) }), 'Saved. They apply from the next run.')) { S.matter = await api('GET', `/v1/matters/${encodeURIComponent(S.matter.matter_id)}`); show(); }
+    };
+    const tickRecommended = () => boxes.forEach(([id, b]) => { b.checked = recommended.includes(id); });
+    return h('div', null,
+      card('Law and standards packages', h('p', { class: 'muted' }, 'International, regional, national, professional and your organisation\'s own. The packages a matter applies are given to the model as rules in every call, tighten the system where they say so, become confirmations the reviewer must give before approval, and are listed in the report. Shipped packages are summaries until a qualified lawyer\'s validation is recorded; your own must be approved.'),
+        table([['Package', (f) => f.short_title + (f.example ? ' (example)' : '')], ['Instrument', 'instrument', 'clip'], ['Scope', 'scope'], ['Applies in', (f) => f.jurisdictions.join(', ').replace('*', 'anywhere')], ['Standing', (f) => h('span', { class: f.usable ? (f.validated || f.origin !== 'shipped' ? 'good' : 'warn') : 'bad' }, f.standing)], ['Requirements', 'requirements']], all,
+          { onRow: (f) => { S.picked.law = f.id; show(); }, on: (f) => picked && f.id === picked.id }),
+        may['framework.manage'] ? h('div', { class: 'row' }, btn('Import a package or document…', upload, 'go'), picked ? [btn('Approve', act('/approve', 'Approved.')), btn('Record a lawyer\'s validation…', validate), btn('Withdraw', act('/withdraw', 'Withdrawn.'), 'danger'), btn('Reinstate', act('/reinstate', 'Reinstated.')), picked.origin !== 'shipped' ? btn('Remove', act('', 'Removed.', 'DELETE')) : null, btn('Export', exportPack)] : null) : null),
+      h('div', { class: 'cols' },
+        card(detail ? detail.pack.title : 'No package', detail ? [facts([['Instrument', detail.pack.instrument], ['Issued by', detail.pack.issuer], ['Version', detail.pack.version], ['Checked against its source', detail.pack.as_at || 'not recorded'], ['Standing', detail.standing]]),
+          h('p', null, detail.pack.description), detail.pack.rules.status_max_age_days || detail.pack.rules.forbidden_terms.length ? h('p', { class: 'warn' }, 'Tightens the system: ' + [detail.pack.rules.status_max_age_days ? `authority status confirmed within ${detail.pack.rules.status_max_age_days} days` : '', detail.pack.rules.forbidden_terms.length ? `model-drafted text may not contain ${detail.pack.rules.forbidden_terms.join(', ')}` : ''].filter(Boolean).join('; ')) : null,
+          table([['Provision', 'reference'], ['Requirement', 'title'], ['How it is met', (r) => HOW[r.effect] + (r.controls.length ? ` (${r.controls.join(', ')})` : '')], ['Only for', (r) => r.profiles.map(words).join(', ') || 'all']], detail.pack.requirements,
+            { onRow: (r) => note(`${r.reference} — ${r.text}${r.effect === 'instruction' ? `\nThe model is told: ${r.instruction || r.text}` : ''}${r.statement ? `\n${r.effect === 'disclosure' ? 'The report says' : 'The reviewer confirms'}: ${r.statement}` : ''}`, 'good') }),
+          h('p', { class: 'muted' }, detail.pack.status_note), detail.pack.licence_note ? h('p', { class: 'muted' }, detail.pack.licence_note) : null] : null),
+        card('Packages applied to the open matter', S.matter ? [h('p', { class: 'muted' }, `${S.matter.name}. Ticked packages apply from the next run. ★ marks those recommended for this kind of matter and legal system.`),
+          boxes.map(([, box, text]) => h('label', { class: 'check' }, box, text)),
+          h('div', { class: 'row' }, btn('Tick the recommended set', tickRecommended), btn('Save for this matter', save, 'go')),
+          h('h3', null, 'What the model is told'), h('pre', null, mine.model_is_told || 'No package applies, so the model is given only the system\'s own rules.')] : h('p', { class: 'muted' }, 'Open a matter to choose its packages.'))));
+  };
+
   // ── Settings ───────────────────────────────────────────────────────────────
   VIEWS.settings = async () => {
     const cfg = await api('GET', '/v1/config');
@@ -635,9 +692,39 @@
       if (v && await attempt(() => api('POST', '/v1/users', v), 'User added.')) show();
     };
     const setPhrase = async (u) => { const v = await ask(`Set a passphrase for ${u.display_name}`, [{ name: 'new', label: 'New passphrase', type: 'password', required: true }], 'Set'); if (v && await attempt(() => api('POST', `/v1/users/${encodeURIComponent(u.user_id)}/passphrase`, v), 'Set. Their sessions have been ended.')) show(); };
-    const backend = h('select', null, ['none', 'openai_compat'].map((b) => h('option', { value: b, selected: cfg.model.backend === b }, b === 'none' ? 'No model (rules only)' : 'A model server on this machine')));
-    const url = h('input', { value: cfg.model.url }), model = h('input', { value: cfg.model.model, placeholder: 'model name' }), verifier = h('input', { value: cfg.model.verifier_model, placeholder: 'a different model, used only to check propositions (optional)' });
+    const backends = [['gguf', 'A GGUF model file on this machine (as ELI v2 and v3 use)'], ['openai_compat', 'A model server on this machine (Ollama, llama.cpp, LM Studio)'],
+      ...(cfg.model.hosted_by_eli_v3 ? [['eli_v3', "ELI v3's model"]] : []), ['none', 'No model (rules only)']];
+    const backend = h('select', null, backends.map(([b, text]) => h('option', { value: b, selected: cfg.model.backend === b }, text)));
+    const url = h('input', { value: cfg.model.url }), model = h('input', { value: cfg.model.backend === 'openai_compat' ? cfg.model.model : '', placeholder: 'model name' }), verifier = h('input', { value: cfg.model.backend === 'openai_compat' ? cfg.model.verifier_model : '', placeholder: 'a different model, used only to check propositions (optional)' });
+    const ggufModel = h('select'), ggufVerifier = h('select');
+    const ctxLen = h('input', { type: 'number', min: 2048, max: 262144, step: 2048, value: cfg.model.gguf_context });
+    const gpu = h('input', { type: 'number', min: -1, max: 999, value: cfg.model.gguf_gpu_layers });
+    const threads = h('input', { type: 'number', min: 0, max: 256, value: cfg.model.gguf_threads });
     const found = h('span', { class: 'muted' });
+    const fillGguf = (list) => {
+      const opt = (m) => h('option', { value: m.ref, selected: cfg.model.backend === 'gguf' && cfg.model.model === m.name }, `${m.name} · ${m.size_gb} GB · ${m.location}`);
+      fill(ggufModel, list.map(opt));
+      fill(ggufVerifier, h('option', { value: '' }, '(none)'), list.map((m) => h('option', { value: m.ref, selected: cfg.model.backend === 'gguf' && cfg.model.verifier_model === m.name }, `${m.name} · ${m.location}`)));
+    };
+    const findModels = async () => {
+      const r = await attempt(() => api('GET', `/v1/config/models?url=${encodeURIComponent(url.value)}`));
+      if (!r || r === true) return;
+      fillGguf(r.gguf);
+      found.textContent = `${r.gguf.length} GGUF model(s) found in ELI's model folders${r.gguf_supported ? '' : ' (llama.cpp is not installed on the server, so they cannot run there)'}. ` +
+        (r.models.length ? `The model server offers: ${r.models.join(', ')}.` : 'No model server answered at that address.');
+    };
+    const ggufBox = h('div', null, h('label', null, 'GGUF model'), ggufModel, h('label', null, 'Verifier (optional, a different model)'), ggufVerifier,
+      h('div', { class: 'row' }, h('label', null, 'Context'), ctxLen, h('label', null, 'Layers on the graphics card'), gpu, h('label', null, 'Threads (0: auto)'), threads));
+    const serverBox = h('div', null, h('label', null, 'Address (this machine only)'), url, h('label', null, 'Model'), model, h('label', null, 'Verifier model'), verifier);
+    const showBox = () => { ggufBox.hidden = backend.value !== 'gguf'; serverBox.hidden = backend.value !== 'openai_compat'; };
+    backend.addEventListener('change', showBox); showBox();
+    if (may['config.manage']) setTimeout(findModels, 0);
+    const applyModel = async () => {
+      const body = { backend: backend.value, url: url.value, model: '', verifier_model: '' };
+      if (backend.value === 'gguf') Object.assign(body, { model: ggufModel.value, verifier_model: ggufVerifier.value, gguf_context: Number(ctxLen.value), gguf_gpu_layers: Number(gpu.value), gguf_threads: Number(threads.value) });
+      if (backend.value === 'openai_compat') Object.assign(body, { model: model.value, verifier_model: verifier.value });
+      if (await attempt(() => api('POST', '/v1/config/model', body), 'Model changed.')) { S.sys = await api('GET', '/v1/system'); render(); }
+    };
     return h('div', { class: 'cols' }, h('div', null,
       card('You', facts([['Signed in as', `${S.user.display_name} (${S.user.user_id})`], ['Roles', S.user.roles.map(words).join(', ')], ['Second factor', S.user.second_factor ? h('span', { class: 'good' }, 'set up') : h('span', { class: 'warn' }, 'not set up')]]),
         h('div', { class: 'row' }, btn('Change passphrase…', passphrase), S.user.second_factor ? btn('Remove second factor', async () => { if (await attempt(() => api('DELETE', '/v1/auth/second-factor'), 'Removed. Sign in again.')) signOut(); }, 'danger') : btn('Set up a second factor…', async () => { if (await setUpSecondFactor()) show(); }, 'go'), btn('Create an API token…', token))),
@@ -645,9 +732,9 @@
         ['', (u) => h('div', { class: 'row' }, btn('Passphrase…', () => setPhrase(u)), u.locked_until ? btn('Unlock', () => person('Unlocked.', (x) => api('POST', `/v1/users/${encodeURIComponent(x.user_id)}/unlock`))(u)) : null,
           u.second_factor ? btn('Reset 2nd factor', () => person('Second factor removed.', (x) => api('DELETE', `/v1/users/${encodeURIComponent(x.user_id)}/second-factor`))(u)) : null,
           u.active ? btn('Deactivate', () => person('Deactivated.', (x) => api('POST', `/v1/users/${encodeURIComponent(x.user_id)}/deactivate`))(u), 'danger') : null)]], users), h('div', { class: 'row' }, btn('Add a user…', add, 'go'))) : null),
-    h('div', null, card('Model', h('p', { class: 'muted' }, 'A model is optional. It may only run on this machine: matter content is never sent anywhere else. Changing it is a recorded decision.'), h('label', null, 'Backend'), backend, h('label', null, 'Address'), url, h('label', null, 'Model'), model, h('label', null, 'Verifier model'), verifier,
-      h('div', { class: 'row' }, btn('List models', async () => { const r = await attempt(() => api('GET', `/v1/config/models?url=${encodeURIComponent(url.value)}`)); if (r && r !== true) found.textContent = r.models.length ? r.models.join(', ') : 'No model server answered at that address.'; }),
-        btn('Apply', async () => { if (await attempt(() => api('POST', '/v1/config/model', { backend: backend.value, url: url.value, model: model.value, verifier_model: verifier.value }), 'Model changed.')) { S.sys = await api('GET', '/v1/system'); render(); } }, 'go')), found),
+    h('div', null, card('Model', h('p', { class: 'muted' }, 'A model is optional. It may only run on this machine: matter content is never sent anywhere else. Changing it is a recorded decision.'), h('p', null, `In use: ${cfg.model.active_model_id}${cfg.model.active_verifier_id !== 'none' ? `; verifier ${cfg.model.active_verifier_id}` : ''}.`),
+      h('label', null, 'Use'), backend, ggufBox, serverBox,
+      h('div', { class: 'row' }, btn('Find models', findModels), btn('Apply', applyModel, 'go')), found),
     card('Legal systems installed', table([['Code', 'code'], ['Name', 'name'], ['Family', (j) => words(j.legal_family)], ['Validated by a qualified lawyer', (j) => (j.validated ? h('span', { class: 'good' }, j.validated_by) : h('span', { class: 'warn' }, 'no'))]], S.sys.jurisdictions),
       h('p', { class: 'muted' }, 'A pack describes courts and citation forms only. It contains no rules of law; the law comes from an approved source.')),
     card('This installation', facts([['Version', S.sys.version], ['Network', `${S.sys.network_default} by default`], ['Encrypted connection', cfg.server.tls ? 'yes' : 'no (this machine only)'], ['Second factor', cfg.server.second_factor_required ? 'required' : 'optional'],

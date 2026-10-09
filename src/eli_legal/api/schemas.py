@@ -72,6 +72,9 @@ class MatterCreate(Strict):
     parties: list[PartyIn] = Field(default_factory=list, max_length=100)
     stated_issues: list[Long] = Field(default_factory=list, max_length=100)
     represented_party: Short | None = None
+    # Packages to apply. With recommended_frameworks, they are added to the recommended set.
+    frameworks: list[Ident] = Field(default_factory=list, max_length=100)
+    recommended_frameworks: bool = True
 
 
 class MatterUpdate(Strict):
@@ -171,5 +174,13 @@ class ImportIn(Strict):
 class ModelIn(Strict):
     backend: Ident
     url: Short = ""
+    # For a model server: model names. For GGUF: the references the model list gives, never paths.
     model: Short = ""
     verifier_model: Short = ""
+    gguf_context: int | None = Field(default=None, ge=2048, le=262144)
+    gguf_gpu_layers: int | None = Field(default=None, ge=-1, le=999)
+    gguf_threads: int | None = Field(default=None, ge=0, le=256)
+
+
+class ValidationIn(Strict):
+    lawyer: Annotated[str, StringConstraints(min_length=3, max_length=200)]

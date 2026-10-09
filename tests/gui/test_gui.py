@@ -113,10 +113,11 @@ def test_the_application_has_the_specialised_tabs_and_nothing_else(desk):
         "Audit Trail",
         "Governance",
         "Sources",
+        "Laws & Standards",
         "Settings",
     ):
         assert any(wanted in t for t in titles), wanted
-    assert len(titles) == 11
+    assert len(titles) == 12
     for unwanted in (
         "Images",
         "Screen",

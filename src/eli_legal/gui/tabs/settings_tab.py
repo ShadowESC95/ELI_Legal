@@ -5,7 +5,6 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
@@ -21,8 +20,8 @@ from PySide6.QtWidgets import (
 )
 
 from eli_legal import __version__
-from eli_legal.domain.errors import EliLegalError
 from eli_legal.gui import theme
+from eli_legal.gui.model_picker import ModelPicker
 from eli_legal.gui.tabs.base import Tab
 from eli_legal.gui.widgets import button, card, fill, fit, label, row, selected_id, table
 from eli_legal.security.rbac import DEFAULT_ROLE_ACTIONS
@@ -137,24 +136,9 @@ class SettingsTab(Tab):
         )
         self.inner.addTab(page, "Users and roles")
 
-        self.backend = QComboBox()
-        self.backend.addItem("No model — every step that needs none still runs", "none")
-        self.backend.addItem(
-            "A model server on this machine (Ollama, llama.cpp, LM Studio)", "openai_compat"
-        )
-        self.url = QLineEdit()
-        self.model = QComboBox()
-        self.model.setEditable(True)
-        self.verifier = QComboBox()
-        self.verifier.setEditable(True)
+        self.picker = ModelPicker(self.sv)
         self.model_state = label("", wrap=True)
-        form = QFormLayout()
-        form.addRow("Use", self.backend)
-        form.addRow("Server address", self.url)
-        form.addRow("Model", self.model)
-        form.addRow("Verifier (a different model)", self.verifier)
-        holder = QWidget()
-        holder.setLayout(form)
+        holder = self.picker
         page = QWidget()
         box = QVBoxLayout(page)
         box.addWidget(
@@ -162,11 +146,7 @@ class SettingsTab(Tab):
                 "Model",
                 self.model_state,
                 holder,
-                row(
-                    button("List the models on this machine", self._list_models),
-                    button("Apply…", self._apply_model, kind="primary"),
-                    None,
-                ),
+                row(button("Apply…", self._apply_model, kind="primary"), None),
             )
         )
         box.addWidget(
@@ -223,10 +203,7 @@ class SettingsTab(Tab):
         fit(self.users, [150, 190, 0, 80, 200])
         self._users = {u.user_id: u for u in users}
         current = self.sv.config.current()
-        self.backend.setCurrentIndex(max(0, self.backend.findData(current["backend"])))
-        self.url.setText(current["url"])
-        self.model.setEditText(current["model"])
-        self.verifier.setEditText(current["verifier_model"])
+        self.picker.load(current)
         self.model_state.setText(
             f"In use now — drafting: <b>{current['active_model_id']}</b>; verifying: <b>{current['active_verifier_id']}</b>"
         )
@@ -428,34 +405,20 @@ class SettingsTab(Tab):
             )
 
     # ── model ────────────────────────────────────────────────────────────────
-    def _list_models(self) -> None:
-        try:
-            models = self.sv.config.available_models(self.url.text().strip())
-        except EliLegalError as exc:
-            QMessageBox.warning(self, "Models", str(exc))
-            return
-        for combo in (self.model, self.verifier):
-            text = combo.currentText()
-            combo.clear()
-            combo.addItems(["", *models])
-            combo.setEditText(text)
-        QMessageBox.information(self, "Models", f"{len(models)} model(s) found on this machine.")
-
     def _apply_model(self) -> None:
-        backend, url = self.backend.currentData(), self.url.text().strip()
-        model, verifier = self.model.currentText().strip(), self.verifier.currentText().strip()
-        self.session.decide(
-            self,
-            "change the model the system uses",
-            lambda: self.sv.config.set_model(
-                actor_id=self.actor,
-                backend=backend,
-                url=url,
-                model=model if backend != "none" else "",
-                verifier_model=verifier if backend != "none" else "",
-                persist_to=ENV_FILE,
-            ),
-        )
+        values = self.picker.values()
+        if values["backend"] in ("gguf", "openai_compat") and not values["model"]:
+            QMessageBox.warning(self, "Model", "Choose a model first.")
+            return
+
+        def change() -> dict[str, object]:
+            result = self.sv.config.set_model(actor_id=self.actor, persist_to=ENV_FILE, **values)
+            return result
+
+        done = self.session.decide(self, "change the model the system uses", change)
+        if done is not None:
+            self.refresh()
+            self.session.changed.emit()
 
     def export_policy(self) -> str:
         return json.dumps(json.loads(self.policy.toPlainText() or "{}"), indent=2)

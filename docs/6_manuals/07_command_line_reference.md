@@ -34,13 +34,14 @@ Generated from the program by `scripts/generate_reference_docs.py`. Do not edit 
 | `eli-legal source revoke <source_id>` |  |
 | `eli-legal source import <source_id> <directory>` |  |
 | `eli-legal matter` | manage matters |
-| `eli-legal matter create --name --purpose --jurisdiction --profile --governing-law --forum --rules --relevant-date --party --issue --represents` |  |
+| `eli-legal matter create --name --purpose --jurisdiction --profile --governing-law --forum --rules --relevant-date --party --issue --represents --framework --no-recommended-frameworks` |  |
 | `eli-legal matter list` |  |
 | `eli-legal matter show <matter>` |  |
 | `eli-legal matter grant <matter> <user_id>` |  |
 | `eli-legal matter revoke <matter> <user_id>` |  |
 | `eli-legal matter reviewers <matter> <user_id>` |  |
 | `eli-legal matter sources <matter> <source_id>` |  |
+| `eli-legal matter frameworks <matter> <pack_id>` | show, or set, the law and standards packages applied |
 | `eli-legal matter set <matter> --relevant-date --issue --forum --rules --party` |  |
 | `eli-legal matter close <matter> --reason --purge` |  |
 | `eli-legal ingest <matter> <path> --party --type --scope --custodian` | take documents into a matter |
@@ -76,4 +77,23 @@ Generated from the program by `scripts/generate_reference_docs.py`. Do not edit 
 | `eli-legal edition manifest` |  |
 | `eli-legal edition install --eli-root --force` |  |
 | `eli-legal edition verify --eli-root` |  |
-| `eli-legal demo --dir --model --model-url` | run a synthetic dispute through the whole lifecycle |
+| `eli-legal demo --dir --model --model-url --gguf --gguf-context --gguf-gpu-layers` | run a synthetic dispute through the whole lifecycle |
+| `eli-legal framework` | law and standards packages: list, inspect, import, approve |
+| `eli-legal framework list` |  |
+| `eli-legal framework show <pack_id>` |  |
+| `eli-legal framework import <file> --title --id --issuer --version` | a JSON package, a CSV register, or a document of rules |
+| `eli-legal framework approve <pack_id>` |  |
+| `eli-legal framework validate <pack_id> --by` | record a qualified lawyer's validation of a package |
+| `eli-legal framework withdraw <pack_id>` |  |
+| `eli-legal framework reinstate <pack_id>` |  |
+| `eli-legal framework remove <pack_id>` |  |
+| `eli-legal framework export <pack_id> --out` |  |
+| `eli-legal framework context <matter>` | what the model is told on a matter |
+| `eli-legal bundle` | make this copy available to ELI v3 as a bundle |
+| `eli-legal bundle show` |  |
+| `eli-legal bundle register --into` |  |
+| `eli-legal bundle unregister --into` |  |
+| `eli-legal model` | show, find or choose the model |
+| `eli-legal model show` |  |
+| `eli-legal model list` | GGUF models found on this machine, and a model server's models |
+| `eli-legal model use <backend> <model> --verifier --url --context --gpu-layers --threads` | choose a GGUF file, a server model, ELI v3's model, or none |

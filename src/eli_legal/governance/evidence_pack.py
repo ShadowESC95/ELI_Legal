@@ -32,6 +32,7 @@ from eli_legal.domain.models import (
 )
 from eli_legal.domain.release import ReleasePackage
 from eli_legal.governance.completeness import check_run_completeness
+from eli_legal.legal.frameworks import pack_to_dict
 from eli_legal.persistence import codec
 
 
@@ -99,6 +100,21 @@ def export_evidence_pack(
             for d in documents
         ],
     )
+    # The law and standards packages the run was prepared under, each in full and with its standing.
+    applied = []
+    for pack_id, fingerprint in sorted(run.framework_versions.items()):
+        pack = ctx.frameworks.get(pack_id)
+        current = pack is not None and pack.fingerprint == fingerprint
+        applied.append(
+            {
+                "id": pack_id,
+                "fingerprint": fingerprint,
+                "unchanged_since_run": current,
+                "standing": ctx.frameworks.state(pack).why if pack is not None else "removed",
+                "pack": pack_to_dict(pack) if pack is not None and current else None,
+            }
+        )
+    _write(target / "frameworks.json", applied)
     _write(target / "steps.json", _rows(steps))
     _write(target / "issues.json", _rows(ctx.store.list(Issue, mid, run_id=run_id)))
     _write(target / "claims.json", _rows(claims))

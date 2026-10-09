@@ -85,6 +85,8 @@ protection together), a classification assessment, a change assessment and an in
 | [08 Instructions for use](6_manuals/08_instructions_for_use.md) | Intended purpose, limits and what the user must do |
 | [09 Operations runbook](6_manuals/09_operations_runbook.md) | Day-to-day operation and incident response |
 | [10 Troubleshooting](6_manuals/10_troubleshooting.md) | Common problems and what to do |
+| [11 Laws & Standards](6_manuals/11_laws_and_standards.md) | The law, regulation and standards packages applied to each matter, and your own |
+| [12 Models](6_manuals/12_models.md) | GGUF files, model servers, ELI v3's model |
 
 ## Keeping these documents true
 

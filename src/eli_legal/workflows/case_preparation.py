@@ -10,7 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
@@ -27,7 +27,7 @@ from eli_legal.domain.enums import (
     TaskStatus,
     VerificationType,
 )
-from eli_legal.domain.errors import HoldRaised
+from eli_legal.domain.errors import EliLegalError, HoldRaised
 from eli_legal.domain.models import (
     Authority,
     Chunk,
@@ -63,6 +63,12 @@ from eli_legal.legal.citations import CitationExtractor
 from eli_legal.legal.current_law_citator import CurrentLawCitator
 from eli_legal.legal.evidence_mapper import EvidenceMapper
 from eli_legal.legal.fact_extractor import FactExtractor
+from eli_legal.legal.frameworks import (
+    Rules,
+    combined_rules,
+    compile_context,
+    tighten_status_age,
+)
 from eli_legal.legal.issue_mapper import IssueMapper, stems, terms
 from eli_legal.legal.llm import PROMPT_VERSIONS, LegalModel
 from eli_legal.legal.proposition_verifier import PropositionVerifier
@@ -95,6 +101,8 @@ class CasePreparation:
     ingestion: IngestionService
     model: LegalModel
     verifier: LegalModel
+    # What the matter's law and standards packages require of this run; set before each step.
+    rules: Rules = field(default_factory=Rules)
 
     @classmethod
     def for_run(cls, ctx: AppContext) -> CasePreparation:
@@ -107,7 +115,7 @@ class CasePreparation:
         )
 
     def handlers(self) -> dict[str, StepHandler]:
-        return {
+        steps: dict[str, StepHandler] = {
             "scope": self.scope,
             "ingest": self.ingest,
             "document_coverage": self.document_coverage,
@@ -124,6 +132,24 @@ class CasePreparation:
             "draft_report": self.draft_report,
             "final_validation": self.final_validation,
         }
+        return {name: self._briefed(name, step) for name, step in steps.items()}
+
+    def _briefed(self, name: str, step: StepHandler) -> StepHandler:
+        """Every step after the first runs under the law and standards the run was prepared
+        under: the model is told them, and their tightening rules apply."""
+
+        def run(c: StepContext) -> Mapping[str, Any] | None:
+            if name != "scope":
+                self._brief(c)
+            return step(c)
+
+        return run
+
+    def _brief(self, c: StepContext) -> None:
+        packs = self.ctx.frameworks.for_run(c.run.framework_versions)
+        context = compile_context(packs, c.matter.profile.value)
+        self.model.compliance = self.verifier.compliance = context
+        self.rules = combined_rules(packs)
 
     # ── shared helpers ───────────────────────────────────────────────────────
     def _claims(self, c: StepContext, kinds: Iterable[ClaimKind] | None = None) -> list[Claim]:
@@ -240,11 +266,22 @@ class CasePreparation:
         if unapproved:
             raise HoldRaised("unapproved_source", ", ".join(unapproved))
         connectors = ctx.connectors_for(matter)
+        try:
+            frameworks = ctx.frameworks.usable(matter.framework_ids)
+        except EliLegalError as exc:
+            raise HoldRaised("framework_unusable", str(exc)) from exc
+        run.framework_versions = {p.pack_id: p.fingerprint for p in frameworks}
+        context = compile_context(frameworks, matter.profile.value)
+        self.model.compliance = self.verifier.compliance = context
+        self.rules = combined_rules(frameworks)
         run.workflow_id = ctx.workflow.workflow_id
         run.workflow_version = ctx.workflow.version
         run.policy_version = ctx.policy.version
         run.model_versions = {"generator": self.model.model_id, "verifier": self.verifier.model_id}
         run.prompt_versions = dict(PROMPT_VERSIONS) if self.model.available else {}
+        if self.model.available and context:
+            digest = hashlib.sha256(context.encode("utf-8")).hexdigest()[:12]
+            run.prompt_versions["compliance"] = f"compliance/{digest}"
         run.tool_versions = {
             "parser": ctx.parser.version,
             "retrieval": "sqlite-fts5-bm25/1",
@@ -262,6 +299,11 @@ class CasePreparation:
             "reviewers": len(reviewers),
             "model": self.model.model_id,
             "relevant_date": matter.relevant_date.isoformat() if matter.relevant_date else None,
+            "frameworks": dict(run.framework_versions),
+            "framework_rules": {
+                "status_max_age_days": self.rules.status_max_age_days,
+                "forbidden_terms": len(self.rules.forbidden_terms),
+            },
         }
 
     def ingest(self, c: StepContext) -> Mapping[str, Any]:
@@ -521,6 +563,7 @@ class CasePreparation:
             if authority is not None and authority.source_id not in connectors:
                 authority = None
             pack = ctx.jurisdictions.get(authority.jurisdiction) if authority else default_pack
+            pack = tighten_status_age(pack, self.rules)
             results.append(
                 citator.verify(claim, authority, pack=pack, relevant_date=c.matter.relevant_date)
             )
@@ -644,7 +687,12 @@ class CasePreparation:
             and not any(e.target_id in withheld for e in x.evidence)
         ]
         packs = ctx.jurisdictions.for_matter(matter)
-        analyst = Analyst(self.model, CitationExtractor(packs), date_order=packs[0].date_order)
+        analyst = Analyst(
+            self.model,
+            CitationExtractor(packs),
+            date_order=packs[0].date_order,
+            rules=self.rules,
+        )
         drafted: dict[str, Claim] = {}
         for issue in ctx.store.list(Issue, matter.matter_id, run_id=rid):
             if issue.source == "model_proposed":
@@ -794,6 +842,8 @@ def build_report(
         }
         if authority_id in authorities
     }
+    frameworks = ctx.frameworks.for_run(run.framework_versions)
+    states = {p.pack_id: ctx.frameworks.state(p) for p in frameworks}
     return LegalReportBuilder().build(
         ReportContext(
             matter=matter,
@@ -808,6 +858,9 @@ def build_report(
             evidence_maps=mapper.build(issues=issues, facts=facts),
             conflicts=mapper.conflicts(facts),
             packs=ctx.jurisdictions.for_matter(matter),
+            frameworks=frameworks,
+            framework_standing={k: s.why for k, s in states.items()},
+            framework_validated={k: s.validated for k, s in states.items()},
             audience=audience,
             model_notes=list(model_notes),
             approved_by=approved_by,
