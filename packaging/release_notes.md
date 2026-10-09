@@ -6,6 +6,12 @@ Governed legal case preparation: it takes the papers in a dispute, establishes w
 
 - The Linux desktop window no longer crashes on the first key press. 0.4.0 carried one half of a keyboard library pair (libxkbcommon without libxkbcommon-x11); on any system newer than the build machine the other half came from the system and did not match. The build now carries both and refuses a bundle that splits such a pair.
 
+## New in this version
+
+- **Laws & Standards**: choose the law, regulation and standards packages for each matter (EU AI Act Annex III 8(a), GDPR, international, national, professional, ISO/IEC 42001) or import your organisation's own. The model is told them; the reviewer confirms what only a person can; the report lists every requirement.
+- **GGUF models** run in process with llama.cpp, found in ELI v2 and v3's model folders.
+- **ELI v3** can open ELI Legal in place of its own window (needs the matching ELI v3 update).
+
 ## Which file
 
 | Your system | Download |
