@@ -1,21 +1,18 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from eli_legal.adapters.inference.gguf import (
-    GgufInference,
-    ModelFile,
-    discover,
-    llama_available,
-)
+from eli_legal.adapters.inference import fit, gguf, gpu_runtime, hardware
+from eli_legal.adapters.inference.gguf import ModelFile, discover, llama_available
 from eli_legal.adapters.inference.local import (
     NullInference,
     OpenAICompatInference,
     list_local_models,
 )
-from eli_legal.application.container import AppContext
+from eli_legal.application.container import AppContext, gguf_inference
 from eli_legal.domain.errors import InvalidInput
 from eli_legal.legal.llm import LegalModel
 from eli_legal.ports.inference import InferencePort
@@ -43,6 +40,98 @@ class ConfigService:
             "active_verifier_id": self.ctx.verifier_model.model_id,
             "gguf_supported": llama_available(),
             "hosted_by_eli_v3": s.mode == "eli_v3",
+            "loaded": self.loaded(),
+        }
+
+    def loaded(self) -> dict[str, Any]:
+        """How each model is loaded now, by llama.cpp's own account: {} for one that is not
+        loaded yet (a model loads at its first use) or is not a GGUF file."""
+        out: dict[str, Any] = {}
+        for role, model in (("model", self.ctx.model), ("verifier", self.ctx.verifier_model)):
+            report = getattr(model.inference, "report", None)
+            out[role] = report.as_dict() if report is not None else {}
+        return out
+
+    def machine(self) -> dict[str, Any]:
+        """What there is to run a model on, and the llama.cpp that will run it. No paths."""
+        hw = hardware.detect(force=True)
+        runtime = gpu_runtime.current()
+        return {
+            "summary": hw.describe(),
+            "hardware": hw.as_dict(),
+            "runtime": runtime.as_dict() | {"summary": runtime.describe()},
+            "others_on_the_card": hardware.describe_vram_holders(
+                hardware.vram_holders(), total_mb=hw.total_vram_mb
+            ),
+        }
+
+    def preview(
+        self,
+        model: str,
+        *,
+        gguf_context: int | None = None,
+        gguf_gpu_layers: int | None = None,
+        gguf_threads: int | None = None,
+    ) -> dict[str, Any]:
+        """How this GGUF file would be placed if it were loaded now, with the reasons. Nothing
+        is loaded and nothing is changed."""
+        s = self.ctx.settings
+        candidate = gguf_inference(
+            model,
+            n_ctx=s.gguf_context if gguf_context is None else gguf_context,
+            n_gpu_layers=s.gguf_gpu_layers if gguf_gpu_layers is None else gguf_gpu_layers,
+            n_threads=s.gguf_threads if gguf_threads is None else gguf_threads,
+            priority=s.gguf_fit,
+        )
+        plan = candidate.plan()  # type: ignore[attr-defined]
+        return {
+            "summary": plan.describe(),
+            "context": plan.n_ctx,
+            "layers_on_card": plan.n_gpu_layers,
+            "layers_total": plan.blocks + 1 if plan.blocks else 0,
+            "threads": plan.n_threads,
+            "notes": list(plan.notes),
+        }
+
+    def preview_by_ref(self, ref: str, **options: Any) -> dict[str, Any]:
+        by_ref = {m.ref: m for m in self.gguf_models()}
+        if ref not in by_ref:
+            raise InvalidInput("that model is not among the GGUF models found on this machine")
+        return self.preview(str(by_ref[ref].path), **options)
+
+    def install_gpu_runtime(self, *, actor_id: str, wheel: Path) -> dict[str, Any]:
+        """Install a graphics pack from a file on this machine. It replaces the code that runs
+        the model, so it needs the same permission as changing the model and is recorded with
+        the file's fingerprint. It is used from the next start of the program."""
+        authn.require_step_up(actor_id, "install a graphics runtime")
+        self.ctx.authorizer().require_global(actor_id, "config.manage")
+        pack = gpu_runtime.install(wheel)
+        ok, detail = gpu_runtime.verify(pack, again=True)
+        manifest = json.loads((pack.path / ".gpu_pack.json").read_text(encoding="utf-8"))
+        self.ctx.log(
+            "configuration_changed",
+            actor_id=actor_id,
+            matter_id="-",
+            action="config.manage",
+            subject_id="inference_runtime",
+            outcome="installed" if ok else "installed_not_usable",
+            object_type="configuration",
+            payload={
+                "backend": pack.backend,
+                "version": pack.version,
+                "file": manifest.get("source", ""),
+                "sha256": manifest.get("sha256", ""),
+            },
+        )
+        return {
+            "backend": pack.backend,
+            "version": pack.version,
+            "usable": ok,
+            "summary": (
+                f"{pack.describe()} installed; it is used from the next start of ELI Legal"
+                if ok
+                else f"{pack.describe()} installed, but it did not start on this card: {detail}"
+            ),
         }
 
     def available_models(self, base_url: str) -> list[str]:
@@ -69,7 +158,13 @@ class ConfigService:
         if backend == "none" or not model:
             return NullInference()
         if backend == "gguf":
-            return GgufInference(model, n_ctx=n_ctx, n_gpu_layers=gpu, n_threads=threads)
+            return gguf_inference(
+                model,
+                n_ctx=n_ctx,
+                n_gpu_layers=gpu,
+                n_threads=threads,
+                priority=self.ctx.settings.gguf_fit,
+            )
         if backend != "openai_compat":
             raise InvalidInput(f"unknown inference backend: {backend}")
         return OpenAICompatInference(
@@ -109,14 +204,26 @@ class ConfigService:
         n_ctx = gguf_context if gguf_context is not None else s.gguf_context
         gpu = gguf_gpu_layers if gguf_gpu_layers is not None else s.gguf_gpu_layers
         threads = gguf_threads if gguf_threads is not None else s.gguf_threads
-        if not 2048 <= n_ctx <= 262144:
-            raise InvalidInput("the context length must be between 2048 and 262144 tokens")
+        if n_ctx != 0 and not fit.MIN_CTX <= n_ctx <= 262144:
+            raise InvalidInput(
+                f"the context length is 0 (sized to the model and this machine) or between "
+                f"{fit.MIN_CTX} and 262144 tokens"
+            )
+        if gpu < -1:
+            raise InvalidInput(
+                "layers on the graphics card: -1 as many as fit, 0 none, or a number"
+            )
         url = url or s.inference_url
         generator = self._build(backend, url, model, n_ctx=n_ctx, gpu=gpu, threads=threads)
         verifier = self._build(backend, url, verifier_model, n_ctx=n_ctx, gpu=gpu, threads=threads)
         before = self.ctx.model.model_id
         self.ctx.model = LegalModel(generator)
         self.ctx.verifier_model = LegalModel(verifier)
+        self.ctx.record_loads(self.ctx.model)
+        self.ctx.record_loads(self.ctx.verifier_model)
+        # A model no longer chosen gives its memory back now: the next one is sized from
+        # what is free.
+        gguf.release({Path(p) for p in (model, verifier_model) if backend == "gguf" and p})
         s.inference, s.inference_url = backend, url
         s.inference_model, s.verifier_model = model, verifier_model
         s.gguf_context, s.gguf_gpu_layers, s.gguf_threads = n_ctx, gpu, threads

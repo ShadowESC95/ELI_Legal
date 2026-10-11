@@ -14,8 +14,32 @@ from dataclasses import dataclass
 from eli_legal.domain.enums import DocumentType
 from eli_legal.domain.models import Chunk, Claim, Document, Issue, Matter
 from eli_legal.legal.dates import split_sentences
-from eli_legal.legal.llm import PROMPT_VERSIONS, LegalModel, fenced, numbered
+from eli_legal.legal.llm import (
+    MAX_ITEM_CHARS,
+    PROMPT_VERSIONS,
+    STEP_TEXT_CHARS,
+    LegalModel,
+    declare_step,
+    fenced,
+    numbered,
+)
 from eli_legal.persistence.sqlite import _STOPWORDS, _WORD
+
+_EXCERPT_CHARS = 9000
+_EXCERPT_CHUNKS = 8
+_PROPOSE_REPLY_TOKENS = 600
+_LINK_BATCH = 25
+_LINK_REPLY_TOKENS = 900
+declare_step(
+    "issue_propose",
+    chars=_EXCERPT_CHARS + STEP_TEXT_CHARS,
+    reply_tokens=_PROPOSE_REPLY_TOKENS,
+)
+declare_step(
+    "fact_issue_link",
+    chars=_LINK_BATCH * MAX_ITEM_CHARS + 2 * STEP_TEXT_CHARS,
+    reply_tokens=_LINK_REPLY_TOKENS,
+)
 
 _ISSUE_LINE = re.compile(
     r"^\s*(?:issue|question)\s*(?:no\.?\s*)?\d*\s*[:.\-–]\s*(?P<label>.{12,300})$", re.I
@@ -103,16 +127,27 @@ class IssueMapper:
     def _model_propose(
         self, matter: Matter, chunks: Sequence[Chunk], known: list[str]
     ) -> list[str]:
-        excerpt = "\n\n".join(c.text for c in chunks[:8])[:9000]
-        prompt = (
-            f"Task {PROMPT_VERSIONS['issue_propose']}. From the parties' papers below, list the "
-            "questions the decision-maker will have to resolve. Phrase each as a neutral "
-            "question beginning with 'Whether'. Do not suggest any answer. Do not repeat these "
-            f"already-identified issues: {known or 'none'}. "
-            'Reply as {"issues": ["Whether ...", ...]} with at most 8 items.\n'
-            + fenced(excerpt, "pleadings")
-        )
-        answer = self.model.ask("issue_propose", prompt, max_tokens=600)
+        def build(count: int) -> str:
+            excerpt = "\n\n".join(c.text for c in chunks[:count])[:_EXCERPT_CHARS]
+            return (
+                f"Task {PROMPT_VERSIONS['issue_propose']}. From the parties' papers below, list "
+                "the questions the decision-maker will have to resolve. Phrase each as a neutral "
+                "question beginning with 'Whether'. Do not suggest any answer. Do not repeat these "
+                f"already-identified issues: {known or 'none'}. "
+                'Reply as {"issues": ["Whether ...", ...]} with at most 8 items.\n'
+                + fenced(excerpt, "pleadings")
+            )
+
+        offered = min(len(chunks), _EXCERPT_CHUNKS)
+        kept = self.model.fitting(build, offered, reply_tokens=_PROPOSE_REPLY_TOKENS)
+        if kept < offered:
+            self.model.stats.notes.append(
+                f"issue_propose: {kept} of {offered} passages of the parties' papers fit the "
+                "model's context"
+            )
+        if kept <= 0:
+            return []
+        answer = self.model.ask("issue_propose", build(kept), max_tokens=_PROPOSE_REPLY_TOKENS)
         if not answer or not isinstance(answer.get("issues"), list):
             return []
         return [str(x) for x in answer["issues"][:8] if isinstance(x, str)]
@@ -155,16 +190,32 @@ class IssueMapper:
     def _model_link(self, issues: Sequence[Issue], facts: Sequence[Claim]) -> dict[str, set[str]]:
         out: dict[str, set[str]] = {}
         issue_list = numbered([i.label for i in issues], "I")
-        batch_size = 25
-        for start in range(0, min(len(facts), 300), batch_size):
-            batch = list(facts[start : start + batch_size])
-            prompt = (
-                f"Task {PROMPT_VERSIONS['fact_issue_link']}. Match each numbered fact to the "
-                "issues it is relevant to. A fact may match none, one or several. "
-                'Reply as {"links": [{"fact": <number>, "issues": [<numbers>]}]}.\n'
-                f"Issues:\n{issue_list}\n" + fenced(numbered([f.text for f in batch], "F"), "facts")
-            )
-            answer = self.model.ask("fact_issue_link", prompt, max_tokens=900)
+        limit = min(len(facts), 300)
+        start = 0
+        while start < limit:
+            window = list(facts[start : min(limit, start + _LINK_BATCH)])
+
+            def build(count: int, window: list[Claim] = window) -> str:
+                return (
+                    f"Task {PROMPT_VERSIONS['fact_issue_link']}. Match each numbered fact to the "
+                    "issues it is relevant to. A fact may match none, one or several. "
+                    'Reply as {"links": [{"fact": <number>, "issues": [<numbers>]}]}.\n'
+                    f"Issues:\n{issue_list}\n"
+                    + fenced(numbered([f.text for f in window[:count]], "F"), "facts")
+                )
+
+            # A batch is as many facts as leave the model room to answer; the rest wait for
+            # the next batch.
+            kept = self.model.fitting(build, len(window), reply_tokens=_LINK_REPLY_TOKENS)
+            if kept <= 0:
+                self.model.stats.notes.append(
+                    "fact_issue_link: the issues and one fact do not fit the model's context "
+                    "together; the remaining facts are linked by wording only"
+                )
+                break
+            batch = window[:kept]
+            start += kept
+            answer = self.model.ask("fact_issue_link", build(kept), max_tokens=_LINK_REPLY_TOKENS)
             if not answer or not isinstance(answer.get("links"), list):
                 continue
             for link in answer["links"]:

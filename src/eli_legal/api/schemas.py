@@ -177,7 +177,8 @@ class ModelIn(Strict):
     # For a model server: model names. For GGUF: the references the model list gives, never paths.
     model: Short = ""
     verifier_model: Short = ""
-    gguf_context: int | None = Field(default=None, ge=2048, le=262144)
+    # 0: sized to the model and this machine. Otherwise the service checks the range.
+    gguf_context: int | None = Field(default=None, ge=0, le=262144)
     gguf_gpu_layers: int | None = Field(default=None, ge=-1, le=999)
     gguf_threads: int | None = Field(default=None, ge=0, le=256)
 

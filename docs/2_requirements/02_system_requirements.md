@@ -17,7 +17,7 @@ builds are made on Ubuntu 22.04 so that they run there and on anything later.
 |---|---|---|
 | Processor | Any 64-bit processor from the last ten years | As the model requires; a recent multi-core processor at least |
 | Memory | 4 GB | 16 GB or more; 32 GB for larger models |
-| Graphics | Not needed | A graphics card with enough memory for the chosen model makes it usable; without one it is slow |
+| Graphics | Not needed | A graphics card makes a model usable; without one it is slow. NVIDIA (CUDA or Vulkan), AMD and Intel (Vulkan) and Apple (Metal) are used. The model is sized to the graphics memory free when it loads, so any amount helps: what does not fit the card runs on the processor |
 | Disk | 500 MB for the program, plus about twice the size of the documents you file | Add the model's size (commonly 5 to 20 GB) |
 
 Without a model the system does everything except draft arguments and summarise chat answers.

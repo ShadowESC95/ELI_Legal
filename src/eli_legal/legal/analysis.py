@@ -19,7 +19,22 @@ from eli_legal.domain.profiles import profile_spec
 from eli_legal.legal.citations import CitationExtractor
 from eli_legal.legal.dates import find_dates
 from eli_legal.legal.frameworks import Rules, contains_forbidden
-from eli_legal.legal.llm import PROMPT_VERSIONS, LegalModel, fenced
+from eli_legal.legal.llm import (
+    MAX_ITEM_CHARS,
+    PROMPT_VERSIONS,
+    STEP_TEXT_CHARS,
+    LegalModel,
+    declare_step,
+    fenced,
+)
+
+MAX_ARGUMENT_ITEMS = 30
+_REPLY_TOKENS = 1200
+declare_step(
+    "arguments",
+    chars=MAX_ARGUMENT_ITEMS * MAX_ITEM_CHARS + STEP_TEXT_CHARS,
+    reply_tokens=_REPLY_TOKENS,
+)
 
 VERIFIER_ID = "deterministic/analysis-boundary-1"
 
@@ -108,39 +123,56 @@ class Analyst:
         run_id: str,
         issue: Issue,
         verified: Sequence[Claim],
-        max_items: int = 30,
+        max_items: int = MAX_ARGUMENT_ITEMS,
     ) -> list[Claim]:
         if not self.model.available:
             return []
         pool = [c for c in verified if issue.issue_id in c.issue_ids][:max_items]
         if not pool:
             return []
-        labels: dict[str, Claim] = {}
-        lines: list[str] = []
         party_names = {p.party_id: p.name for p in matter.parties}
-        for i, claim in enumerate(pool, start=1):
-            prefix = "A" if claim.kind is ClaimKind.LEGAL_PROPOSITION else "F"
-            label = f"{prefix}{i}"
-            labels[label] = claim
-            who = party_names.get(claim.party_id or "", "")
-            source = f" [{claim.citation}]" if claim.citation else (f" [from {who}]" if who else "")
-            lines.append(f"{label}{source}: {claim.text}")
         names = [p.name for p in matter.parties] or ["the parties"]
-        prompt = (
-            f"Task {PROMPT_VERSIONS['arguments']}. Issue: {issue.label}\n"
-            f"Parties: {', '.join(names)}.\n"
-            "Using only the verified items below (F = fact from the evidence, A = passage from "
-            "an authority), set out the arguments reasonably open to each party on this issue. "
-            "For each argument give the party it favours, the item labels it relies on, and "
-            "the argument itself written as a clause that completes the sentence '<party> may "
-            "argue that ...'. Do not put item labels inside the argument. Do not weigh the "
-            "arguments, do not say which is stronger, and do not say how the issue should be "
-            "decided. Do not mention any fact, figure, case or statute that is not in the items. "
-            'Reply as {"arguments": [{"party": "<name>", "argument": "<clause>", '
-            '"relies_on": ["F1", "A2"]}]} with at most 6 arguments.\n'
-            + fenced("\n".join(lines), f"issue:{issue.issue_id}")
-        )
-        answer = self.model.ask("arguments", prompt, max_tokens=1200)
+
+        def listed(count: int) -> tuple[dict[str, Claim], list[str]]:
+            labels: dict[str, Claim] = {}
+            lines: list[str] = []
+            for i, claim in enumerate(pool[:count], start=1):
+                prefix = "A" if claim.kind is ClaimKind.LEGAL_PROPOSITION else "F"
+                labels[f"{prefix}{i}"] = claim
+                who = party_names.get(claim.party_id or "", "")
+                source = (
+                    f" [{claim.citation}]" if claim.citation else (f" [from {who}]" if who else "")
+                )
+                lines.append(f"{prefix}{i}{source}: {claim.text}")
+            return labels, lines
+
+        def build(count: int) -> str:
+            return (
+                f"Task {PROMPT_VERSIONS['arguments']}. Issue: {issue.label}\n"
+                f"Parties: {', '.join(names)}.\n"
+                "Using only the verified items below (F = fact from the evidence, A = passage from "
+                "an authority), set out the arguments reasonably open to each party on this issue. "
+                "For each argument give the party it favours, the item labels it relies on, and "
+                "the argument itself written as a clause that completes the sentence '<party> may "
+                "argue that ...'. Do not put item labels inside the argument. Do not weigh the "
+                "arguments, do not say which is stronger, and do not say how the issue should be "
+                "decided. Do not mention any fact, figure, case or statute that is not in the items. "
+                'Reply as {"arguments": [{"party": "<name>", "argument": "<clause>", '
+                '"relies_on": ["F1", "A2"]}]} with at most 6 arguments.\n'
+                + fenced("\n".join(listed(count)[1]), f"issue:{issue.issue_id}")
+            )
+
+        # Only as many items as leave the model room to answer; the rest are not shown to it.
+        kept = self.model.fitting(build, len(pool), reply_tokens=_REPLY_TOKENS)
+        if kept < len(pool):
+            self.model.stats.notes.append(
+                f"arguments: {kept} of {len(pool)} verified items on '{issue.label}' fit the "
+                "model's context; the others were not put to it"
+            )
+        if kept <= 0:
+            return []
+        labels, offered = listed(kept)[0], pool[:kept]
+        answer = self.model.ask("arguments", build(kept), max_tokens=_REPLY_TOKENS)
         if not answer or not isinstance(answer.get("arguments"), list):
             return []
         by_name = {p.name.lower(): p for p in matter.parties}
@@ -170,7 +202,7 @@ class Analyst:
             # that no offered item supplies stays missing and fails the check below.
             basis = figures(" ".join(c.text for c in relied), self.date_order)
             for particular in figures(content, self.date_order).missing_from(basis):
-                for candidate in pool:
+                for candidate in offered:
                     if candidate not in relied and not figures(
                         particular, self.date_order
                     ).missing_from(figures(candidate.text, self.date_order)):

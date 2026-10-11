@@ -46,8 +46,15 @@ try:
 
     hidden += collect_submodules("llama_cpp")
     datas += collect_data_files("llama_cpp")
+    # its version is read from this, without importing it, to match a graphics pack to it
+    datas += copy_metadata("llama-cpp-python")
     binaries += collect_dynamic_libs("llama_cpp")
     print("ELI Legal build: llama.cpp included (GGUF models supported)")
+    # The graphics pack shipped inside the installer (scripts/fetch_gpu_pack.py puts it here):
+    # a complete llama.cpp for Vulkan, switched on only after it has shown it can use the card.
+    packs = sorted((ROOT / "packaging" / "gpu-packs").glob("*.whl"))
+    datas += [(str(pack), "gpu-packs") for pack in packs]
+    print("ELI Legal build: graphics pack shipped: " + (", ".join(p.name for p in packs) or "none"))
 except ImportError:
     excluded.append("numpy")
     print("ELI Legal build: llama.cpp not installed; GGUF models will not run in this build")
@@ -60,6 +67,11 @@ a = Analysis(
     hiddenimports=hidden,
     excludes=excluded,
     noarchive=False,
+    # llama.cpp for Python is kept as files on disk, not in the frozen archive: a graphics pack
+    # is a second copy of it on the path, and the path decides which copy is imported only
+    # between copies that are both files. From the archive the built-in copy would always win
+    # and no pack could ever be switched on.
+    module_collection_mode={"llama_cpp": "py"},
 )
 pyz = PYZ(a.pure)
 

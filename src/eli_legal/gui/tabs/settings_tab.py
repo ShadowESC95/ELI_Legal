@@ -7,6 +7,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
+    QFileDialog,
     QFormLayout,
     QInputDialog,
     QLineEdit,
@@ -146,7 +147,11 @@ class SettingsTab(Tab):
                 "Model",
                 self.model_state,
                 holder,
-                row(button("Apply…", self._apply_model, kind="primary"), None),
+                row(
+                    button("Apply…", self._apply_model, kind="primary"),
+                    button("Install a graphics pack from a file…", self._install_gpu),
+                    None,
+                ),
             )
         )
         box.addWidget(
@@ -204,9 +209,20 @@ class SettingsTab(Tab):
         self._users = {u.user_id: u for u in users}
         current = self.sv.config.current()
         self.picker.load(current)
+        loaded = current["loaded"]["model"]
         self.model_state.setText(
             f"In use now — drafting: <b>{current['active_model_id']}</b>; verifying: <b>{current['active_verifier_id']}</b>"
+            + (
+                f"<br>Loaded with {loaded['summary']}."
+                if loaded
+                else (
+                    "<br>The model loads at its first use; how it loaded is then shown here."
+                    if current["backend"] == "gguf"
+                    else ""
+                )
+            )
         )
+        self.picker.show_placement()
         packs = [ctx.jurisdictions.get(code) for code in ctx.jurisdictions.codes()]
         fill(
             self.packs,
@@ -405,6 +421,24 @@ class SettingsTab(Tab):
             )
 
     # ── model ────────────────────────────────────────────────────────────────
+    def _install_gpu(self) -> None:
+        """A graphics pack is the llama.cpp that uses the card: installing one changes the code
+        that runs the model, so it is a decision like changing the model."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Choose a graphics pack", str(Path.home()), "Graphics packs (*.whl)"
+        )
+        if not path:
+            return
+
+        def install() -> dict[str, object]:
+            return self.sv.config.install_gpu_runtime(actor_id=self.actor, wheel=Path(path))
+
+        done = self.session.decide(self, "install a graphics runtime", install)
+        if done is not None:
+            said = str(done["summary"])
+            QMessageBox.information(self, "Graphics runtime", said[:1].upper() + said[1:] + ".")
+            self.refresh()
+
     def _apply_model(self) -> None:
         values = self.picker.values()
         if values["backend"] in ("gguf", "openai_compat") and not values["model"]:

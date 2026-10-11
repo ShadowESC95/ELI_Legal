@@ -29,3 +29,5 @@ artifacts/outbox/*
 !artifacts/outbox/.gitkeep
 data/*.sqlite3-*
 secrets/*.head.json
+runtime/
+packaging/gpu-packs/

@@ -97,3 +97,8 @@ Generated from the program by `scripts/generate_reference_docs.py`. Do not edit 
 | `eli-legal model show` |  |
 | `eli-legal model list` | GGUF models found on this machine, and a model server's models |
 | `eli-legal model use <backend> <model> --verifier --url --context --gpu-layers --threads` | choose a GGUF file, a server model, ELI v3's model, or none |
+| `eli-legal model plan <model> --context --gpu-layers --threads` | how a GGUF file would be placed on this machine, and why |
+| `eli-legal gpu` | the graphics card and the llama.cpp that uses it |
+| `eli-legal gpu status` | this machine, the llama.cpp in use, the graphics packs found |
+| `eli-legal gpu install <file>` | install a graphics pack from a file on this machine |
+| `eli-legal gpu probe <folder>` |  |

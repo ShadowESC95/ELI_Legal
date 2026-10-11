@@ -15,15 +15,27 @@ from datetime import date
 
 from eli_legal.domain.models import Chunk, Document
 from eli_legal.legal.dates import find_dates, split_sentences
-from eli_legal.legal.llm import PROMPT_VERSIONS, LegalModel, fenced, numbered
+from eli_legal.legal.llm import (
+    MAX_ITEM_CHARS,
+    PROMPT_VERSIONS,
+    STEP_TEXT_CHARS,
+    LegalModel,
+    declare_step,
+    fenced,
+    numbered,
+)
 
 _MONEY = re.compile(
     r"(?:[€£$¥]\s?\d[\d,.]*\d|\b\d[\d,.]*\d\s?(?:EUR|GBP|USD|CHF|euro|euros|pounds|dollars)\b)",
     re.I,
 )
 _MIN_WORDS = 6
-_MAX_CHARS = 700
+_MAX_CHARS = MAX_ITEM_CHARS
 _BATCH_CHARS = 2400
+_REPLY_TOKENS = 300
+declare_step(
+    "fact_select", chars=_BATCH_CHARS + _MAX_CHARS + STEP_TEXT_CHARS, reply_tokens=_REPLY_TOKENS
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -120,7 +132,7 @@ class FactExtractor:
                 'Reply as {"selected": [numbers]}. Select nothing if none qualify.\n'
                 + fenced(numbered([sentences[i][1] for i in batch], "S"), document.document_id)
             )
-            answer = self.model.ask("fact_select", prompt, max_tokens=300)
+            answer = self.model.ask("fact_select", prompt, max_tokens=_REPLY_TOKENS)
             items = answer.get("selected") if answer else None
             for item in items if isinstance(items, list) else []:
                 try:

@@ -46,18 +46,28 @@ class ModelPicker(QWidget):
         self.gguf_verifier = QComboBox()
         self.gguf_verifier.setEditable(True)
         self.context = QSpinBox()
-        self.context.setRange(2048, 262144)
+        self.context.setRange(0, 262144)
         self.context.setSingleStep(2048)
+        self.context.setSpecialValueText("automatic")
+        self.context.setToolTip(
+            "Automatic: what the steps of the work need, where this machine can hold it. "
+            "A number is your choice and is reduced only if it cannot be held."
+        )
         self.gpu = QSpinBox()
         self.gpu.setRange(-1, 999)
+        self.gpu.setSpecialValueText("automatic")
         self.gpu.setToolTip(
-            "Layers on the graphics card: 0 runs on the processor only, -1 puts every layer on the card"
+            "Automatic: as many layers as fit the graphics memory free when the model loads. "
+            "0: the processor only. A number: at most that many."
         )
         self.threads = QSpinBox()
         self.threads.setRange(0, 256)
-        self.threads.setToolTip("0 chooses for you")
+        self.threads.setSpecialValueText("automatic")
+        self.machine = label("", "muted", wrap=True)
+        self.placement = label("", wrap=True)
         self.gguf_note = label("", "muted", wrap=True)
         form = QFormLayout(gguf)
+        form.addRow("This machine", self.machine)
         form.addRow(
             "Model",
             row(
@@ -73,6 +83,7 @@ class ModelPicker(QWidget):
         form.addRow("Context length (tokens)", self.context)
         form.addRow("Layers on the graphics card", self.gpu)
         form.addRow("Processor threads", self.threads)
+        form.addRow("If loaded now", self.placement)
         form.addRow(self.gguf_note)
         form.addRow(row(button("Find GGUF models again", self.refresh_gguf), None))
         self.pages.addWidget(gguf)
@@ -120,6 +131,10 @@ class ModelPicker(QWidget):
         layout.addWidget(self.backend)
         layout.addWidget(self.pages)
         self.load(current)
+        self.gguf_model.currentIndexChanged.connect(lambda _i: self.show_placement())
+        for box in (self.context, self.gpu, self.threads):
+            box.valueChanged.connect(lambda _v: self.show_placement())
+        self.show_placement()
 
     # ── filling ──────────────────────────────────────────────────────────────
     def load(self, current: dict[str, Any]) -> None:
@@ -140,10 +155,8 @@ class ModelPicker(QWidget):
             self.server_verifier.setEditText(current["verifier_model"])
 
     def refresh_gguf(self, quiet: bool = False) -> None:
-        keep = (
-            self.gguf_model.currentData() or self.gguf_model.currentText(),
-            self.gguf_verifier.currentData() or self.gguf_verifier.currentText(),
-        )
+        # "(none)" is no verifier, not a file of that name to look for again
+        keep = (self._value(self.gguf_model), self._value(self.gguf_verifier))
         found = self.sv.config.gguf_models()
         for combo, wanted in ((self.gguf_model, keep[0]), (self.gguf_verifier, keep[1])):
             combo.clear()
@@ -166,6 +179,41 @@ class ModelPicker(QWidget):
                 if supported
                 else "llama.cpp for Python is not installed in this copy, so a GGUF model cannot run here."
             )
+        )
+
+    def show_placement(self) -> None:
+        """What this machine has, and how the chosen GGUF file would be placed on it now. Read
+        from the machine and the file each time; nothing is loaded."""
+        try:
+            machine = self.sv.config.machine()
+        except EliLegalError as exc:
+            self.machine.setText(str(exc))
+            return
+        others = machine["others_on_the_card"]
+        self.machine.setText(
+            f"{machine['summary']}.\n{machine['runtime']['summary']}."
+            + (f"\nAlso using the graphics card: {others}." if others else "")
+            + "".join(f"\n{note}." for note in machine["runtime"]["notes"])
+        )
+        path = self._value(self.gguf_model)
+        if not path or not Path(path).is_file():
+            self.placement.setText("")
+            return
+        try:
+            plan = self.sv.config.preview(
+                path,
+                gguf_context=self.context.value(),
+                gguf_gpu_layers=self.gpu.value(),
+                gguf_threads=self.threads.value(),
+            )
+        except EliLegalError as exc:
+            self.placement.setText(str(exc))
+            return
+        self.placement.setText(
+            plan["summary"][:1].upper()
+            + plan["summary"][1:]
+            + "."
+            + "".join(f"\n{note[:1].upper()}{note[1:]}." for note in plan["notes"])
         )
 
     def refresh_server(self) -> None:

@@ -4,16 +4,24 @@ import json
 import os
 import secrets
 from collections.abc import Iterator
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 import pytest
 
+from eli_legal.adapters.inference import hardware
 from eli_legal.adapters.local.network import NetworkGuard
 from eli_legal.application.services import Services, build_services
 from eli_legal.demo import build_demo_workspace
 from eli_legal.demo_run import ARBITRATOR, SECRETARY, demo_settings, run_demo, setup_demo
 from eli_legal.security import authn
+
+# The probe itself, for the test that gives it its answers.
+real_vram_holders = hardware.vram_holders
+
+# The machine every test runs on unless it says otherwise: no graphics card.
+NO_CARD = hardware.Hardware(cpu_threads=8, ram_gb=16.0, available_ram_gb=12.0)
 
 
 class FakeInference:
@@ -54,6 +62,21 @@ def _no_ambient_settings(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Ite
         if name.startswith("ELI_LEGAL_"):
             monkeypatch.delenv(name)
     monkeypatch.chdir(tmp_path)
+    # No test asks the developer's graphics card anything, or switches on a graphics pack
+    # that happens to be installed on the developer's machine. A test of the probes gives
+    # them their answers; a test of placement states the machine it is placing on.
+    monkeypatch.setenv("ELI_LEGAL_GPU", "off")
+    # Nor does a test see the models and graphics packs installed on that machine: the places
+    # they are looked for are empty folders of the test's own.
+    (tmp_path / "home").mkdir(exist_ok=True)
+    for name in ("HOME", "USERPROFILE"):
+        monkeypatch.setenv(name, str(tmp_path / "home"))
+    for name in ("XDG_DATA_HOME", "LOCALAPPDATA"):
+        monkeypatch.setenv(name, str(tmp_path / "home" / "data"))
+    for name in ("ELI_MODELS_DIR", "ELI_V3_ROOT"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(hardware, "detect", lambda force=False: replace(NO_CARD))
+    monkeypatch.setattr(hardware, "vram_holders", lambda: [])
     # Tests call the services directly as several people. The harness vouches for each name
     # and is what the ledger records; tests of authentication itself remove it.
     authn.clear()
@@ -94,4 +117,4 @@ def lifecycle(tmp_path_factory: pytest.TempPathFactory) -> Any:
     return run_demo(root, say=lambda _line: None, install_network_guard=False)
 
 
-__all__ = ["ARBITRATOR", "SECRETARY", "FakeInference", "make_key"]
+__all__ = ["ARBITRATOR", "NO_CARD", "SECRETARY", "FakeInference", "make_key"]

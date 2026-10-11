@@ -158,7 +158,26 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
             "models": served,
             "gguf": [m.as_dict(with_path=False) for m in sv.config.gguf_models()],
             "gguf_supported": sv.config.current()["gguf_supported"],
+            "machine": sv.config.machine(),
         }
+
+    @app.get("/v1/config/models/{ref}/placement")
+    def placement(
+        ref: str,
+        actor: Actor,
+        gguf_context: int | None = None,
+        gguf_gpu_layers: int | None = None,
+        gguf_threads: int | None = None,
+    ) -> Any:
+        """How that GGUF model would be placed on this machine if it were loaded now: context,
+        layers on the graphics card, and the reasons. Nothing is loaded or changed."""
+        sv.ctx.authorizer().require_global(actor, "config.manage")
+        return sv.config.preview_by_ref(
+            ref,
+            gguf_context=gguf_context,
+            gguf_gpu_layers=gguf_gpu_layers,
+            gguf_threads=gguf_threads,
+        )
 
     @app.post("/v1/config/model")
     def set_model(body: schemas.ModelIn, actor: Actor) -> Any:

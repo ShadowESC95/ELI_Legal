@@ -70,7 +70,8 @@ def test_a_gguf_model_runs_in_process_and_its_reasoning_is_never_the_answer(tmp_
     assert fake_llama["kwargs"][0]["messages"][0] == {"role": "system", "content": "s"}
     GgufInference(path, n_ctx=4096, n_gpu_layers=-1).generate(system="s", prompt="p")
     assert fake_llama["loads"] == 1, "the same file with the same settings is loaded once"
-    assert fake_llama["init"]["n_gpu_layers"] == -1 and fake_llama["init"]["model_path"] == str(
+    # no graphics card on the machine the tests state, so nothing is asked of one
+    assert fake_llama["init"]["n_gpu_layers"] == 0 and fake_llama["init"]["model_path"] == str(
         path.resolve()
     )
     with pytest.raises(InvalidInput):
@@ -140,6 +141,41 @@ def test_eli_v3_s_model_is_offered_only_when_eli_v3_hosts_eli_legal(demo):
     sv, _mid = demo
     with pytest.raises(InvalidInput, match="launched from ELI v3"):
         sv.config.set_model(actor_id="admin", backend="eli_v3")
+
+
+def test_hosted_by_eli_v3_the_model_is_held_to_json_and_a_prompt_that_does_not_fit_is_refused(
+    monkeypatch,
+):
+    from eli_legal.adapters.eli_v3.inference import EliV3Inference
+    from eli_legal.domain.errors import InferenceUnavailable
+    from eli_legal.legal.llm import LegalModel
+
+    calls = []
+    host = types.ModuleType("eli.cognition.gguf_inference")
+    host.get_model_path = lambda: "/models/Host-Model.gguf"
+    host.context_window = lambda: 4096
+    # as ELI v3 counts: what is left for the reply once this text is in the context
+    host.available_generation_tokens = lambda text, system=None: max(0, 4096 - len(text) // 4 - 128)
+    host.generate = lambda **kw: calls.append(("plain", kw)) or "plain text"
+    host.generate_json = lambda **kw: calls.append(("json", kw)) or {"answer": "green"}
+    for name in ("eli", "eli.cognition"):
+        monkeypatch.setitem(sys.modules, name, types.ModuleType(name))
+    monkeypatch.setitem(sys.modules, "eli.cognition.gguf_inference", host)
+
+    model = EliV3Inference()
+    assert model.model_id == "eli:Host-Model.gguf" and model.context_tokens() == 4096
+    assert LegalModel(model).ask("probe", "p", max_tokens=60) == {"answer": "green"}
+    kind, sent = calls[-1]
+    assert kind == "json" and sent["temperature"] == 0.0 and sent["max_tokens"] == 60
+    assert "legal case-preparation system" in sent["system"], "ELI Legal's own instructions"
+    assert LegalModel(model).reply_room("x" * 400) < 4096
+    with pytest.raises(InferenceUnavailable, match="does not fit the context ELI v3's model"):
+        model.generate(system="s", prompt="x" * 40000, json_mode=True)
+    assert len(calls) == 1, "the host is not asked to shorten it"
+
+    del host.generate_json, host.context_window, host.available_generation_tokens
+    assert model.generate(system="s", prompt="p", json_mode=True) == "plain text"
+    assert LegalModel(model).reply_room("p") is None, "an older host cannot say: nothing is trimmed"
 
 
 @pytest.mark.skipif(

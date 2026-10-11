@@ -10,6 +10,7 @@ QtWidgets = pytest.importorskip("PySide6.QtWidgets", reason="the desktop applica
 
 from PySide6.QtWidgets import QInputDialog, QMessageBox  # noqa: E402
 
+from eli_legal.application.matter_service import hash_passphrase  # noqa: E402
 from eli_legal.application.services import build_services  # noqa: E402
 from eli_legal.demo import build_demo_workspace  # noqa: E402
 from eli_legal.demo_run import ADMIN, ARBITRATOR, SECRETARY, demo_settings, setup_demo  # noqa: E402
@@ -35,7 +36,11 @@ from eli_legal.gui.tabs.workflow_tab import WorkflowTab  # noqa: E402
 from eli_legal.gui.widgets import ReasonDialog  # noqa: E402
 from eli_legal.security import authn, totp  # noqa: E402
 
-PHRASE = {ARBITRATOR: "arbitrator passphrase", SECRETARY: "secretary passphrase"}
+PHRASE = {
+    ARBITRATOR: "arbitrator passphrase",
+    SECRETARY: "secretary passphrase",
+    ADMIN: "administrator passphrase",
+}
 
 
 @pytest.fixture(scope="module")
@@ -74,7 +79,12 @@ def desk(qt, tmp_path, monkeypatch):
     sv = build_services(demo_settings(tmp_path, workspace), install_network_guard=False)
     mid = setup_demo(sv, workspace)
     for user, phrase in PHRASE.items():
-        sv.users.set_passphrase(actor_id=ADMIN, user_id=user, new=phrase)
+        if user == ADMIN:  # the first administrator's passphrase comes from set-up, not from anyone
+            admin = sv.ctx.user(ADMIN)
+            admin.passphrase_hash = hash_passphrase(phrase)
+            sv.ctx.store.put_user(admin)
+        else:
+            sv.users.set_passphrase(actor_id=ADMIN, user_id=user, new=phrase)
     authn.remove_harness()  # from here on, only a real sign-in counts
     authn.clear()
     made: list[Desk] = []
@@ -204,6 +214,76 @@ def test_chat_answers_from_the_matter_and_refuses_to_decide(desk):
     assert "do not say who should succeed" in chat.transcript.toPlainText()
     chat._ask("/holds")
     assert "verification_failed" in chat.transcript.toPlainText()
+
+
+def test_the_administrator_sees_the_machine_and_how_a_model_would_be_placed_before_choosing(
+    desk, tmp_path, monkeypatch
+):
+    import sys
+    import types
+    from dataclasses import replace
+
+    from eli_legal.adapters.inference import gguf, gpu_runtime, hardware
+    from tests.gguf_files import dense_model
+
+    card = hardware.Hardware(
+        cpu_threads=12,
+        ram_gb=32.0,
+        available_ram_gb=20.0,
+        has_gpu=True,
+        gpu_name="Test Card 8G",
+        gpu_vendor="nvidia",
+        total_vram_mb=8192,
+        free_vram_mb=7000,
+        vram_measured=True,
+    )
+    monkeypatch.setattr(hardware, "detect", lambda force=False: replace(card))
+
+    class Llama:
+        def __init__(self, **kw):
+            self.kw = kw
+
+        def n_ctx(self):
+            return self.kw["n_ctx"]
+
+        def create_chat_completion(self, **kw):
+            return {"choices": [{"message": {"content": '{"sentences": []}'}}]}
+
+    fake = types.SimpleNamespace(
+        Llama=Llama, llama_supports_gpu_offload=lambda: True, __version__="0.0-test"
+    )
+    monkeypatch.setitem(sys.modules, "llama_cpp", fake)
+    monkeypatch.setattr(gguf, "_LOADED", {})
+    monkeypatch.setattr(gpu_runtime, "_state", None)
+    model = dense_model(tmp_path / "models" / "Seven-B.gguf")
+
+    d = desk(ADMIN)
+    d.sv.ctx.settings.models_dirs = str(model.parent)
+    settings = d.page(SettingsTab)
+    picker = settings.picker
+    picker.backend.setCurrentIndex(picker.backend.findData("gguf"))
+    picker.refresh_gguf()
+    assert (picker.context.text(), picker.gpu.text(), picker.threads.text()) == (
+        "automatic",
+        "automatic",
+        "automatic",
+    )
+    assert "Test Card 8G: 7000 of 8192 MB free" in picker.machine.text()
+    assert "llama.cpp 0.0-test" in picker.machine.text()
+    assert "all 29 layers on the graphics card" in picker.placement.text()
+    picker.gpu.setValue(0)
+    assert picker.placement.text().endswith("processor only.")
+    picker.gpu.setValue(-1)
+    values = picker.values()
+    assert (values["gguf_context"], values["gguf_gpu_layers"]) == (0, -1)
+
+    settings._apply_model()
+    assert not d.warnings, d.warnings
+    assert d.sv.config.current()["backend"] == "gguf"
+    assert "loads at its first use" in settings.model_state.text()
+    d.sv.ctx.model.inference.warm()
+    settings.refresh()
+    assert "all 29 layers on the graphics card" in settings.model_state.text()
 
 
 def test_a_decision_in_the_application_needs_the_passphrase_again(desk):

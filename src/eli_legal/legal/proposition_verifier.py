@@ -5,8 +5,21 @@ from dataclasses import dataclass
 from eli_legal.domain.enums import VerificationStatus as V
 from eli_legal.domain.enums import VerificationType
 from eli_legal.domain.models import Claim, VerificationResult
-from eli_legal.legal.llm import PROMPT_VERSIONS, LegalModel, fenced
+from eli_legal.legal.llm import (
+    MAX_ITEM_CHARS,
+    PROMPT_VERSIONS,
+    STEP_TEXT_CHARS,
+    LegalModel,
+    declare_step,
+    fenced,
+)
 from eli_legal.legal.provenance import ProvenanceVerifier, contains_verbatim
+
+_REPLY_TOKENS = 60
+# a proposition and the passages cited for it
+declare_step(
+    "support_check", chars=4 * MAX_ITEM_CHARS + STEP_TEXT_CHARS, reply_tokens=_REPLY_TOKENS
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,7 +110,7 @@ class PropositionVerifier:
             'Reply as {"verdict": "supported" | "not_supported" | "unclear"}.\n'
             f"Proposition: {claim.text}\n" + fenced("\n\n".join(passages), "authority")
         )
-        answer = self.verifier_model.ask("support_check", prompt, max_tokens=60)
+        answer = self.verifier_model.ask("support_check", prompt, max_tokens=_REPLY_TOKENS)
         verdict = str((answer or {}).get("verdict", "unclear")).lower()
         return verdict if verdict in {"supported", "not_supported", "unclear"} else "unclear"
 

@@ -118,10 +118,56 @@ class AppContext:
                 out[source_id] = LocalCorpusConnector(self.store, source)
         return out
 
+    def record_loads(self, model: LegalModel) -> None:
+        """Have each load of this model written to the audit trail as llama.cpp reported it:
+        the context it holds, the layers on the graphics card, the llama.cpp that ran it.
+        What was asked for is a setting; what loaded is a fact about the runs that follow."""
+        inference = model.inference
+        if not hasattr(inference, "on_load"):
+            return
+        model_id = model.model_id
+        also = getattr(inference, "on_load", None)  # whoever built the model hears of it too
+
+        def record(report: Any) -> None:
+            if also is not None:
+                also(report)
+            facts = report.as_dict()
+            facts["notes"] = [str(n)[:280] for n in facts.get("notes", ())]
+            self.log(
+                "model_loaded",
+                actor_id="system",
+                matter_id="-",
+                action="config.manage",
+                subject_id="inference",
+                outcome="loaded",
+                object_type="configuration",
+                model_id=model_id,
+                payload=facts,
+            )
+
+        inference.on_load = record  # type: ignore[union-attr]
+
     def run_dir(self, matter_id: str, run_id: str) -> Path:
         path = Path(self.settings.artifacts_dir) / "runs" / matter_id / run_id
         path.mkdir(parents=True, exist_ok=True)
         return path
+
+
+def gguf_inference(
+    model: str, *, n_ctx: int, n_gpu_layers: int, n_threads: int, priority: str
+) -> InferencePort:
+    """A GGUF model sized, when it loads, to this machine and to what the steps need."""
+    from eli_legal.adapters.inference.gguf import GgufInference
+    from eli_legal.legal.llm import working_context_tokens
+
+    return GgufInference(
+        model,
+        n_ctx=n_ctx,
+        n_gpu_layers=n_gpu_layers,
+        n_threads=n_threads,
+        working_ctx=working_context_tokens(),
+        priority=priority,
+    )
 
 
 def _inference_from_settings(settings: Settings, guard: NetworkGuard, model: str) -> InferencePort:
@@ -132,18 +178,19 @@ def _inference_from_settings(settings: Settings, guard: NetworkGuard, model: str
     if settings.inference == "none" or not model:
         return NullInference()
     if settings.inference == "gguf":
-        from eli_legal.adapters.inference.gguf import GgufInference, llama_available
+        from eli_legal.adapters.inference.gguf import llama_available
 
         if not llama_available():
             return UnavailableInference(
                 "the configured GGUF model cannot run: llama.cpp for Python is not installed here"
             )
         try:
-            return GgufInference(
+            return gguf_inference(
                 model,
                 n_ctx=settings.gguf_context,
                 n_gpu_layers=settings.gguf_gpu_layers,
                 n_threads=settings.gguf_threads,
+                priority=settings.gguf_fit,
             )
         except (InvalidInput, OSError) as exc:  # the file was moved or deleted
             return UnavailableInference(f"the configured GGUF model cannot be used: {exc}")
@@ -189,7 +236,7 @@ def build_context(
     verifier_model = LegalModel(
         verifier or _inference_from_settings(settings, guard, settings.verifier_model)
     )
-    return AppContext(
+    ctx = AppContext(
         settings=settings,
         policy=policy,
         store=store,
@@ -206,3 +253,6 @@ def build_context(
         holds=HoldBook(store=store, audit=audit),
         frameworks=FrameworkLibrary(store),
     )
+    ctx.record_loads(ctx.model)
+    ctx.record_loads(ctx.verifier_model)
+    return ctx

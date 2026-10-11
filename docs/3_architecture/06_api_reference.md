@@ -2,7 +2,7 @@
 
 Generated from the server's routes by `scripts/generate_reference_docs.py`. Do not edit by hand.
 
-The server exposes 83 operations under `/v1`, plus `/health` and the browser application at `/`.
+The server exposes 84 operations under `/v1`, plus `/health` and the browser application at `/`.
 It has no other routes: no general assistant, no shell, no device or media control, no plug-ins.
 
 ## Conventions
@@ -70,6 +70,7 @@ request body (`Content-Type: application/octet-stream`); optional query fields `
 | `GET` | `/v1/workflow` | yes | The steps as a graph, and each step as an agent with a fixed mandate. |
 | `GET` | `/v1/config` | yes | The model in use, the runtime policy and the server's settings. |
 | `GET` | `/v1/config/models` | yes | The models that can be chosen: GGUF files found on this machine (by reference, never by path), and those a model server on this machine offers. Only an address on this machine can be asked, so the server cannot be made to call anywhere else. |
+| `GET` | `/v1/config/models/{ref}/placement` | yes | How that GGUF model would be placed on this machine if it were loaded now: context, layers on the graphics card, and the reasons. Nothing is loaded or changed. |
 | `POST` | `/v1/config/model` | yes | Change the model. A decision, recorded. For GGUF, give the references from the list. |
 
 ## Matters and documents

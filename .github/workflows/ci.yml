@@ -35,3 +35,6 @@ jobs:
       - run: ruff check src tests
       - run: mypy src
       - run: python -m eli_legal.cli governance
+      # The real probes of this runner (memory, graphics card, llama.cpp), on every system:
+      # the tests give the probes their answers, this runs them.
+      - run: python -m eli_legal.cli gpu status

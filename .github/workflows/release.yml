@@ -29,10 +29,13 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libxkbcommon0 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-shape0 libxcb-util1 libdbus-1-3 libfontconfig1 binutils curl file
       - run: python -m pip install -e ".[all,build]"
       # GGUF support. Built for any x86-64 or ARM processor of its kind, not just this runner's,
-      # and left out (with a note in the build log) if it will not build here.
-      - run: python -m pip install "llama-cpp-python>=0.3" || echo "::warning::llama.cpp did not build; this installer will not run GGUF models"
+      # and left out (with a note in the build log) if it will not build here. At the version
+      # the graphics packs are built at: two versions' libraries cannot share a process.
+      - run: python -m pip install "llama-cpp-python==$(python scripts/fetch_gpu_pack.py --version)" || echo "::warning::llama.cpp did not build; this installer will not run GGUF models"
         env:
           CMAKE_ARGS: "-DGGML_NATIVE=OFF"
+      # The graphics pack shipped inside the installer, checked against its checksum.
+      - run: python scripts/fetch_gpu_pack.py
       - run: PYTHON=python packaging/linux/build.sh
       - name: The installer installs, runs and uninstalls; the AppImage runs
         run: |
@@ -40,6 +43,8 @@ jobs:
           sh dist/installers/ELI_Legal-*-linux-*.run
           ~/.local/bin/eli-legal --version
           ~/.local/bin/eli-legal demo
+          # the graphics pack is inside the installer, and the machine report runs without a card
+          ~/.local/bin/eli-legal gpu status | tee /dev/stderr | grep -q '"vulkan-llama_cpp_python-'
           sh dist/installers/ELI_Legal-*-linux-*.run --uninstall
           dist/installers/ELI_Legal-*-linux-*.AppImage --appimage-extract-and-run --version
           dist/installers/ELI_Legal-*-linux-*.AppImage --appimage-extract-and-run demo
@@ -67,15 +72,22 @@ jobs:
           $found = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") | Where-Object { Test-Path $_ }
           if (-not $found -and -not (Get-Command iscc.exe -ErrorAction SilentlyContinue)) { choco install innosetup -y --no-progress }
       - run: python -m pip install -e ".[all,build]"
-      - run: python -m pip install "llama-cpp-python>=0.3" ; if ($LASTEXITCODE -ne 0) { echo "::warning::llama.cpp did not build; this installer will not run GGUF models"; exit 0 }
+      - run: python -m pip install "llama-cpp-python==$(python scripts/fetch_gpu_pack.py --version)" ; if ($LASTEXITCODE -ne 0) { echo "::warning::llama.cpp did not build; this installer will not run GGUF models"; exit 0 }
         shell: pwsh
         env:
           CMAKE_ARGS: "-DGGML_NATIVE=OFF"
+      - run: python scripts/fetch_gpu_pack.py
       - run: powershell -ExecutionPolicy Bypass -File packaging\windows\build.ps1
         env:
           PYTHON: python
       - name: The frozen program runs the demonstration
         run: build\dist\eli-legal\eli-legal.exe demo
+      - name: The graphics pack is inside the program, and the machine report runs without a card
+        shell: pwsh
+        run: |
+          $status = & build\dist\eli-legal\eli-legal.exe gpu status | Out-String
+          Write-Host $status
+          if ($status -notmatch 'vulkan-llama_cpp_python-') { throw "the graphics pack was not shipped" }
       - name: The setup program installs silently, runs and uninstalls
         shell: pwsh
         run: |
@@ -108,12 +120,14 @@ jobs:
       - run: python -m pip install -e ".[all,build]"
       # GGUF support. Built for any x86-64 or ARM processor of its kind, not just this runner's,
       # and left out (with a note in the build log) if it will not build here.
-      - run: python -m pip install "llama-cpp-python>=0.3" || echo "::warning::llama.cpp did not build; this installer will not run GGUF models"
+      - run: python -m pip install "llama-cpp-python==$(python scripts/fetch_gpu_pack.py --version)" || echo "::warning::llama.cpp did not build; this installer will not run GGUF models"
         env:
           CMAKE_ARGS: "-DGGML_NATIVE=OFF"
       - run: PYTHON=python packaging/macos/build.sh
       - name: The frozen program runs the demonstration
         run: '"build/dist/ELI Legal.app/Contents/MacOS/eli-legal" demo'
+      - name: The machine report runs (the built-in llama.cpp uses the card through Metal)
+        run: '"build/dist/ELI Legal.app/Contents/MacOS/eli-legal" gpu status'
       - uses: actions/upload-artifact@v4
         with:
           name: macos-${{ matrix.runner }}

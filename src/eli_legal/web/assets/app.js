@@ -697,10 +697,16 @@
     const backend = h('select', null, backends.map(([b, text]) => h('option', { value: b, selected: cfg.model.backend === b }, text)));
     const url = h('input', { value: cfg.model.url }), model = h('input', { value: cfg.model.backend === 'openai_compat' ? cfg.model.model : '', placeholder: 'model name' }), verifier = h('input', { value: cfg.model.backend === 'openai_compat' ? cfg.model.verifier_model : '', placeholder: 'a different model, used only to check propositions (optional)' });
     const ggufModel = h('select'), ggufVerifier = h('select');
-    const ctxLen = h('input', { type: 'number', min: 2048, max: 262144, step: 2048, value: cfg.model.gguf_context });
-    const gpu = h('input', { type: 'number', min: -1, max: 999, value: cfg.model.gguf_gpu_layers });
+    const ctxLen = h('input', { type: 'number', min: 0, max: 262144, step: 2048, value: cfg.model.gguf_context, title: '0: sized to the model and this machine' });
+    const gpu = h('input', { type: 'number', min: -1, max: 999, value: cfg.model.gguf_gpu_layers, title: '-1: as many as fit; 0: the processor only; a number: at most that many' });
     const threads = h('input', { type: 'number', min: 0, max: 256, value: cfg.model.gguf_threads });
-    const found = h('span', { class: 'muted' });
+    const found = h('span', { class: 'muted' }), machine = h('p', { class: 'muted' }), placement = h('p');
+    const showPlacement = async () => {
+      if (backend.value !== 'gguf' || !ggufModel.value) { placement.textContent = ''; return; }
+      const q = `gguf_context=${Number(ctxLen.value)}&gguf_gpu_layers=${Number(gpu.value)}&gguf_threads=${Number(threads.value)}`;
+      const r = await attempt(() => api('GET', `/v1/config/models/${encodeURIComponent(ggufModel.value)}/placement?${q}`));
+      if (r && r !== true) placement.textContent = `If loaded now: ${r.summary}. ${r.notes.join('. ')}`;
+    };
     const fillGguf = (list) => {
       const opt = (m) => h('option', { value: m.ref, selected: cfg.model.backend === 'gguf' && cfg.model.model === m.name }, `${m.name} · ${m.size_gb} GB · ${m.location}`);
       fill(ggufModel, list.map(opt));
@@ -710,11 +716,14 @@
       const r = await attempt(() => api('GET', `/v1/config/models?url=${encodeURIComponent(url.value)}`));
       if (!r || r === true) return;
       fillGguf(r.gguf);
+      machine.textContent = `This machine: ${r.machine.summary}. ${r.machine.runtime.summary}.` + (r.machine.others_on_the_card ? ` Also using the graphics card: ${r.machine.others_on_the_card}.` : '');
+      showPlacement();
       found.textContent = `${r.gguf.length} GGUF model(s) found in ELI's model folders${r.gguf_supported ? '' : ' (llama.cpp is not installed on the server, so they cannot run there)'}. ` +
         (r.models.length ? `The model server offers: ${r.models.join(', ')}.` : 'No model server answered at that address.');
     };
     const ggufBox = h('div', null, h('label', null, 'GGUF model'), ggufModel, h('label', null, 'Verifier (optional, a different model)'), ggufVerifier,
-      h('div', { class: 'row' }, h('label', null, 'Context'), ctxLen, h('label', null, 'Layers on the graphics card'), gpu, h('label', null, 'Threads (0: auto)'), threads));
+      h('div', { class: 'row' }, h('label', null, 'Context (0: automatic)'), ctxLen, h('label', null, 'Layers on the graphics card (-1: automatic)'), gpu, h('label', null, 'Threads (0: automatic)'), threads), machine, placement);
+    [ggufModel, ctxLen, gpu, threads].forEach((el) => el.addEventListener('change', showPlacement));
     const serverBox = h('div', null, h('label', null, 'Address (this machine only)'), url, h('label', null, 'Model'), model, h('label', null, 'Verifier model'), verifier);
     const showBox = () => { ggufBox.hidden = backend.value !== 'gguf'; serverBox.hidden = backend.value !== 'openai_compat'; };
     backend.addEventListener('change', showBox); showBox();
@@ -732,7 +741,7 @@
         ['', (u) => h('div', { class: 'row' }, btn('Passphrase…', () => setPhrase(u)), u.locked_until ? btn('Unlock', () => person('Unlocked.', (x) => api('POST', `/v1/users/${encodeURIComponent(x.user_id)}/unlock`))(u)) : null,
           u.second_factor ? btn('Reset 2nd factor', () => person('Second factor removed.', (x) => api('DELETE', `/v1/users/${encodeURIComponent(x.user_id)}/second-factor`))(u)) : null,
           u.active ? btn('Deactivate', () => person('Deactivated.', (x) => api('POST', `/v1/users/${encodeURIComponent(x.user_id)}/deactivate`))(u), 'danger') : null)]], users), h('div', { class: 'row' }, btn('Add a user…', add, 'go'))) : null),
-    h('div', null, card('Model', h('p', { class: 'muted' }, 'A model is optional. It may only run on this machine: matter content is never sent anywhere else. Changing it is a recorded decision.'), h('p', null, `In use: ${cfg.model.active_model_id}${cfg.model.active_verifier_id !== 'none' ? `; verifier ${cfg.model.active_verifier_id}` : ''}.`),
+    h('div', null, card('Model', h('p', { class: 'muted' }, 'A model is optional. It may only run on this machine: matter content is never sent anywhere else. Changing it is a recorded decision.'), h('p', null, `In use: ${cfg.model.active_model_id}${cfg.model.active_verifier_id !== 'none' ? `; verifier ${cfg.model.active_verifier_id}` : ''}.` + (cfg.model.loaded && cfg.model.loaded.model.summary ? ` Loaded with ${cfg.model.loaded.model.summary}.` : (cfg.model.backend === 'gguf' ? ' It loads at its first use.' : ''))),
       h('label', null, 'Use'), backend, ggufBox, serverBox,
       h('div', { class: 'row' }, btn('Find models', findModels), btn('Apply', applyModel, 'go')), found),
     card('Legal systems installed', table([['Code', 'code'], ['Name', 'name'], ['Family', (j) => words(j.legal_family)], ['Validated by a qualified lawyer', (j) => (j.validated ? h('span', { class: 'good' }, j.validated_by) : h('span', { class: 'warn' }, 'no'))]], S.sys.jurisdictions),

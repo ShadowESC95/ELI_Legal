@@ -1,29 +1,12 @@
 from __future__ import annotations
 
-import os
-import sys
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from eli_legal.paths import user_data_dir
+from eli_legal.paths import home_dir
 
 _PACKAGED_CONFIG = Path(__file__).resolve().parent / "config"
-
-
-def home_dir() -> Path | None:
-    """Where an installed copy keeps its databases, key and settings.
-
-    ``ELI_LEGAL_HOME`` wins. An installed (frozen) build uses the per-user application data
-    directory of the operating system. A source checkout returns None and keeps using the
-    working directory, so a developer's data stays beside the code.
-    """
-    explicit = os.environ.get("ELI_LEGAL_HOME", "").strip()
-    if explicit:
-        return Path(explicit).expanduser()
-    if getattr(sys, "frozen", False):
-        return user_data_dir()
-    return None
 
 
 HOME = home_dir()
@@ -69,10 +52,15 @@ class Settings(BaseSettings):
     inference_api_key: str = ""
     verifier_model: str = ""  # a different model, used only to check propositions
     inference_timeout: float = 300.0
-    # GGUF: context length, layers on the graphics card (0: none, -1: all) and threads (0: auto).
-    gguf_context: int = 8192
-    gguf_gpu_layers: int = 0
+    # GGUF. Context: 0 sizes it to the model and to this machine as they are when the model
+    # loads; a number is a choice, reduced only if it cannot be held. Layers on the graphics
+    # card: -1 as many as fit, 0 the processor only, a number at most that many. Threads: 0
+    # chooses. gguf_fit says what gives way first when not everything fits: balanced (the
+    # layers, keeping the context), max_gpu (the context, keeping the layers) or max_ctx.
+    gguf_context: int = 0
+    gguf_gpu_layers: int = -1
     gguf_threads: int = 0
+    gguf_fit: str = "balanced"
     # Extra folders to look for GGUF models in, separated as on PATH.
     models_dirs: str = ""
     # Offer to choose a model when an administrator signs in and none is set.

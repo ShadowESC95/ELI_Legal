@@ -35,6 +35,8 @@ from eli_legal.legal.issue_mapper import stems
 from eli_legal.legal.llm import PROMPT_VERSIONS, LegalModel, fenced
 from eli_legal.security.redaction import content_hash
 
+_REPLY_TOKENS = 700
+
 # A question that asks for the decision itself.
 _ASKS_OUTCOME = re.compile(
     r"\b(?:who|which (?:party|side))\b[^?]{0,60}\b(?:win|wins|succeed|prevail|right|liable|at fault|stronger)\b"
@@ -355,24 +357,48 @@ class ChatService:
         answer: ChatAnswer,
         rules: Rules,
     ) -> None:
-        by_label = {s.label: s for s in usable}
-        listing = "\n".join(f"{s.label} [{s.title} {s.locator}]: {s.text}" for s in usable)
-        prompt = (
-            f"Task {PROMPT_VERSIONS['chat_answer']}. Question from an authorised user: {question}\n"
-            "Answer in at most five short sentences using only the numbered sources below "
-            "(D = passage of a document in the matter, F = a verified finding, A = passage of "
-            "an authority, L = a requirement of the law and standards that apply). Give the labels each sentence relies on. If the sources do not "
-            "answer the question, reply with an empty list. Do not add any fact, figure, case "
-            "or statute that is not in the sources. Do not say who should succeed or how "
-            'anything should be decided. Reply as {"sentences": [{"text": "...", '
-            '"cites": ["D1"]}]}.\n' + fenced(listing, "sources")
-        )
-        reply = model.ask("chat_answer", prompt, max_tokens=700)
+        def build(count: int) -> str:
+            listing = "\n".join(
+                f"{s.label} [{s.title} {s.locator}]: {s.text}" for s in usable[:count]
+            )
+            return (
+                f"Task {PROMPT_VERSIONS['chat_answer']}. Question from an authorised user: "
+                f"{question}\n"
+                "Answer in at most five short sentences using only the numbered sources below "
+                "(D = passage of a document in the matter, F = a verified finding, A = passage of "
+                "an authority, L = a requirement of the law and standards that apply). Give the "
+                "labels each sentence relies on. If the sources do not answer the question, reply "
+                "with an empty list. Do not add any fact, figure, case or statute that is not in "
+                "the sources. Do not say who should succeed or how anything should be decided. "
+                'Reply as {"sentences": [{"text": "...", "cites": ["D1"]}]}.\n'
+                + fenced(listing, "sources")
+            )
+
+        # The model is given as many of the sources as leave it room to answer. Every source
+        # is still shown to the person; the note says which the summary did not draw on.
+        kept = model.fitting(build, len(usable), reply_tokens=_REPLY_TOKENS)
+        if kept < len(usable):
+            left_out = ", ".join(s.label for s in usable[kept:])
+            answer.notes.append(
+                f"The model's context holds {kept} of the {len(usable)} sources; its summary "
+                f"does not draw on {left_out}."
+            )
+        if kept <= 0:
+            return
+        by_label = {s.label: s for s in usable[:kept]}
+        reply = model.ask("chat_answer", build(kept), max_tokens=_REPLY_TOKENS)
         items = reply.get("sentences") if reply else None
+        if isinstance(items, list) and not items:
+            answer.notes.append(
+                "The model read the sources and reported that they do not answer the question."
+            )
         if not isinstance(items, list):
             if model.stats.failures:
+                why = model.problem.partition(": ")[2]
                 answer.notes.append(
-                    "The model did not return a usable answer; showing the sources."
+                    "The model did not return a usable answer"
+                    + (f" ({why})" if why else "")
+                    + "; showing the sources."
                 )
             return
         extractor = CitationExtractor(self.ctx.jurisdictions.for_matter(matter))

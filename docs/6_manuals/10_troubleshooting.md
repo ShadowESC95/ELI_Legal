@@ -17,6 +17,27 @@
 | The desktop application does not open on Linux | Missing graphics libraries | `sudo apt install libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3 libxcb-cursor0` |
 | "the program does not run on this system" from the installer | The build needs a newer system library than this machine has | Use a build made for an older system, or install from source |
 
+## The model and the graphics card
+
+Settings, Model shows the machine, the llama.cpp in use and how the selected model would be placed.
+`eli-legal gpu status` and `eli-legal model plan <file>` print the same.
+
+| What you see | Why | What to do |
+|---|---|---|
+| Chat says "model: none — answers are the sources themselves" | No model is chosen | Settings, Model, choose one and Apply |
+| "no GGUF model file at (none)" when applying a model (0.5.0) | The verifier box was read as a file name | Fixed in 0.6.0 |
+| "… is present, but the llama.cpp in use has no graphics support" | No graphics pack passed on this card, so the model runs on the processor | See the note under it for why each pack was not used; install one from a file, or install the graphics driver |
+| "… did not start on this card" | The pack's own test failed: a driver that is missing, too old, or (Vulkan) without its loader | Update the graphics driver; on Linux install `libvulkan1` and the card's Vulkan driver |
+| "… is not the version built into this copy" | An installed copy can only use a pack of its own llama.cpp version | Install the pack of that version from a file |
+| Fewer layers on the card than the model has | That is what fits the graphics memory free now with the context the work needs | Close what else is using the card (it is named); or choose a smaller model or quantisation |
+| "other programs are using the card's memory: …" | Another program holds graphics memory | Close it, or have it release the model it keeps loaded |
+| "context reduced from … to … tokens" | The memory free now cannot hold more | As above. Steps then fit less material and say what they left out |
+| "The model's context holds N of the M sources" | The sources for that question are longer than the model's context | The passages not drawn on are named and still shown; a larger context needs more free memory |
+| "…'s reply was cut off after N tokens" | The model ran out of context or tokens mid-answer | The answer is not used. Ask a narrower question, or free memory for a larger context |
+| "this step's material does not fit the context ELI v3's model is loaded with" | Opened from ELI v3, whose model has a short context | Load the model in ELI v3 with a longer context |
+| "… could not be loaded: this llama.cpp does not support its architecture" | The model file is newer than the llama.cpp in use | Use a model this llama.cpp reads; or a newer ELI Legal |
+| The first answer takes much longer than later ones | The model loads at its first use | Expected: once, per start |
+
 ## Working on a matter
 
 Refusals are shown in the system's own words. The commonest:

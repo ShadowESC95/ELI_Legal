@@ -100,8 +100,10 @@ class ChatTab(Tab):
         model = self.sv.ctx.model
         dot = f"<span style='color:{theme.GOOD if model.available else theme.IDLE}'>●</span>"
         where = matter.name if matter else "no matter open"
+        report = getattr(model.inference, "report", None)
+        how = f" ({html.escape(report.describe())})" if report is not None else ""
         self.status.setText(
-            f"{dot} model: {model.model_id if model.available else 'none — answers are the sources themselves'}"
+            f"{dot} model: {model.model_id + how if model.available else 'none — answers are the sources themselves'}"
             f" &nbsp;·&nbsp; {html.escape(where)}"
         )
         self.use_model.setEnabled(model.available)
@@ -145,7 +147,17 @@ class ChatTab(Tab):
             )
 
         if use_model and not question.startswith("/"):
-            self.session.background("Reading the sources…", work, self._answered, self._failed)
+            # A GGUF model loads at its first question, which takes as long as the file is big.
+            inference = self.sv.ctx.model.inference
+            waiting = hasattr(inference, "report") and getattr(inference, "report", None) is None
+            self.session.background(
+                "Loading the model, then reading the sources…"
+                if waiting
+                else "Reading the sources…",
+                work,
+                self._answered,
+                self._failed,
+            )
         else:
             answer = self.session.attempt(self, work, quiet=True)
             if answer is not None:
@@ -159,6 +171,7 @@ class ChatTab(Tab):
     def _answered(self, answer: object) -> None:
         assert isinstance(answer, ChatAnswer)
         self._last = answer
+        self.refresh()  # the first answer is when the model loaded: show how
         parts: list[str] = []
         for note in answer.notes:
             parts.append(html.escape(note).replace("\n", "<br>"))

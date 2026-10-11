@@ -770,10 +770,15 @@ def cmd_demo(args: argparse.Namespace) -> int:
     )
     if args.gguf:
         from eli_legal.adapters.inference.gguf import GgufInference
+        from eli_legal.legal.llm import working_context_tokens
 
         inference = GgufInference(
-            args.gguf, n_ctx=args.gguf_context, n_gpu_layers=args.gguf_gpu_layers
+            args.gguf,
+            n_ctx=args.gguf_context,
+            n_gpu_layers=args.gguf_gpu_layers,
+            working_ctx=working_context_tokens(),
         )
+        inference.on_load = lambda report: print(f"model loaded: {report.describe()}")
     print(f"ELI Legal demonstration — synthetic dispute, fictional law — workspace: {root}\n")
     result = run_demo(root, inference=inference)
     return 0 if result.final_status == "approved_for_reliance" else 1
@@ -863,7 +868,23 @@ def cmd_model(args: argparse.Namespace) -> int:
     sv = _services(args)
     c = args.model_cmd
     if c == "show":
-        _out(sv.config.current())
+        _out(sv.config.current() | {"machine": sv.config.machine()})
+        return 0
+    if c == "plan":
+        sv.ctx.authorizer().require_global(_actor(args), "config.manage")
+        by_name = {m.name: str(m.path) for m in sv.config.gguf_models()}
+        path = by_name.get(args.model, args.model)
+        if not Path(path).is_file():
+            raise SystemExit(f"no GGUF file {args.model!r}; see: eli-legal model list")
+        _out(
+            {"machine": sv.config.machine()["summary"]}
+            | sv.config.preview(
+                path,
+                gguf_context=args.context,
+                gguf_gpu_layers=args.gpu_layers,
+                gguf_threads=args.threads,
+            )
+        )
         return 0
     if c == "list":
         sv.ctx.authorizer().require_global(_actor(args), "config.manage")
@@ -915,6 +936,25 @@ def cmd_model(args: argparse.Namespace) -> int:
             **options,
         )
     print(f"model: {current['active_model_id']}   verifier: {current['active_verifier_id']}")
+    return 0
+
+
+def cmd_gpu(args: argparse.Namespace) -> int:
+    from eli_legal.adapters.inference import gpu_runtime, hardware
+
+    c = args.gpu_cmd
+    if c == "probe":  # run by the program itself, in a process of its own
+        return gpu_runtime.probe(args.folder)
+    if c == "status":
+        machine = hardware.detect(force=True)
+        _out(
+            {"machine": machine.as_dict() | {"summary": machine.describe()}} | gpu_runtime.status()
+        )
+        return 0
+    sv = _services(args)
+    with _confirmed(args, "install a graphics runtime") as who:
+        installed = sv.config.install_gpu_runtime(actor_id=who, wheel=Path(args.file))
+    print(installed["summary"])
     return 0
 
 
@@ -1190,8 +1230,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--gguf", metavar="FILE", help="a GGUF model file to run in process with llama.cpp"
     )
-    p.add_argument("--gguf-context", type=int, default=8192)
-    p.add_argument("--gguf-gpu-layers", type=int, default=0)
+    p.add_argument(
+        "--gguf-context", type=int, default=0, help="0 sizes it to the model and this machine"
+    )
+    p.add_argument(
+        "--gguf-gpu-layers", type=int, default=-1, help="-1 as many as fit, 0 the processor only"
+    )
 
     p = add(
         "framework", cmd_framework, "law and standards packages: list, inspect, import, approve"
@@ -1239,9 +1283,23 @@ def build_parser() -> argparse.ArgumentParser:
     )
     a.add_argument("--verifier", default="")
     a.add_argument("--url", default="")
-    a.add_argument("--context", type=int)
-    a.add_argument("--gpu-layers", type=int)
-    a.add_argument("--threads", type=int)
+    b = s.add_parser("plan", help="how a GGUF file would be placed on this machine, and why")
+    b.add_argument("model", help="GGUF file (path or name from 'model list')")
+    for one in (a, b):
+        one.add_argument(
+            "--context", type=int, help="tokens; 0 sizes it to the model and this machine"
+        )
+        one.add_argument(
+            "--gpu-layers", type=int, help="-1 as many as fit, 0 the processor only, n at most n"
+        )
+        one.add_argument("--threads", type=int, help="0 chooses for you")
+
+    p = add("gpu", cmd_gpu, "the graphics card and the llama.cpp that uses it")
+    s = p.add_subparsers(dest="gpu_cmd", required=True)
+    s.add_parser("status", help="this machine, the llama.cpp in use, the graphics packs found")
+    a = s.add_parser("install", help="install a graphics pack from a file on this machine")
+    a.add_argument("file", help="cuda-… or vulkan-llama_cpp_python-….whl, as published with ELI")
+    s.add_parser("probe").add_argument("folder")
     return parser
 
 

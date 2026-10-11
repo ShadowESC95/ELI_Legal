@@ -108,7 +108,12 @@ the reviewer confirms the rest, and the report lists every requirement. See
 ## Models
 
 GGUF files run in process with llama.cpp, as in ELI v2 and v3, and are found in ELI's model
-folders; or a model server on this machine; or ELI v3's model when opened from ELI v3. See
+folders; or a model server on this machine; or ELI v3's model when opened from ELI v3.
+
+A GGUF model is placed on the machine by measurement: the graphics and system memory free when it
+loads, and the model's own costs read from its file, decide its context and how many layers go on
+the graphics card (NVIDIA, AMD, Intel, Apple). What loaded is shown and recorded. The model writes
+literally: no manner of its own, no opinion, only what the sources state. See
 [docs/6_manuals/12_models.md](docs/6_manuals/12_models.md).
 
 ## Identity
