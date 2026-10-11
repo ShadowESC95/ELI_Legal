@@ -4,13 +4,20 @@ Governed legal case preparation: it takes the papers in a dispute, establishes w
 
 ## Fixed in this release
 
-- The Linux desktop window no longer crashes on the first key press. 0.4.0 carried one half of a keyboard library pair (libxkbcommon without libxkbcommon-x11); on any system newer than the build machine the other half came from the system and did not match. The build now carries both and refuses a bundle that splits such a pair.
+- **No model ran on a graphics card.** The llama.cpp inside every 0.5.0 installer was a processor-only build, so the "layers on the graphics card" setting did nothing and a model of ordinary size was too slow to use.
+- **A model could not be chosen from Settings, Model.** With no model set, Apply failed with "no GGUF model file at (none)": the empty verifier box was read as a file name.
+- A model no longer chosen stayed loaded until the program closed.
 
 ## New in this version
 
-- **Laws & Standards**: choose the law, regulation and standards packages for each matter (EU AI Act Annex III 8(a), GDPR, international, national, professional, ISO/IEC 42001) or import your organisation's own. The model is told them; the reviewer confirms what only a person can; the report lists every requirement.
-- **GGUF models** run in process with llama.cpp, found in ELI v2 and v3's model folders.
-- **ELI v3** can open ELI Legal in place of its own window (needs the matching ELI v3 update).
+- **The graphics card is used.** NVIDIA (CUDA or Vulkan), AMD and Intel (Vulkan), Apple (Metal). The llama.cpp that uses the card is switched on only after it has shown, in a process of its own, that it can use this machine's card. It comes from the installer (Vulkan, Linux and Windows), from ELI v2 or v3 if either is installed, or from a file an administrator installs. Nothing is downloaded.
+- **A model is placed by measurement.** The memory free on the card and in the machine when the model loads, and the model's own costs read from its file, decide the context and the layers on the card; there is no fixed size for any model or machine. Context and layers are "automatic" by default. What loaded is shown, and recorded in the audit trail as llama.cpp reported it.
+- **Each step fits its material to the model's context** and says what it left out. A reply cut off mid-answer is refused, not used; a failed summary says why.
+- **The model writes literally.** No manner of its own, no opinion, no figure of speech: only what the sources state. Recorded on each run as system prompt version 2.
+- Settings, Model shows the machine, the llama.cpp in use and how the selected model would be placed. On the command line: `eli-legal gpu status`, `eli-legal gpu install <file>`, `eli-legal model plan <file>`.
+- Opened from ELI v3, the model is held to JSON, and a prompt that would not fit ELI v3's context is refused where ELI v3 would have shortened it without saying so.
+
+If you chose a GGUF model in 0.5.0, its settings were saved as 8192 tokens and 0 layers: open Settings, Model, set both to automatic and Apply.
 
 ## Which file
 
@@ -37,5 +44,6 @@ Every one of them includes the desktop application, the server with its browser 
 - **Windows:** the program ran the synthetic dispute; the setup program was installed silently, started and uninstalled. The desktop application was not opened by a person.
 - **macOS:** the program ran the synthetic dispute. The disk image was not opened by a person.
 - The test suite (desktop application, server, browser application, security, the whole lifecycle) passes on Linux, Windows and macOS.
+- **The graphics card:** on Linux with an NVIDIA RTX 2060 SUPER (8 GB), through ELI v3's CUDA pack and through the Vulkan pack the installer ships. A 7-billion-parameter model was placed wholly on the card, ran the synthetic dispute to an approved report and answered in the matter chat. AMD, Intel and Apple cards, and any card on Windows or macOS, were not run on real hardware: there the same code runs, checked by its tests only.
 
 Installation and first steps: [docs/6_manuals/01_installation.md](https://github.com/ShadowESC95/ELI_Legal/blob/@TAG@/docs/6_manuals/01_installation.md).

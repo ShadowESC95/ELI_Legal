@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "eli-legal"
-version = "0.5.0"
+version = "0.6.0"
 description = "Governed legal case preparation: evidence in, verified source-linked analysis out, a named human decides"
 readme = "README.md"
 requires-python = ">=3.10"
