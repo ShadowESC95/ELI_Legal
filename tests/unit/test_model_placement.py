@@ -449,6 +449,8 @@ def fake_llama(monkeypatch):
 
         def create_chat_completion(self, **kw):
             calls["asked"] = kw
+            if callable(calls.get("template")):  # stands in for the model's own chat template
+                calls["template"](kw["messages"])
             if isinstance(calls["reply"], Exception):
                 raise calls["reply"]
             base = {
@@ -545,6 +547,97 @@ def test_a_reply_cut_off_or_material_that_does_not_fit_is_said_in_plain_words(tm
     fake_llama["reply"] = ValueError("Requested tokens (12000) exceed context window of 10496")
     with pytest.raises(InferenceUnavailable, match="does not fit the 10496 tokens of context"):
         model.generate(system="s", prompt="p", json_mode=True)
+
+
+# A chat template with the fault of Mistral Small 3.1's: it tests the message, not its content,
+# for being text, so it always reads the system message as a list of parts.
+PARTS_TEMPLATE = """{%- if messages[0] is string %}{%- set system_message = messages[0]['content'] %}\
+{%- else %}{%- set system_message = messages[0]['content'][0]['text'] %}{%- endif %}
+{{- '[SYSTEM_PROMPT]' + system_message + '[/SYSTEM_PROMPT]' }}
+{%- for message in messages[1:] %}{%- if message['content'] is string %}{{ message['content'] }}\
+{%- else %}{%- for part in message['content'] %}{{ part['text'] }}{%- endfor %}{%- endif %}{%- endfor %}"""
+NO_SYSTEM_TEMPLATE = """{%- for message in messages %}{%- if message['role'] == 'system' %}\
+{{ raise_exception('System role not supported') }}{%- endif %}{{ message['content'] }}{%- endfor %}"""
+
+
+def _filled_in_by(template):
+    """The model's chat template as llama.cpp fills it in: with Jinja, raising as it raises."""
+    sandbox = pytest.importorskip("jinja2.sandbox")
+
+    def refuse(message):
+        raise ValueError(message)
+
+    # the environment llama.cpp for Python fills templates in
+    compiled = sandbox.ImmutableSandboxedEnvironment().from_string(template)
+    seen = []
+
+    def fill(messages):
+        seen.append(messages)
+        compiled.render(messages=messages, raise_exception=refuse)
+
+    return fill, seen
+
+
+def test_a_model_is_given_the_conversation_in_the_form_its_own_template_takes(tmp_path, fake_llama):
+    """Chat answered "the model did not return a usable answer ('str object' has no attribute
+    'text')" for a model whose template reads a message as a list of parts. The form a template
+    fills in is found once, kept for that model, and said on its report."""
+    fake_llama["template"], seen = _filled_in_by(PARTS_TEMPLATE)
+    model = GgufInference(dense_model(tmp_path / "parts.gguf"), working_ctx=WORKING)
+    assert (
+        model.generate(system="be literal", prompt="what is a notice period?")
+        == '{"answer": "green"}'
+    )
+    assert [type(m[0]["content"]).__name__ for m in seen] == ["str", "list"], "text, then parts"
+    assert fake_llama["asked"]["messages"] == [
+        {"role": "system", "content": [{"type": "text", "text": "be literal"}]},
+        {"role": "user", "content": [{"type": "text", "text": "what is a notice period?"}]},
+    ]
+    assert any("list of parts" in note for note in model.report.notes)
+    model.generate(system="be literal", prompt="again")
+    assert len(seen) == 3, "the form that worked is the one used from then on"
+
+    fake_llama["template"], seen = _filled_in_by(NO_SYSTEM_TEMPLATE)
+    plain = GgufInference(dense_model(tmp_path / "no_system.gguf"), working_ctx=WORKING)
+    plain.generate(system="be literal", prompt="what is a notice period?")
+    assert fake_llama["asked"]["messages"] == [
+        {"role": "user", "content": "be literal\n\nwhat is a notice period?"}
+    ], "the instructions still reach the model, at the head of the question"
+    assert any("no system message" in note for note in plain.report.notes)
+
+
+def test_a_template_that_takes_no_form_is_said_and_a_model_s_own_failure_is_not_tried_again(
+    tmp_path, fake_llama
+):
+    fake_llama["template"], seen = _filled_in_by("{{ 'x' + messages[0]['no']['such'] }}")
+    model = GgufInference(dense_model(tmp_path / "m.gguf"), working_ctx=WORKING)
+    with pytest.raises(InferenceUnavailable, match="chat template accepts .* in none of the forms"):
+        model.generate(system="s", prompt="p")
+    assert len(seen) == len(gguf._FORMS)
+
+    fake_llama["template"], seen = _filled_in_by("{{ messages[0]['content'] }}")
+    fake_llama["reply"] = RuntimeError("CUDA error: out of memory")
+    other = GgufInference(dense_model(tmp_path / "n.gguf"), working_ctx=WORKING)
+    with pytest.raises(InferenceUnavailable, match="out of memory"):
+        other.generate(system="s", prompt="p")
+    assert len(seen) == 1, "only the template's refusal is a reason to ask again another way"
+
+
+def test_models_are_closed_before_python_shuts_down():
+    """Left to llama.cpp's destructor, a loaded model was closed after its module had been
+    emptied: "TypeError: 'NoneType' object is not callable" in the terminal on every exit."""
+    import atexit
+
+    registered = []
+    real = atexit.register
+    try:
+        atexit.register = lambda fn, *a, **k: registered.append(fn) or fn  # type: ignore[assignment]
+        import importlib
+
+        importlib.reload(gguf)
+    finally:
+        atexit.register = real  # type: ignore[assignment]
+    assert gguf.release in registered
 
 
 # ── the application ──────────────────────────────────────────────────────────
@@ -748,3 +841,12 @@ def test_the_pack_an_installer_ships_is_the_built_in_llama_cpp_s_version_and_is_
         check=True,
     )
     assert out.stdout.strip() == version
+    # A source installation gets the same version from the same file, and what a pack imports
+    # from Python, so a pack runs where llama.cpp could not be compiled.
+    for installer in ("install.sh", "install.ps1"):
+        text = (root / installer).read_text(encoding="utf-8")
+        assert "fetch_gpu_pack.py" in text and "llama-cpp-python==" in text, installer
+        assert ",packs]" in text and "llama-cpp-python>=" not in text, installer
+    declared = (root / "pyproject.toml").read_text(encoding="utf-8")
+    packs_extra = declared.split("\npacks = [", 1)[1].split("]", 1)[0]
+    assert all(name in packs_extra for name in ("numpy", "diskcache", "jinja2"))

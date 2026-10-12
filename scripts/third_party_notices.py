@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 ROOTS = ("eli-legal",)
-EXTRAS = {"gui", "server", "all", "gguf"}
+EXTRAS = {"gui", "server", "all", "gguf", "packs"}
 
 
 def _needed(requirement: str, extras: set[str]) -> str | None:

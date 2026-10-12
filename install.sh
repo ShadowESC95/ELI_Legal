@@ -5,12 +5,14 @@
 #   ./install.sh                 install (or upgrade) into ~/.local/opt/eli-legal-src
 #   ./install.sh --prefix DIR    install somewhere else
 #   ./install.sh --no-gui        command line and server only (no desktop application)
+#   ./install.sh --no-models     leave out llama.cpp, which runs GGUF model files in process
 #   ./install.sh --uninstall     remove the program; your data is kept
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PREFIX="${HOME}/.local/opt/eli-legal-src"
 BIN="${HOME}/.local/bin"
 EXTRAS="all"
+MODELS=1
 MODE="install"
 MARK=".eli-legal-program-folder"
 while [ $# -gt 0 ]; do
@@ -18,6 +20,7 @@ while [ $# -gt 0 ]; do
     --prefix) PREFIX="$2"; shift 2 ;;
     --bin-dir) BIN="$2"; shift 2 ;;
     --no-gui) EXTRAS="server"; shift ;;
+    --no-models) MODELS=0; shift ;;
     --uninstall) MODE="uninstall"; shift ;;
     -h|--help) sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
@@ -49,7 +52,35 @@ echo "Creating a private Python environment in $PREFIX ..."
 "$PY" -m venv "$PREFIX/venv"
 "$PREFIX/venv/bin/python" -m pip install --quiet --upgrade pip
 echo "Installing ELI Legal and what it needs ..."
-"$PREFIX/venv/bin/python" -m pip install --quiet "$ROOT[$EXTRAS]"
+"$PREFIX/venv/bin/python" -m pip install --quiet "$ROOT[$EXTRAS,packs]"
+
+# llama.cpp runs GGUF model files in process. At the version the graphics packs are built at:
+# two versions' libraries cannot share a process. It is compiled on this machine when there is
+# no ready-made build for it, and the program is complete without it (a model server works).
+if [ "$MODELS" = 1 ]; then
+  LLAMA="llama-cpp-python==$("$PREFIX/venv/bin/python" "$ROOT/scripts/fetch_gpu_pack.py" --version)"
+  echo "Adding llama.cpp to run GGUF model files (compiled here when there is no ready-made build; that takes some minutes) ..."
+  if "$PREFIX/venv/bin/python" -m pip install --quiet --log "$PREFIX/llama-build.log" "$LLAMA"; then
+    rm -f "$PREFIX/llama-build.log"
+  else
+    case "$(uname -s)" in
+      Darwin) NEEDS="xcode-select --install" ;;
+      *) if command -v apt-get >/dev/null 2>&1; then NEEDS="sudo apt-get install build-essential"
+         elif command -v dnf >/dev/null 2>&1; then NEEDS="sudo dnf install gcc-c++ make"
+         elif command -v pacman >/dev/null 2>&1; then NEEDS="sudo pacman -S base-devel"
+         elif command -v zypper >/dev/null 2>&1; then NEEDS="sudo zypper install gcc-c++ make"
+         else NEEDS="install a C and C++ compiler"; fi ;;
+    esac
+    echo
+    echo "llama.cpp could not be built here, so GGUF model files will not run in process yet."
+    echo "  It needs a C and C++ compiler:  $NEEDS"
+    echo "  Then:                           \"$PREFIX/venv/bin/python\" -m pip install '$LLAMA'"
+    echo "  What the build said:            $PREFIX/llama-build.log"
+    echo "  Without it: a graphics pack (eli-legal gpu install FILE) is a complete llama.cpp and"
+    echo "  needs no compiler, and a model server on this machine works as it is."
+    echo
+  fi
+fi
 
 launcher() {  # name, module arguments
   printf '#!/bin/sh\n# ELI Legal launcher (created by install.sh)\nELI_LEGAL_HOME="${ELI_LEGAL_HOME:-%s}"\nexport ELI_LEGAL_HOME\nexec "%s/venv/bin/python" -m %s "$@"\n' "$DATA" "$PREFIX" "$2" > "$BIN/$1"

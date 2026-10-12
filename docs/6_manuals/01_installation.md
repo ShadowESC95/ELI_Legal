@@ -91,6 +91,14 @@ powershell -ExecutionPolicy Bypass -File install.ps1     # Windows
 This makes a private Python environment and launchers. `./install.sh --no-gui` installs the
 command line and server only. `--uninstall` removes it and keeps your data.
 
+The installer also adds llama.cpp, which runs GGUF model files in process, at the version the
+graphics packs are built at. Where there is no ready-made build for the machine it is compiled,
+which takes some minutes and needs a C and C++ compiler. If that fails the installation still
+completes, and the installer says what is missing and the one command to run afterwards. A
+graphics pack (`eli-legal gpu install FILE`) is a complete llama.cpp and needs no compiler, and
+a model server on the machine works without either. `--no-models` (`-NoModels` on Windows)
+leaves llama.cpp out.
+
 For development instead: `python -m venv .venv && . .venv/bin/activate && pip install -e '.[dev,all]'`.
 A development checkout keeps its data beside the code, in `./data` and `./secrets`.
 

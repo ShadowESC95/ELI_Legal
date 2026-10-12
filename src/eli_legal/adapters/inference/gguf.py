@@ -13,6 +13,7 @@ folders of other local-model tools, and any folders the administrator adds.
 
 from __future__ import annotations
 
+import atexit
 import gc
 import hashlib
 import os
@@ -20,7 +21,7 @@ import re
 import threading
 import time
 from collections.abc import Callable
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -44,6 +45,20 @@ _NOT_CHAT = re.compile(r"mmproj|embed|whisper|wakeword|lora|adapter|reranker|voc
 # at the first answer.
 _TEMPLATE_TOKENS = 32
 _LOAD_ATTEMPTS = 6
+# The forms in which a system message and a question are handed to a model's chat template, in
+# the order tried. Templates differ in what they accept and say so only by failing: one reads a
+# message's text out of a list of parts and fails on a plain string ("'str object' has no
+# attribute 'text'", Mistral Small 3.1), another has no system role. The first form a model's
+# template fills in is kept for that model, and any form but the first is noted on its report.
+_FORMS = ("text", "parts", "one turn", "one turn in parts")
+_FORM_NOTES = {
+    "parts": "its chat template takes each message as a list of parts",
+    "one turn": "its chat template has no system message: the instructions head the question",
+    "one turn in parts": (
+        "its chat template has no system message and takes a list of parts: "
+        "the instructions head the question"
+    ),
+}
 
 _LOAD_LOCK = threading.RLock()
 
@@ -81,6 +96,33 @@ class _Loaded:
     llm: Any
     report: LoadReport
     template_tokens: int = _TEMPLATE_TOKENS
+    forms: list[str] = field(default_factory=lambda: list(_FORMS))  # not yet refused; [0] is used
+
+
+def _conversation(system: str, prompt: str, form: str) -> list[dict[str, Any]]:
+    def content(text: str) -> Any:
+        return [{"type": "text", "text": text}] if form.endswith("parts") else text
+
+    if form.startswith("one turn"):
+        return [{"role": "user", "content": content(f"{system}\n\n{prompt}")}]
+    return [
+        {"role": "system", "content": content(system)},
+        {"role": "user", "content": content(prompt)},
+    ]
+
+
+def _template_refused(exc: BaseException) -> bool:
+    """Whether the error was raised while the model's chat template was being filled in. Nothing
+    has been asked of the model then, and another form of the conversation may be accepted."""
+    if type(exc).__module__.split(".")[0] == "jinja2":
+        return True
+    tb = exc.__traceback__
+    while tb is not None:
+        name = tb.tb_frame.f_code.co_filename.replace("\\", "/")
+        if name == "<template>" or "jinja2/" in name:
+            return True
+        tb = tb.tb_next
+    return False
 
 
 _LOADED: dict[tuple[str, int, int, int], _Loaded] = {}
@@ -122,6 +164,11 @@ def release(keep: set[Path] | None = None) -> None:
     with _LOAD_LOCK:
         for key in [k for k in _LOADED if k[0] not in wanted]:
             _close(_LOADED.pop(key))
+
+
+# A model still loaded when Python shuts down is closed by llama.cpp's destructor after its own
+# module has been emptied: "TypeError: 'NoneType' object is not callable" on the way out.
+atexit.register(release)
 
 
 class GgufInference:
@@ -316,27 +363,40 @@ class GgufInference:
         self, *, system: str, prompt: str, max_tokens: int = 2048, json_mode: bool = False
     ) -> str:
         loaded = self._loaded()
-        kwargs: dict[str, Any] = {
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": prompt},
-            ],
-            "max_tokens": max_tokens,
-            "temperature": 0.0,
-        }
+        kwargs: dict[str, Any] = {"max_tokens": max_tokens, "temperature": 0.0}
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
         name, window = self.path.name, loaded.report.n_ctx
+        refused: Exception | None = None
         with self._lock:  # llama.cpp contexts are not safe to share between threads
-            try:
-                result = loaded.llm.create_chat_completion(**kwargs)
-            except ValueError as exc:  # the material is longer than the context
-                raise InferenceUnavailable(
-                    f"this step's material does not fit the {window} tokens of context "
-                    f"{name} is loaded with ({exc})"
-                ) from exc
-            except Exception as exc:
-                raise InferenceUnavailable(f"{name} failed: {type(exc).__name__}: {exc}") from exc
+            while True:
+                form = loaded.forms[0]
+                try:
+                    result = loaded.llm.create_chat_completion(
+                        messages=_conversation(system, prompt, form), **kwargs
+                    )
+                    break
+                except Exception as exc:
+                    if _template_refused(exc):
+                        refused = refused or exc
+                        if len(loaded.forms) > 1:
+                            loaded.forms.pop(0)
+                            continue
+                        raise InferenceUnavailable(
+                            f"{name}'s own chat template accepts a system message and a question "
+                            f"in none of the forms tried ({type(refused).__name__}: {refused})"
+                        ) from exc
+                    if isinstance(exc, ValueError):  # the material is longer than the context
+                        raise InferenceUnavailable(
+                            f"this step's material does not fit the {window} tokens of context "
+                            f"{name} is loaded with ({exc})"
+                        ) from exc
+                    raise InferenceUnavailable(
+                        f"{name} failed: {type(exc).__name__}: {exc}"
+                    ) from exc
+            note = _FORM_NOTES.get(form)
+            if note and note not in loaded.report.notes:
+                loaded.report = replace(loaded.report, notes=(*loaded.report.notes, note))
         try:
             choice = result["choices"][0]
             text = str(choice["message"]["content"] or "")

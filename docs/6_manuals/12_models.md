@@ -104,9 +104,13 @@ graphics drivers need the newer one.
 
 ## Installing GGUF support from source
 
+`install.sh` and `install.ps1` add llama.cpp themselves, at the version the graphics packs are
+built at, and say what is missing when it cannot be built. By hand it is
 `pip install 'eli-legal[gguf]'`. llama.cpp is compiled where no prebuilt package exists, which
-needs CMake and a C/C++ compiler, and that build runs on the processor. A source installation
-uses a graphics pack in the same way as an installed copy. The installers include llama.cpp where
-it built on the release machine; `eli-legal model show` reports `gguf_supported`.
+needs a C/C++ compiler, and that build runs on the processor. A source installation uses a
+graphics pack in the same way as an installed copy, and can use one where llama.cpp could not be
+compiled: the installers add what a pack needs from Python (`eli-legal[packs]`). The packaged
+installers include llama.cpp where it built on the release machine; `eli-legal model show`
+reports `gguf_supported`.
 
 The browser application lists GGUF models by name only; the server never shows their paths.

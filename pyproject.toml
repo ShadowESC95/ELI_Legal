@@ -34,6 +34,13 @@ gui = [
 gguf = [
   "llama-cpp-python>=0.3",
 ]
+# What a graphics pack (a complete llama.cpp for Python) imports from the environment it is
+# loaded into. The source installers add it, so a pack runs where llama.cpp cannot be compiled.
+packs = [
+  "numpy>=1.20",
+  "diskcache>=5.6.1",
+  "jinja2>=2.11.3",
+]
 # Lets the server make its own certificate when none is supplied (OpenSSL is used otherwise).
 server = [
   "cryptography>=42",
