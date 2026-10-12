@@ -20,6 +20,8 @@ if [ -z "${SKIP_FREEZE:-}" ]; then
   "$PY" -m PyInstaller packaging/pyinstaller/eli_legal.spec --noconfirm --distpath build/dist --workpath build/work --log-level WARN
 fi
 [ -x "$STAGE/eli-legal" ] || { echo "no frozen build at $STAGE" >&2; exit 1; }
+# No GTK and no GLib I/O library in the bundle: they would load the user's system's plug-ins.
+"$PY" packaging/linux/check_bundle.py --trim "$STAGE/_internal"
 "$STAGE/eli-legal" --help >/dev/null
 "$PY" packaging/linux/check_bundle.py "$STAGE/_internal"
 cp packaging/INSTALL_NOTICE.txt "$STAGE/_internal/INSTALL_NOTICE.txt"

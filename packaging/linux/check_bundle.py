@@ -10,7 +10,11 @@ loaded against it, and the window crashed on the first key press.
 
     check_bundle.py DIR     exit 1 when such a split exists, naming the package to install on the
                             build machine so both halves are bundled; and when the bundle carries
-                            the C++ runtime, which must be the user's system's own
+                            the C++ runtime, which must be the user's system's own, or GTK or
+                            GLib's I/O library, which load the user's system's plug-ins
+    check_bundle.py --trim DIR
+                            first remove the Qt plug-ins that bring GTK and GLib's I/O library
+                            in, and the libraries nothing else in the bundle needs
 
 Reads package ownership with dpkg, so it judges on Debian and Ubuntu build machines; elsewhere it
 says it cannot and exits 0.
@@ -97,13 +101,75 @@ def splits(root: str) -> list[str]:
 MACHINES_OWN = ("libstdc++.so.6", "libgcc_s.so.1")
 
 
+# Qt plug-ins that bring GTK and GLib's I/O library into the process. Each of those then loads
+# its own plug-ins from the user's system (input methods, gvfs, dconf), which are built for the
+# system's GLib and not for the older one a bundle carries. On a system newer than the build
+# machine every one failed ("undefined symbol: g_task_set_static_name"), the ibus input method
+# among them. ELI Legal needs neither: it draws its own widgets, and file dialogs are the
+# desktop's own through its portal (packaging/pyinstaller/entry_gui.py asks for that).
+LOADS_THE_SYSTEMS_PLUGINS = ("platformthemes/libqgtk3.so", "networkinformation/libqglib.so")
+THEIR_LIBRARIES = ("libgtk-3.so.0", "libgdk-3.so.0", "libgio-2.0.so.0")
+
+
+def only_needed_by(gone: set[str], needs: dict[str, list[str]]) -> set[str]:
+    """`gone` and every file that only files in it need, by NEEDED entry, to the end of the
+    chain. `needs` maps each file to the library names it needs; a library nothing names (one
+    opened by name at run time) is never added."""
+    gone = set(gone)
+    while True:
+        users: dict[str, set[str]] = {}
+        for path, sonames in needs.items():
+            for soname in sonames:
+                users.setdefault(soname, set()).add(path)
+        more = {path for path in needs
+                if path not in gone and users.get(os.path.basename(path))
+                and users[os.path.basename(path)] <= gone}
+        if not more:
+            return gone
+        gone |= more
+
+
+def trim(root: str) -> list[str]:
+    """Remove those plug-ins and what only they needed. Returns what was removed."""
+    needs: dict[str, list[str]] = {}
+    for folder, _dirs, files in os.walk(root):
+        for name in files:
+            path = os.path.join(folder, name)
+            if not os.path.islink(path) and (".so" in name or os.access(path, os.X_OK)):
+                needs[os.path.relpath(path, root)] = _needed(path)
+    start = {path for path in needs if path.replace(os.sep, "/").endswith(LOADS_THE_SYSTEMS_PLUGINS)}
+    names = {os.path.basename(path) for path in only_needed_by(start, needs)}
+    removed = []
+    for folder, _dirs, files in os.walk(root):
+        for name in files:
+            if name in names:                      # the file, and any link to it by the same name
+                os.remove(os.path.join(folder, name))
+                removed.append(os.path.relpath(os.path.join(folder, name), root))
+    return sorted(removed)
+
+
 def carried(root: str) -> list[str]:
     found = sorted({name for _f, _d, files in os.walk(root) for name in files if name in MACHINES_OWN})
-    return [f"the bundle carries {name}; it must come from the user's system (see the spec)"
-            for name in found]
+    problems = [f"the bundle carries {name}; it must come from the user's system (see the spec)"
+                for name in found]
+    for folder, _dirs, files in os.walk(root):
+        for name in files:
+            path = os.path.join(folder, name).replace(os.sep, "/")
+            if path.endswith(LOADS_THE_SYSTEMS_PLUGINS) or name in THEIR_LIBRARIES:
+                problems.append(f"the bundle carries {name}, which loads the user's system's "
+                                f"plug-ins into the bundle's older GLib; build with --trim")
+    return sorted(problems)
 
 
 def main(argv: list[str]) -> int:
+    if argv[:1] == ["--trim"] and len(argv) == 2:
+        if not shutil.which("readelf"):
+            print("check_bundle: readelf not found, cannot trim", file=sys.stderr)
+            return 2
+        removed = trim(argv[1])
+        print(f"check_bundle: removed {len(removed)} files that only the GTK and GLib I/O "
+              f"plug-ins needed" + (": " + ", ".join(removed) if removed else ""))
+        return 0
     if not argv:
         print(__doc__)
         return 2
