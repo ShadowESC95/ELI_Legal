@@ -5,7 +5,7 @@
 | Linux | `packaging/linux/build.sh` | `ELI_Legal-<v>-linux-<arch>.AppImage`, `.run` (installer), `eli-legal_<v>_<arch>.deb`, `.tar.gz` | Yes, on the development machine |
 | Windows | `packaging\windows\build.ps1` | `ELI_Legal-<v>-windows-x64-setup.exe` (Inno Setup) | By the release workflow: silent install, start, uninstall. Not used by a person |
 | macOS | `packaging/macos/build.sh` | `ELI_Legal-<v>-macos-<arch>.dmg` | By the release workflow: the program runs the synthetic dispute. Not used by a person |
-| Any, from source | `./install.sh` or `install.ps1` | a private Python environment and launchers | `install.sh` on Linux; `install.ps1` not yet run |
+| Any, from source | `./install.sh` or `install.ps1` | a private Python environment and launchers | Both, by the tests on every change: Linux, macOS and Windows, installed, started and removed |
 
 `.github/workflows/release.yml` builds and tests all of them. Run by hand it publishes nothing;
 on a version tag (`git tag -a v1.2.3 -m ... && git push origin v1.2.3`) it attaches them, with

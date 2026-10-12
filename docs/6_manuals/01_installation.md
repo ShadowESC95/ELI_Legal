@@ -8,7 +8,7 @@
 | Linux (Ubuntu, Debian and others, x86-64) | `ELI_Legal-<version>-linux-x86_64.run`, or the `.deb` on Debian and Ubuntu | Built and tested |
 | Windows 10 or 11 (64-bit) | `ELI_Legal-<version>-windows-x64-setup.exe` | Built and smoke-tested by the release workflow; not yet opened by a person |
 | macOS, Apple silicon or Intel | `ELI_Legal-<version>-macos-arm64.dmg` or `-x86_64.dmg` | Built and smoke-tested by the release workflow; not yet opened by a person |
-| Anything with Python 3.10 or newer | `install.sh` or `install.ps1` from the source tree | `install.sh` tested on Linux; `install.ps1` not yet run |
+| Anything with Python 3.10 or newer | `install.sh` or `install.ps1` from the source tree | Both are run on Linux, macOS and Windows by the tests on every change: installed, started and removed |
 
 Download them from the [releases page](https://github.com/ShadowESC95/ELI_Legal/releases). They
 need nothing else: Python and the graphical toolkit are included. To build them yourself, see
@@ -24,10 +24,10 @@ download against the published `SHA256SUMS` before running it.
 One file. Nothing is installed and nothing else is needed.
 
 ```
-chmod +x ELI_Legal-0.6.0-linux-x86_64.AppImage
-./ELI_Legal-0.6.0-linux-x86_64.AppImage                 # the desktop application
-./ELI_Legal-0.6.0-linux-x86_64.AppImage serve --help    # the server
-./ELI_Legal-0.6.0-linux-x86_64.AppImage doctor          # any command-line command
+chmod +x ELI_Legal-0.6.1-linux-x86_64.AppImage
+./ELI_Legal-0.6.1-linux-x86_64.AppImage                 # the desktop application
+./ELI_Legal-0.6.1-linux-x86_64.AppImage serve --help    # the server
+./ELI_Legal-0.6.1-linux-x86_64.AppImage doctor          # any command-line command
 ```
 
 With no arguments it opens the desktop application; with arguments it is the command line and
@@ -38,8 +38,8 @@ system has no FUSE, add `--appimage-extract-and-run` as the first argument.
 ### The installer
 
 ```
-sh ELI_Legal-0.6.0-linux-x86_64.run --verify     # check the file is intact; installs nothing
-sh ELI_Legal-0.6.0-linux-x86_64.run              # install for you
+sh ELI_Legal-0.6.1-linux-x86_64.run --verify     # check the file is intact; installs nothing
+sh ELI_Legal-0.6.1-linux-x86_64.run              # install for you
 ```
 
 It installs the program to `~/.local/opt/eli-legal`, adds the commands `eli-legal` and
@@ -57,7 +57,7 @@ administrator rights. If `~/.local/bin` is not on your `PATH`, it tells you.
 ### The Debian package
 
 ```
-sudo apt install ./eli-legal_0.6.0_amd64.deb
+sudo apt install ./eli-legal_0.6.1_amd64.deb
 ```
 
 Remove it with `sudo apt remove eli-legal`. Your data is kept.

@@ -4,20 +4,14 @@ Governed legal case preparation: it takes the papers in a dispute, establishes w
 
 ## Fixed in this release
 
-- **No model ran on a graphics card.** The llama.cpp inside every 0.5.0 installer was a processor-only build, so the "layers on the graphics card" setting did nothing and a model of ordinary size was too slow to use.
-- **A model could not be chosen from Settings, Model.** With no model set, Apply failed with "no GGUF model file at (none)": the empty verifier box was read as a file name.
-- A model no longer chosen stayed loaded until the program closed.
+- **Chat and every model step failed with some models.** "The model did not return a usable answer (… 'str object' has no attribute 'text')": the model's own chat template reads each message as a list of parts and failed on plain text (Mistral Small 3.1 among them). The conversation is now given in the form the model's template takes: plain text, parts, or, for a template with no system message, the instructions at the head of the question. Which form was used is on the model's report.
+- **Errors in the terminal on Linux**, on every start, on a system newer than the build machine: "undefined symbol: g_task_set_static_name … Failed to load module", "Loading IM context type 'ibus' failed". The installers carried GTK and GLib's I/O library, which loaded the system's newer plug-ins. The Linux builds now carry neither; file dialogs are the desktop's own, through its portal.
+- **"TypeError: 'NoneType' object is not callable" on closing** after a model had been used. Models are closed before Python shuts down.
 
 ## New in this version
 
-- **The graphics card is used.** NVIDIA (CUDA or Vulkan), AMD and Intel (Vulkan), Apple (Metal). The llama.cpp that uses the card is switched on only after it has shown, in a process of its own, that it can use this machine's card. It comes from the installer (Vulkan, Linux and Windows), from ELI v2 or v3 if either is installed, or from a file an administrator installs. Nothing is downloaded.
-- **A model is placed by measurement.** The memory free on the card and in the machine when the model loads, and the model's own costs read from its file, decide the context and the layers on the card; there is no fixed size for any model or machine. Context and layers are "automatic" by default. What loaded is shown, and recorded in the audit trail as llama.cpp reported it.
-- **Each step fits its material to the model's context** and says what it left out. A reply cut off mid-answer is refused, not used; a failed summary says why.
-- **The model writes literally.** No manner of its own, no opinion, no figure of speech: only what the sources state. Recorded on each run as system prompt version 2.
-- Settings, Model shows the machine, the llama.cpp in use and how the selected model would be placed. On the command line: `eli-legal gpu status`, `eli-legal gpu install <file>`, `eli-legal model plan <file>`.
-- Opened from ELI v3, the model is held to JSON, and a prompt that would not fit ELI v3's context is refused where ELI v3 would have shortened it without saying so.
-
-If you chose a GGUF model in 0.5.0, its settings were saved as 8192 tokens and 0 layers: open Settings, Model, set both to automatic and Apply.
+- **Installing from source installs the model runtime.** `install.sh` and `install.ps1` add llama.cpp at the version the graphics packs are built at, and what a graphics pack needs, so a pack runs where llama.cpp cannot be compiled. If it cannot be built the installation still completes and says what is missing.
+- **Missing system libraries are named.** On a system without the libraries Qt needs (a server, a minimal install) the desktop application said PySide6 was missing. It now lists every missing library and the command that installs them; `install.sh` adds them itself where that needs no password.
 
 ## Which file
 
@@ -44,6 +38,8 @@ Every one of them includes the desktop application, the server with its browser 
 - **Windows:** the program ran the synthetic dispute; the setup program was installed silently, started and uninstalled. The desktop application was not opened by a person.
 - **macOS:** the program ran the synthetic dispute. The disk image was not opened by a person.
 - The test suite (desktop application, server, browser application, security, the whole lifecycle) passes on Linux, Windows and macOS.
-- **The graphics card:** on Linux with an NVIDIA RTX 2060 SUPER (8 GB), through ELI v3's CUDA pack and through the Vulkan pack the installer ships, in the installed program as built here. A 7-billion-parameter model was placed wholly on the card, ran the synthetic dispute to an approved report and answered in the matter chat. AMD, Intel and Apple cards, and any card on Windows or macOS, were not run on real hardware: there the same code runs, checked by its tests only.
+- **Installing from source:** `install.sh` on Linux and macOS and `install.ps1` on Windows were run on clean machines; each built llama.cpp, started the program and the window toolkit, and uninstalled.
+- **The chat template fix:** checked against the template inside the Mistral Small 3.1 file that failed, filled in by llama.cpp's own code. That 24-billion-parameter model was not run to an answer here.
+- **The graphics card:** on Linux with an NVIDIA RTX 2060 SUPER (8 GB), through ELI v3's CUDA pack and through the Vulkan pack the installer ships, in the installed program as built here. A model was placed wholly on the card and ran the synthetic dispute to an approved report (a 7-billion-parameter model in 0.6.0, a small one in this build). AMD, Intel and Apple cards, and any card on Windows or macOS, were not run on real hardware: there the same code runs, checked by its tests only.
 
 Installation and first steps: [docs/6_manuals/01_installation.md](https://github.com/ShadowESC95/ELI_Legal/blob/@TAG@/docs/6_manuals/01_installation.md).
