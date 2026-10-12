@@ -27,7 +27,7 @@ Settings, Model shows the machine, the llama.cpp in use and how the selected mod
 | Chat says "model: none — answers are the sources themselves" | No model is chosen | Settings, Model, choose one and Apply |
 | "no GGUF model file at (none)" when applying a model (0.5.0) | The verifier box was read as a file name | Fixed in 0.6.0 |
 | "… is present, but the llama.cpp in use has no graphics support" | No graphics pack passed on this card, so the model runs on the processor | See the note under it for why each pack was not used; install one from a file, or install the graphics driver |
-| "… did not start on this card" | The pack's own test failed: a driver that is missing, too old, or (Vulkan) without its loader | Update the graphics driver; on Linux install `libvulkan1` and the card's Vulkan driver |
+| "… did not start on this card" | The pack's own test failed. The note gives the system's reason: a system older than the packs are built for ("version `GLIBC_2.38' not found"), a driver that is missing or too old, or (Vulkan) no loader | A system as new as Ubuntu 24.04; update the graphics driver; on Linux install `libvulkan1` and the card's Vulkan driver |
 | "… is not the version built into this copy" | An installed copy can only use a pack of its own llama.cpp version | Install the pack of that version from a file |
 | Fewer layers on the card than the model has | That is what fits the graphics memory free now with the context the work needs | Close what else is using the card (it is named); or choose a smaller model or quantisation |
 | "other programs are using the card's memory: …" | Another program holds graphics memory | Close it, or have it release the model it keeps loaded |

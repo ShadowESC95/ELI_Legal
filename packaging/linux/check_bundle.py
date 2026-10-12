@@ -9,7 +9,8 @@ Ubuntu 22.04) but not libxkbcommon-x11, so the host's libxkbcommon-x11 (1.13 on 
 loaded against it, and the window crashed on the first key press.
 
     check_bundle.py DIR     exit 1 when such a split exists, naming the package to install on the
-                            build machine so both halves are bundled
+                            build machine so both halves are bundled; and when the bundle carries
+                            the C++ runtime, which must be the user's system's own
 
 Reads package ownership with dpkg, so it judges on Debian and Ubuntu build machines; elsewhere it
 says it cannot and exits 0.
@@ -89,6 +90,19 @@ def splits(root: str) -> list[str]:
     return sorted(problems.values())
 
 
+# Libraries every system has, that a process can hold one copy of, and that are only ever newer
+# on the user's machine than on the build machine. A bundled copy is the old one, and it is then
+# the one the machine's graphics drivers and a graphics pack are given. 0.6.0's first build
+# carried them and no graphics pack could start: "GLIBCXX_3.4.32 not found".
+MACHINES_OWN = ("libstdc++.so.6", "libgcc_s.so.1")
+
+
+def carried(root: str) -> list[str]:
+    found = sorted({name for _f, _d, files in os.walk(root) for name in files if name in MACHINES_OWN})
+    return [f"the bundle carries {name}; it must come from the user's system (see the spec)"
+            for name in found]
+
+
 def main(argv: list[str]) -> int:
     if not argv:
         print(__doc__)
@@ -97,10 +111,11 @@ def main(argv: list[str]) -> int:
         if not shutil.which(tool):
             print(f"check_bundle: {tool} not found, cannot check", file=sys.stderr)
             return 2
-    if not shutil.which("dpkg"):
+    found = carried(argv[0])
+    if shutil.which("dpkg"):
+        found += splits(argv[0])
+    else:
         print("check_bundle: no dpkg on this build machine, library pairs not checked")
-        return 0
-    found = splits(argv[0])
     for line in found:
         print(f"check_bundle: {line}", file=sys.stderr)
     return 1 if found else 0

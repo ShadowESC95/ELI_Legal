@@ -73,6 +73,14 @@ a = Analysis(
     # and no pack could ever be switched on.
     module_collection_mode={"llama_cpp": "py"},
 )
+# The C++ runtime is the machine's own, never the build machine's. A process holds one copy; a
+# frozen build made on an old system carries an old one, and it then also serves whatever is
+# loaded later that needs a newer: a graphics pack, the machine's graphics drivers. With it
+# bundled no pack could place a layer on a card ("GLIBCXX_3.4.32 not found"). Every system has
+# both libraries, and never older than its C library, which the installer already checks.
+if sys.platform.startswith("linux"):
+    a.binaries = [b for b in a.binaries if Path(b[0]).name not in ("libstdc++.so.6", "libgcc_s.so.1")]
+
 pyz = PYZ(a.pure)
 
 def program(script, name, console):

@@ -64,7 +64,7 @@ Priority: optional
 Architecture: $DEB_ARCH
 Maintainer: $MAINTAINER
 Installed-Size: $(du -sk "$DEB" | cut -f1)
-Depends: libc6 (>= ${GLIBC:-2.31}), libgl1, libegl1, libxkbcommon0, libfontconfig1, libdbus-1-3, libxcb-cursor0
+Depends: libc6 (>= ${GLIBC:-2.31}), libstdc++6, libgcc-s1, libgl1, libegl1, libxkbcommon0, libfontconfig1, libdbus-1-3, libxcb-cursor0
 Description: Governed legal case preparation
  Decision support for qualified legal professionals: takes the papers in a
  dispute, establishes what is said and by whom, finds and checks the law, and

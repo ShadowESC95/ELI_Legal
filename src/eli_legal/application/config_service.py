@@ -54,7 +54,7 @@ class ConfigService:
 
     def machine(self) -> dict[str, Any]:
         """What there is to run a model on, and the llama.cpp that will run it. No paths."""
-        hw = hardware.detect(force=True)
+        hw = hardware.detect()
         runtime = gpu_runtime.current()
         return {
             "summary": hw.describe(),

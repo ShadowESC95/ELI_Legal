@@ -170,13 +170,20 @@ class GgufInference:
         return loaded.report if loaded else None
 
     def plan(
-        self, *, margin_mb: int = 0, on_card: bool = True, ctx: int | None = None
+        self,
+        *,
+        margin_mb: int = 0,
+        on_card: bool = True,
+        ctx: int | None = None,
+        fresh: bool = False,
     ) -> fit.LoadPlan:
-        """What would be asked of llama.cpp if the model were loaded now."""
+        """What would be asked of llama.cpp if the model were loaded now. A load reads the
+        machine afresh; a screen showing this may use a reading up to half a minute old (on
+        Windows without nvidia-smi a reading takes seconds)."""
         module = gpu_runtime.llama()
         return fit.plan(
             self.path,
-            hardware.detect(force=True),
+            hardware.detect(force=fresh),
             gpu_offload=gpu_runtime.supports_offload(),
             want_ctx=self.want_ctx if ctx is None else ctx,
             want_layers=self.want_layers if on_card else 0,
@@ -211,7 +218,7 @@ class GgufInference:
         last = "llama.cpp gave no reason"
         previous: fit.LoadPlan | None = None
         for _ in range(_LOAD_ATTEMPTS):
-            plan = self.plan(margin_mb=margin, on_card=on_card, ctx=ctx)
+            plan = self.plan(margin_mb=margin, on_card=on_card, ctx=ctx, fresh=True)
             if previous is not None and (plan.n_ctx, plan.n_gpu_layers, plan.n_batch) == (
                 previous.n_ctx,
                 previous.n_gpu_layers,

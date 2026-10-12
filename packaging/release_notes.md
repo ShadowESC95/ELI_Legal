@@ -36,7 +36,7 @@ Every one of them includes the desktop application, the server with its browser 
 
 - **These builds are not signed.** Windows SmartScreen and macOS Gatekeeper will warn. Check your download against `SHA256SUMS` first: `sha256sum -c SHA256SUMS --ignore-missing`.
 - **No licence accompanies this release.** All rights are reserved by the author.
-- The Linux builds are made on Ubuntu 22.04 and run there and on anything newer.
+- The Linux builds are made on Ubuntu 22.04 and run there and on anything newer. The graphics card is used on Ubuntu 24.04, Debian 13, Fedora 39 or newer (C library 2.38), which the graphics packs need; on an older system a model runs on the processor.
 
 ## What was tested
 
@@ -44,6 +44,6 @@ Every one of them includes the desktop application, the server with its browser 
 - **Windows:** the program ran the synthetic dispute; the setup program was installed silently, started and uninstalled. The desktop application was not opened by a person.
 - **macOS:** the program ran the synthetic dispute. The disk image was not opened by a person.
 - The test suite (desktop application, server, browser application, security, the whole lifecycle) passes on Linux, Windows and macOS.
-- **The graphics card:** on Linux with an NVIDIA RTX 2060 SUPER (8 GB), through ELI v3's CUDA pack and through the Vulkan pack the installer ships. A 7-billion-parameter model was placed wholly on the card, ran the synthetic dispute to an approved report and answered in the matter chat. AMD, Intel and Apple cards, and any card on Windows or macOS, were not run on real hardware: there the same code runs, checked by its tests only.
+- **The graphics card:** on Linux with an NVIDIA RTX 2060 SUPER (8 GB), through ELI v3's CUDA pack and through the Vulkan pack the installer ships, in the installed program as built here. A 7-billion-parameter model was placed wholly on the card, ran the synthetic dispute to an approved report and answered in the matter chat. AMD, Intel and Apple cards, and any card on Windows or macOS, were not run on real hardware: there the same code runs, checked by its tests only.
 
 Installation and first steps: [docs/6_manuals/01_installation.md](https://github.com/ShadowESC95/ELI_Legal/blob/@TAG@/docs/6_manuals/01_installation.md).

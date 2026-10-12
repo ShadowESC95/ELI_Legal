@@ -19,6 +19,7 @@ import ctypes
 import json
 import logging
 import os
+import platform
 import re
 import shutil
 import subprocess
@@ -636,6 +637,10 @@ def _detect() -> Hardware:
         return hw
 
     native = _windows_cards() or _macos_cards()
+    if not native and sys.platform == "darwin" and platform.machine().lower() == "arm64":
+        # Apple's own chips always carry graphics that share the system's memory, whether or
+        # not the system lists a display (a machine with none attached, a virtual one).
+        native = [("Apple silicon graphics", 0)]
     if native:
         name, total_mb = max(native, key=lambda c: (_is_discrete(c[0]), c[1]))
         vendor = _vendor_of(name)

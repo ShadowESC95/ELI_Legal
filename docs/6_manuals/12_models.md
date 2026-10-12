@@ -94,6 +94,12 @@ are the ones published with ELI
 (`cuda-llama_cpp_python-<version>-….whl`, `vulkan-llama_cpp_python-<version>-….whl`); an installed
 copy uses only a pack of the same llama.cpp version as its built-in one.
 
+On Linux a pack needs a system as new as the one the packs are built on (C library 2.38: Ubuntu
+24.04, Debian 13, Fedora 39, or newer). On an older system the pack's own test fails, the reason
+is shown in the system's own words, and the model runs on the processor. ELI Legal uses the
+system's C++ runtime, not a copy of its own, for the same reason: a pack and the machine's
+graphics drivers need the newer one.
+
 `eli-legal gpu status` shows the machine, the llama.cpp in use and the packs found.
 
 ## Installing GGUF support from source

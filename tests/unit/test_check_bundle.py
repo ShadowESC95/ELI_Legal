@@ -77,3 +77,13 @@ def test_the_release_build_installs_both_halves():
     assert "check_bundle.py" in (ROOT / "packaging/linux/build.sh").read_text(encoding="utf-8")
     # the command line never touches the keyboard path: the release types into the window
     assert "window_smoke.sh" in workflow
+
+
+def test_a_bundle_that_carries_the_c_plus_plus_runtime_is_refused(tmp_path):
+    # the build machine's copy is older than what a graphics pack and the user's graphics
+    # drivers need, and a process holds only one
+    assert check_bundle.carried(_bundle(tmp_path, "libQt6Core.so.6", "libgomp.so.1")) == []
+    (tmp_path / "deeper").mkdir()
+    (tmp_path / "deeper" / "libstdc++.so.6").write_bytes(b"\x7fELF")
+    found = check_bundle.carried(_bundle(tmp_path, "libgcc_s.so.1"))
+    assert len(found) == 2 and "libstdc++.so.6" in found[1] and "user's system" in found[0]

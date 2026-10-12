@@ -94,6 +94,7 @@ _lock = threading.RLock()
 _state: tuple[Runtime, Any] | None = None  # (what was decided, the module it describes)
 _failed: dict[str, str] = {}  # pack path -> why it did not pass, for this process
 _builtin: str | None = None
+_not_loaded: list[str] = []  # pack libraries the system refused, with its reason
 
 
 # ── finding packs ────────────────────────────────────────────────────────────
@@ -186,7 +187,10 @@ def _order(packs: list[Pack], hw: hardware.Hardware) -> list[Pack]:
 def _load(path: Path | str, *, share: bool = False) -> bool:
     try:
         ctypes.CDLL(str(path), mode=ctypes.RTLD_GLOBAL if share else ctypes.DEFAULT_MODE)
-    except OSError:
+    except OSError as exc:
+        # kept for the probe to report: the system's own words for why a pack cannot run here
+        # (most often a C or C++ library older than the one the pack was built with)
+        _not_loaded.append(f"{Path(str(path)).name}: {exc}")
         return False
     return True
 
@@ -298,7 +302,11 @@ def probe(pack_dir: str) -> int:
     _switch_on(Path(pack_dir))
     module, offload = _import_llama()
     if not offload:
-        print("gpu-runtime-no-offload", getattr(module, "__version__", ""))
+        refused = next((r for r in _not_loaded if "ggml" in r), "")
+        print(
+            "it loaded but cannot place layers on a card"
+            + (f": the system refused {refused[:300]}" if refused else "")
+        )
         return 2
     print(PROBE_OK, getattr(module, "__version__", ""))
     return 0

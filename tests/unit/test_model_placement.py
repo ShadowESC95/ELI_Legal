@@ -120,6 +120,18 @@ def test_a_card_that_cannot_be_asked_is_an_estimate_or_unknown_never_a_reading(m
     assert "could not be read" in unknown.describe()
 
 
+def test_an_apple_chip_has_graphics_that_share_memory_even_when_no_display_is_listed(monkeypatch):
+    _answers(monkeypatch, {}, smi=None)
+    monkeypatch.setattr(hardware.sys, "platform", "darwin")
+    monkeypatch.setattr(hardware.platform, "machine", lambda: "arm64")
+    monkeypatch.setattr(hardware, "_macos_cards", lambda: [])
+    hw = hardware._detect()
+    assert hw.has_gpu and hw.gpu_integrated and hw.gpu_vendor == "apple"
+    assert 0 < hw.free_vram_mb <= 20 * 1024 and not hw.vram_measured
+    monkeypatch.setattr(hardware.platform, "machine", lambda: "x86_64")
+    assert not hardware._detect().has_gpu, "an Intel Mac with nothing listed has nothing to use"
+
+
 def test_other_programs_holding_the_card_are_named(monkeypatch):
     _answers(
         monkeypatch,
@@ -341,6 +353,17 @@ def test_the_probe_runs_in_a_process_of_its_own_and_fails_a_pack_that_cannot_pla
     assert good.returncode == 0 and gpu_runtime.PROBE_OK + " 9.9.9" in good.stdout, good.stderr
     bad = probe(_pack(tmp_path / "bad", offload=False))
     assert bad.returncode == 2 and gpu_runtime.PROBE_OK not in bad.stdout
+    assert "cannot place layers on a card" in bad.stdout
+
+
+def test_a_pack_library_the_system_refuses_is_reported_in_the_system_s_own_words(
+    tmp_path, monkeypatch
+):
+    # an installed copy that carried an older C++ runtime gave every pack this, silently
+    monkeypatch.setattr(gpu_runtime, "_not_loaded", [])
+    missing = tmp_path / "libggml-cuda.so"
+    assert gpu_runtime._load(missing) is False
+    assert gpu_runtime._not_loaded and gpu_runtime._not_loaded[0].startswith("libggml-cuda.so: ")
 
 
 def test_in_an_installed_copy_a_pack_of_another_llama_cpp_version_is_refused(monkeypatch, tmp_path):
@@ -716,6 +739,8 @@ def test_the_pack_an_installer_ships_is_the_built_in_llama_cpp_s_version_and_is_
     assert 'copy_metadata("llama-cpp-python")' in spec and '"gpu-packs"' in spec
     # from the frozen archive the built-in copy would always be the one imported
     assert 'module_collection_mode={"llama_cpp": "py"}' in spec
+    # and with the build machine's C++ runtime inside, no pack's libraries would load at all
+    assert '("libstdc++.so.6", "libgcc_s.so.1")' in spec
     out = subprocess.run(
         [sys.executable, str(root / "scripts" / "fetch_gpu_pack.py"), "--version"],
         capture_output=True,
