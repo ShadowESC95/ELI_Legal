@@ -7,6 +7,7 @@ and named only the first library missing.
 
 import subprocess
 import types
+from pathlib import Path
 
 import pytest
 
@@ -39,9 +40,7 @@ def _system(monkeypatch, ldd, tools, apt_knows=()):
 
     def run(cmd, **kw):
         if cmd[0] == "ldd":
-            return types.SimpleNamespace(
-                stdout=ldd.get(cmd[1].rsplit("/", 1)[-1], ""), returncode=0
-            )
+            return types.SimpleNamespace(stdout=ldd.get(Path(cmd[1]).name, ""), returncode=0)
         if cmd[:2] == ["apt-cache", "show"]:
             return types.SimpleNamespace(stdout="", returncode=0 if cmd[2] in apt_knows else 100)
         raise AssertionError(cmd)
