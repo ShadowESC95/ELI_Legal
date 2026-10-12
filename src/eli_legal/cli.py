@@ -189,8 +189,10 @@ def cmd_gui(args: argparse.Namespace) -> int:
     try:
         from eli_legal.gui.app import main as gui_main
     except ImportError as exc:
+        from eli_legal.system_libraries import window_cannot_start
+
         raise SystemExit(
-            f"the desktop application needs PySide6: pip install 'eli-legal[gui]'  ({exc})"
+            f"the desktop application cannot start. {window_cannot_start(exc)}"
         ) from exc
     return int(gui_main([]))
 

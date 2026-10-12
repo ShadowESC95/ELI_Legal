@@ -54,6 +54,28 @@ echo "Creating a private Python environment in $PREFIX ..."
 echo "Installing ELI Legal and what it needs ..."
 "$PREFIX/venv/bin/python" -m pip install --quiet "$ROOT[$EXTRAS,packs]"
 
+# Qt needs a few libraries that belong to the system (OpenGL, X11 and Wayland pieces). A desktop
+# has them; a minimal system does not, and the desktop application would not start. All of them
+# are found at once and added when that takes no password; otherwise the command is given.
+if [ "$EXTRAS" = "all" ] && [ "$(uname -s)" = "Linux" ]; then
+  libraries() { "$PREFIX/venv/bin/python" -c "from eli_legal import system_libraries as s; $1" 2>/dev/null || true; }
+  NEEDS="$(libraries 'print(s.install_command(s.missing())[0] or "")')"
+  if [ -n "$NEEDS" ]; then
+    if [ "$(id -u)" -eq 0 ]; then AS_ROOT="${NEEDS#sudo }"; elif sudo -n true 2>/dev/null; then AS_ROOT="$NEEDS"; else AS_ROOT=""; fi
+    if [ -n "$AS_ROOT" ]; then
+      echo "Adding the system libraries the desktop application needs:  $NEEDS"
+      DEBIAN_FRONTEND=noninteractive sh -c "$AS_ROOT" >/dev/null 2>&1 || true
+    fi
+  fi
+  LEFT="$(libraries 'print(s.explain(s.missing()) or "")')"
+  if [ -n "$LEFT" ]; then
+    echo
+    echo "The desktop application cannot start on this system yet. $LEFT"
+    echo "The command line and the server do not need them."
+    echo
+  fi
+fi
+
 # llama.cpp runs GGUF model files in process. At the version the graphics packs are built at:
 # two versions' libraries cannot share a process. It is compiled on this machine when there is
 # no ready-made build for it, and the program is complete without it (a model server works).
