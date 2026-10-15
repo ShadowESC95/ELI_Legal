@@ -46,6 +46,9 @@ def launch(argv: list[str] | None = None, *, host: dict[str, Any] | None = None)
     matters are there whichever way ELI Legal is opened. Unless a model has been chosen in ELI
     Legal's own settings, it uses the model ELI v3 has loaded.
     """
+    from eli_legal import licensing
+
+    licensing.hosted_by_eli()
     os.environ.setdefault("ELI_LEGAL_HOME", str(_data_home()))
     os.environ["ELI_LEGAL_MODE"] = "eli_v3"
     if host:

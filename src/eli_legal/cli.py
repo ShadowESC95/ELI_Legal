@@ -809,6 +809,38 @@ def cmd_bundle(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_licence(args: argparse.Namespace) -> int:
+    from eli_sdk import InvalidKey
+
+    from eli_legal import licensing
+
+    if args.licence_cmd == "activate":
+        try:
+            lic = licensing.activate(args.key)
+        except InvalidKey as exc:
+            print(f"not activated: {exc}", file=sys.stderr)
+            return 2
+        print(f"activated: {lic.label} {lic.major_version}.x, {lic.tier}, {lic.seats} seat(s)")
+        return 0
+    if args.licence_cmd == "remove":
+        print(
+            "removed this machine's ELI Legal key"
+            if licensing.remove()
+            else "no ELI Legal key here"
+        )
+        return 0
+    got = licensing.status()
+    _out(
+        {
+            "licensed": got.granted,
+            "reason": got.reason,
+            "required": licensing.required(),
+            "keys": str(licensing.store().directory),
+        }
+    )
+    return 0
+
+
 def cmd_framework(args: argparse.Namespace) -> int:
     from eli_legal.legal.frameworks import pack_to_dict
 
@@ -1271,6 +1303,14 @@ def build_parser() -> argparse.ArgumentParser:
             "--into", help="ELI v3's bundles folder, if not the usual one"
         )
 
+    p = add("licence", cmd_licence, "this copy's licence: show it, activate a key, remove it")
+    s = p.add_subparsers(dest="licence_cmd")
+    s.add_parser("status")
+    s.add_parser("activate").add_argument(
+        "key", help="an ELI Legal key, or an ELI v3 key that includes it"
+    )
+    s.add_parser("remove")
+
     p = add("model", cmd_model, "show, find or choose the model")
     s = p.add_subparsers(dest="model_cmd", required=True)
     s.add_parser("show")
@@ -1305,6 +1345,9 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+_UNLICENSED_COMMANDS = {"licence", "bundle"}
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     for stream in (sys.stdout, sys.stderr):
@@ -1312,6 +1355,12 @@ def main(argv: list[str] | None = None) -> int:
         reconfigure = getattr(stream, "reconfigure", None)
         if reconfigure is not None:
             reconfigure(errors="replace")
+    if args.command not in _UNLICENSED_COMMANDS:
+        from eli_legal import licensing
+
+        if not licensing.allowed():
+            print(licensing.explain(), file=sys.stderr)
+            return 3
     try:
         return int(args.handler(args))
     except EliLegalError as exc:

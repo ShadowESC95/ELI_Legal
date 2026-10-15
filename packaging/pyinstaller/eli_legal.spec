@@ -22,6 +22,7 @@ ICON = str(ICON) if ICON and ICON.exists() else None
 # sources ship too, so the register check can confirm that every control still points at code.
 datas = collect_data_files("eli_legal", include_py_files=True)
 datas += copy_metadata("eli-legal")
+datas += collect_data_files("eli_sdk")
 for name in ("THIRD_PARTY_NOTICES.md", "LICENSE", "NOTICE", "README.md"):
     if (ROOT / name).is_file():
         datas.append((str(ROOT / name), "."))

@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFormLayout,
+    QInputDialog,
     QLineEdit,
     QMessageBox,
     QVBoxLayout,
@@ -213,8 +214,36 @@ def _model_at_start(session: Session, phrase: str) -> None:
         )
 
 
+def _licensed() -> bool:
+    """Ask for a key until one licenses this copy, or the user stops."""
+    from eli_sdk import InvalidKey
+
+    from eli_legal import licensing
+
+    if licensing.allowed():
+        return True
+    reason = licensing.status().reason
+    while True:
+        key, ok = QInputDialog.getText(
+            None,
+            "ELI Legal licence",
+            f"ELI Legal needs a licence: {reason}.\n\n"
+            "Paste your ELI Legal key, or an ELI v3 key that includes ELI Legal.\n"
+            f"Buy one: {licensing.BUY}",
+        )
+        if not ok or not key.strip():
+            return False
+        try:
+            licensing.activate(key)
+            return True
+        except InvalidKey as exc:
+            reason = str(exc)
+
+
 def main(argv: list[str] | None = None) -> int:
     app = create_application(argv)
+    if not _licensed():
+        return 0
     settings = Settings()
     try:
         _ensure_key(settings)
