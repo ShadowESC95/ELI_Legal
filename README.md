@@ -192,7 +192,6 @@ question and Bundles menu).
 - **No live legal database.** The one working connector reads a corpus you load yourself. Whether
   a case is still good law is only as reliable as the status data in that corpus.
 - **No encryption at rest and no OCR.** Use an encrypted volume; convert scans before ingestion.
-- **No licence yet.** The repository has no licence file; all rights are reserved until one is chosen.
 - **Unsigned installers.** The Windows and macOS builds are made and smoke-tested by the release workflow but have not been used by a person.
 - **No single sign-on or hardware keys.** Passphrase, lock-out and one-time codes only.
 - **Not penetration-tested.** Keep the server on an internal network.
@@ -216,3 +215,11 @@ question and Bundles menu).
 | `docs/` | [the documentation](docs/README.md): project, requirements, architecture, security, legal and compliance, manuals |
 | `packaging/`, `install.sh`, `install.ps1` | installers |
 | `tests/` | unit, security, integration, evaluation, edition contract, server, browser, desktop |
+
+## Licence
+
+ELI Legal is proprietary commercial software, © 2026 Jason Fitzgibbon Bridgeman, all rights
+reserved. It is licensed only under the ELI End User Licence Agreement and the ELI Legal Product
+Schedule, set out in full in [LICENSE](LICENSE) and shipped with every build: a licence to ELI Legal
+bought on its own, or an ELI v3 licence that includes it. Third-party components keep their own
+licences ([THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).

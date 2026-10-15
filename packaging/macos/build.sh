@@ -33,7 +33,7 @@ fi
 mkdir -p "$OUT" build/dmg
 rm -rf build/dmg/* "$DMG"
 cp -R "$APP" build/dmg/
-cp packaging/INSTALL_NOTICE.txt THIRD_PARTY_NOTICES.md build/dmg/
+cp LICENSE packaging/INSTALL_NOTICE.txt THIRD_PARTY_NOTICES.md build/dmg/
 ln -s /Applications build/dmg/Applications
 hdiutil create -volname "ELI Legal $VERSION" -srcfolder build/dmg -ov -format UDZO "$DMG" >/dev/null
 
