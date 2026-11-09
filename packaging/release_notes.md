@@ -4,14 +4,20 @@ Governed legal case preparation: it takes the papers in a dispute, establishes w
 
 ## Fixed in this release
 
-- **Chat and every model step failed with some models.** "The model did not return a usable answer (… 'str object' has no attribute 'text')": the model's own chat template reads each message as a list of parts and failed on plain text (Mistral Small 3.1 among them). The conversation is now given in the form the model's template takes: plain text, parts, or, for a template with no system message, the instructions at the head of the question. Which form was used is on the model's report.
-- **Errors in the terminal on Linux**, on every start, on a system newer than the build machine: "undefined symbol: g_task_set_static_name … Failed to load module", "Loading IM context type 'ibus' failed". The installers carried GTK and GLib's I/O library, which loaded the system's newer plug-ins. The Linux builds now carry neither; file dialogs are the desktop's own, through its portal.
-- **"TypeError: 'NoneType' object is not callable" on closing** after a model had been used. Models are closed before Python shuts down.
+- **The last four steps of a run stayed "pending"** after the report was approved and released: review, release preparation, recipient approval and delivery were never recorded. Each is recorded now, with who did it, and the step panel says what it is waiting for, with the decision, release and hold buttons.
+- **Nobody could put the work on hold at the human stages.** Anyone working on a matter can now hold a run while it waits for review, or suspend reliance on an approved report and stop its release; only a decision-maker can lift the hold.
+- **A mediation brief's shared version could carry a drafted argument built on one party's confidential material.** An argument is now never shown more widely than what it rests on.
 
 ## New in this version
 
-- **Installing from source installs the model runtime.** `install.sh` and `install.ps1` add llama.cpp at the version the graphics packs are built at, and what a graphics pack needs, so a pack runs where llama.cpp cannot be compiled. If it cannot be built the installation still completes and says what is missing.
-- **Missing system libraries are named.** On a system without the libraries Qt needs (a server, a minimal install) the desktop application said PySide6 was missing. It now lists every missing library and the command that installs them; `install.sh` adds them itself where that needs no password.
+- **Home: what to do next.** Where the open matter stands (set up, documents, analysis, holds, review, release), your role on it, the next things to do with a button to each (or who can do them if you cannot), and what is waiting for you on every matter. Pages are grouped down the left.
+- **Opening a matter step by step,** with its team, each person's role on it, the reviewers, sources and laws; and documents taken in file by file, with a plain account of what was read and what was not.
+- **Roles on each matter and redaction.** Lead, decision-maker, case worker, assistant, observer or auditor: a role on a matter only narrows what someone's account allows. Material a person is not cleared for (the neutral's own notes, what one party gave in confidence, privileged work) is withheld everywhere with the reason, never the content. Observers and auditors see contact, bank, card and identity numbers masked.
+- **Every legal requirement reads as met, waiting for your organisation, or due for review**, not "partial". What only an organisation can do is a list of actions recorded in the application in a named person's name: the classification, the impact assessment, training, retention, the accuracy evaluation the system runs itself, the Annex IV documentation and the declaration of conformity it drafts from its own records, registration and the rest. The register now covers EU AI Act Articles 8, 18, 20 to 24 and 47 to 49 as well.
+- **Routine checks, every day:** whether each authority relied on is still good law, when each law package was last checked against its official text, the age of source data, stored originals against their hashes, compliance, accounts and training, retention, old holds and serious-incident reporting deadlines. A change of law in an approved report, or an altered original, opens an incident.
+- **Hard offline,** enforced by the operating system's kernel rather than inside Python: on Linux a filter on every thread that nothing in the program can remove until it exits, also stopping native code such as llama.cpp and any program it starts; on macOS the kernel sandbox; on Windows a firewall rule. Settings, System, or `eli-legal network`.
+- **Live EU and UK law.** Once their licence is read and they are approved: the EU's Publications Office and EUR-Lex (whether legislation is in force, from and until when, and what repealed it) and the UK's legislation.gov.uk (the version in force on the matter's relevant date) and Find Case Law. No open database records whether a judgment was later overruled: that still goes to a person.
+- **Plain words everywhere.** Reports open with "At a glance" and group their limits; holds say what they mean and what can be done; chat, the audit trail and the command line say states as a person would. `eli-legal status` says what to do next.
 
 ## Which file
 
@@ -29,7 +35,7 @@ Every one of them includes the desktop application, the server with its browser 
 ## Before you run it
 
 - **These builds are not signed.** Windows SmartScreen and macOS Gatekeeper will warn. Check your download against `SHA256SUMS` first: `sha256sum -c SHA256SUMS --ignore-missing`.
-- **No licence accompanies this release.** All rights are reserved by the author.
+- **An installed copy needs a licence key:** one for ELI Legal, or an ELI v3 key that includes it. The terms are in `LICENSE`, shipped with every build.
 - The Linux builds are made on Ubuntu 22.04 and run there and on anything newer. The graphics card is used on Ubuntu 24.04, Debian 13, Fedora 39 or newer (C library 2.38), which the graphics packs need; on an older system a model runs on the processor.
 
 ## What was tested
@@ -38,6 +44,8 @@ Every one of them includes the desktop application, the server with its browser 
 - **Windows:** the program ran the synthetic dispute; the setup program was installed silently, started and uninstalled. The desktop application was not opened by a person.
 - **macOS:** the program ran the synthetic dispute. The disk image was not opened by a person.
 - The test suite (desktop application, server, browser application, security, the whole lifecycle) passes on Linux, Windows and macOS.
+- **Hard offline** was proved on Linux: after it was switched on the kernel refused Python, native code, an earlier thread, io_uring and a child process, and a server kept answering on its port. On macOS and Windows its code is tested but it has not been run on those systems.
+- **The live EU and UK connectors** were run against the live services on 9 November 2026 with the network guard on; the test suite answers them from recorded responses.
 - **Installing from source:** `install.sh` on Linux and macOS and `install.ps1` on Windows were run on clean machines; each built llama.cpp, started the program and the window toolkit, and uninstalled.
 - **The chat template fix:** checked against the template inside the Mistral Small 3.1 file that failed, filled in by llama.cpp's own code. That 24-billion-parameter model was not run to an answer here.
 - **The graphics card:** on Linux with an NVIDIA RTX 2060 SUPER (8 GB), through ELI v3's CUDA pack and through the Vulkan pack the installer ships, in the installed program as built here. A model was placed wholly on the card and ran the synthetic dispute to an approved report (a 7-billion-parameter model in 0.6.0, a small one in this build). AMD, Intel and Apple cards, and any card on Windows or macOS, were not run on real hardware: there the same code runs, checked by its tests only.
