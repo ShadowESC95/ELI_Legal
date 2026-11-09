@@ -37,6 +37,15 @@ jobs:
       # The graphics pack shipped inside the installer, checked against its checksum.
       - run: python scripts/fetch_gpu_pack.py
       - run: PYTHON=python packaging/linux/build.sh
+      # The built program needs a licence to start. The checks below use an ELI Legal key kept
+      # as the ELI_LEGAL_CI_KEY secret, in a key folder of this run's own, thrown away with it.
+      - name: A licence for the checks of the built program
+        env:
+          ELI_LEGAL_CI_KEY: ${{ secrets.ELI_LEGAL_CI_KEY }}
+        run: |
+          test -n "$ELI_LEGAL_CI_KEY" || { echo "::error::ELI_LEGAL_CI_KEY is not set: add an ELI Legal key as an Actions secret"; exit 1; }
+          echo "ELI_KEYS_DIR=$RUNNER_TEMP/eli-keys" >> "$GITHUB_ENV"
+          ELI_KEYS_DIR="$RUNNER_TEMP/eli-keys" eli-legal licence activate "$ELI_LEGAL_CI_KEY" > /dev/null
       - name: The installer installs, runs and uninstalls; the AppImage runs
         run: |
           sh dist/installers/ELI_Legal-*-linux-*.run --verify
@@ -80,6 +89,18 @@ jobs:
       - run: powershell -ExecutionPolicy Bypass -File packaging\windows\build.ps1
         env:
           PYTHON: python
+      # The built program needs a licence to start. The checks below use an ELI Legal key kept
+      # as the ELI_LEGAL_CI_KEY secret, in a key folder of this run's own, thrown away with it.
+      - name: A licence for the checks of the built program
+        shell: pwsh
+        env:
+          ELI_LEGAL_CI_KEY: ${{ secrets.ELI_LEGAL_CI_KEY }}
+        run: |
+          if (-not $env:ELI_LEGAL_CI_KEY) { echo "::error::ELI_LEGAL_CI_KEY is not set: add an ELI Legal key as an Actions secret"; exit 1 }
+          "ELI_KEYS_DIR=$env:RUNNER_TEMP\eli-keys" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          $env:ELI_KEYS_DIR = "$env:RUNNER_TEMP\eli-keys"
+          eli-legal licence activate $env:ELI_LEGAL_CI_KEY | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "the ELI_LEGAL_CI_KEY key was refused" }
       - name: The frozen program runs the demonstration
         run: build\dist\eli-legal\eli-legal.exe demo
       - name: The graphics pack is inside the program, and the machine report runs without a card
@@ -124,6 +145,15 @@ jobs:
         env:
           CMAKE_ARGS: "-DGGML_NATIVE=OFF"
       - run: PYTHON=python packaging/macos/build.sh
+      # The built program needs a licence to start. The checks below use an ELI Legal key kept
+      # as the ELI_LEGAL_CI_KEY secret, in a key folder of this run's own, thrown away with it.
+      - name: A licence for the checks of the built program
+        env:
+          ELI_LEGAL_CI_KEY: ${{ secrets.ELI_LEGAL_CI_KEY }}
+        run: |
+          test -n "$ELI_LEGAL_CI_KEY" || { echo "::error::ELI_LEGAL_CI_KEY is not set: add an ELI Legal key as an Actions secret"; exit 1; }
+          echo "ELI_KEYS_DIR=$RUNNER_TEMP/eli-keys" >> "$GITHUB_ENV"
+          ELI_KEYS_DIR="$RUNNER_TEMP/eli-keys" eli-legal licence activate "$ELI_LEGAL_CI_KEY" > /dev/null
       - name: The frozen program runs the demonstration
         run: '"build/dist/ELI Legal.app/Contents/MacOS/eli-legal" demo'
       - name: The machine report runs (the built-in llama.cpp uses the card through Metal)

@@ -109,7 +109,9 @@ _ARCH = {
     "aarch64": (0xC00000B7, 198, 425, 277, None),
     "arm64": (0xC00000B7, 198, 425, 277, None),
 }
-_LOCAL_FAMILIES = (socket.AF_UNIX, 16)  # Unix domain sockets; netlink (16) carries no traffic out
+# Linux's own numbers, whatever system this module is imported on (Python on Windows has no
+# AF_UNIX): Unix domain sockets (1) and netlink (16), which carries no traffic out.
+_LOCAL_FAMILIES = (1, 16)
 _PR_SET_NO_NEW_PRIVS = 38
 _SECCOMP_SET_MODE_FILTER = 1
 _SECCOMP_FILTER_FLAG_TSYNC = 1

@@ -4,11 +4,11 @@
   "shipped": {
     "linux-x86_64": {
       "file": "vulkan-llama_cpp_python-0.3.35-py3-none-linux_x86_64.whl",
-      "sha256": "4444d528a2da947f61dd9d13a264fb5ba589803d709f6c153f456144d58ad236"
+      "sha256": "357ad088f3463add979156851d1e2e6d01c6e6c598b62f46042d177f37986ccf"
     },
     "windows-amd64": {
       "file": "vulkan-llama_cpp_python-0.3.35-py3-none-win_amd64.whl",
-      "sha256": "93b4a3badf3bf501faa513fc8b9c15f4f7c9b8fbbea2522cb149f433842e102f"
+      "sha256": "3806d70a1f90910dbdaf790775d9be7ecc935ee36c0bda0e9f0d4a3db3c1f6ad"
     }
   },
   "others": {
