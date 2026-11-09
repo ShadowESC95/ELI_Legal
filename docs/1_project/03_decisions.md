@@ -34,3 +34,36 @@ for a person, not a failure).
 
 **D-13 One profile per matter.** Tribunal-side and party-side use are different deployments with
 different users, outputs and regulatory posture.
+
+**D-14 A role on each matter narrows an account role; it never widens it.** Who someone is
+(their account role) and what they do on one matter (lead, decision-maker, case worker, assistant,
+observer, auditor) are separate, and both must allow an action. People already on matters when
+roles on a matter were introduced keep exactly what their account allowed, so nobody lost access.
+
+**D-15 Withhold, do not hide.** Material a person is not cleared for is listed as withheld, with
+the reason, rather than left out, so nobody is misled about what a matter holds; its words are
+never shown, and anything built from it (a drafted argument) is no more widely visible than it.
+
+**D-16 A requirement's status says whether it is met.** The register records what the software
+does; an organisation's duties are actions recorded in the application in a named person's name
+and reviewed on time. "Partial" described the software, not the requirement, and is no longer
+shown.
+
+**D-17 The forms are the templates.** In-application forms are read from the governance
+templates, so the questions cannot drift between paper and screen.
+
+**D-18 The system checks itself every day, and acts only where acting is certain.** It opens an
+incident when an approved report's law changes or a stored original is altered, and deletes a
+closed matter's content when its retention ends; everything else is reported for a person.
+Currency of the law comes from the approved sources and a named person's confirmation against the
+official text, because the network is denied by default.
+
+**D-19 One vocabulary.** Every state, reason, check, action and role a person is shown is worded
+once (`domain/plain.py`) and used by the desktop application, the reports, the command line and,
+through `/v1/words`, the browser application.
+
+**D-20 Hard offline is enforced by the kernel, not by Python.** Intercepting Python's sockets
+stops Python code only; native libraries, io_uring and child processes go round it. A seccomp
+filter (Linux), the kernel sandbox (macOS) or a firewall rule (Windows) cannot be bypassed from
+inside the program, and on Linux cannot be removed until it exits, so switching it off takes
+effect only at the next start.

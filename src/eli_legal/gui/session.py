@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QInputDialog, QLineEdit, QMessageBox, QWidget
 from eli_legal.application.services import Services
 from eli_legal.domain.errors import EliLegalError
 from eli_legal.domain.models import Matter, Run, User
-from eli_legal.security import authn
+from eli_legal.security import access, authn
 
 T = TypeVar("T")
 AUTH_METHOD = "gui-passphrase"
@@ -80,8 +80,8 @@ class Session(QObject):
             return False
         authz = self.sv.ctx.authorizer()
         matter = self.matter
-        if matter is not None and action.split(".")[0] not in {"user", "source", "config"}:
-            return authz.can_matter(matter, self.user_id, action)
+        if action in access.MATTER_ACTIONS:
+            return matter is not None and authz.can_matter(matter, self.user_id, action)
         return authz.bindings.can(self.user_id, action)
 
     # ── what is open ─────────────────────────────────────────────────────────

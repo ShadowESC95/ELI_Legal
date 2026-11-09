@@ -8,7 +8,7 @@
 'use strict';
 (() => {
   const S = { user: null, csrf: null, sys: null, wf: null, matters: [], matter: null, runs: [], run: null,
-    tab: 'matter', poll: null, picked: {}, need2fa: false };
+    tab: 'home', poll: null, picked: {}, need2fa: false, w: null };
   const root = document.getElementById('app');
 
   // ── building blocks ────────────────────────────────────────────────────────
@@ -34,6 +34,15 @@
     return el;
   }
   const words = (v) => String(v ?? '').replace(/_/g, ' ');
+  // The server's own words for states, checks, holds, roles and scopes (GET /v1/words), so this
+  // page says everything exactly as the desktop application and the reports do.
+  const say = (code) => (S.w && S.w.states[code]) || words(code).replace(/^./, (c) => c.toUpperCase());
+  const toneOf = (code) => (S.w && S.w.tones[code]) || '';
+  const tag = (code) => h('span', { class: toneOf(code) || null }, say(code));
+  const checkName = (code) => (S.w && S.w.checks[code] ? S.w.checks[code].name : words(code));
+  const holdWhy = (code) => (S.w && S.w.holds[code] ? S.w.holds[code].headline : words(code));
+  const roleName = (code) => (S.w && S.w.roles[code] ? S.w.roles[code].label : words(code));
+  const scopeName = (code) => (S.w && S.w.scopes[code] ? S.w.scopes[code].label : words(code));
   const when = (v) => (v ? String(v).slice(0, 19).replace('T', ' ') : '');
   const btn = (text, onclick, kind) => h('button', { class: kind || null, type: 'button', onclick }, text);
   const card = (title, ...kids) => h('section', { class: 'card' }, title ? h('h2', null, title) : null, ...kids);
@@ -160,7 +169,7 @@
     S.user = s.user; S.csrf = s.csrf;
     S.need2fa = s.second_factor_required && !s.user.second_factor;
     if (!S.need2fa) {
-      [S.sys, S.wf, S.matters] = await Promise.all([api('GET', '/v1/system'), api('GET', '/v1/workflow'), api('GET', '/v1/matters')]);
+      [S.sys, S.wf, S.matters, S.w] = await Promise.all([api('GET', '/v1/system'), api('GET', '/v1/workflow'), api('GET', '/v1/matters'), api('GET', '/v1/words')]);
       if (S.matters.length) await openMatter(S.matters[S.matters.length - 1].matter_id, false);
     }
     render();
@@ -225,7 +234,7 @@
   }
 
   // ── frame ──────────────────────────────────────────────────────────────────
-  const TABS = [['matter', '📁 Matter'], ['evidence', '📄 Evidence'], ['chat', '💬 Chat'], ['dag', '🕸 DAG'], ['agents', '🤖 Agents'],
+  const TABS = [['home', '🏠 Home'], ['matter', '📁 Matter'], ['evidence', '📄 Evidence'], ['chat', '💬 Chat'], ['dag', '🕸 DAG'], ['agents', '🤖 Agents'],
     ['findings', '🔎 Findings'], ['review', '⚖ Review'], ['audit', '🧾 Audit Trail'], ['governance', '🛡 Governance'], ['sources', '📚 Sources'], ['laws', '📜 Laws & Standards'], ['settings', '⚙ Settings']];
   const VIEWS = {};
 
@@ -234,7 +243,7 @@
     if (!S.user) { fill(root, signInView()); return; }
     if (S.need2fa) { fill(root, enrolView()); return; }
     const pick = h('select', { 'aria-label': 'Matter', onchange: (e) => attempt(() => openMatter(e.target.value)) },
-      S.matters.length ? S.matters.map((m) => h('option', { value: m.matter_id, selected: S.matter && m.matter_id === S.matter.matter_id }, `${m.name}  ·  ${m.status}`))
+      S.matters.length ? S.matters.map((m) => h('option', { value: m.matter_id, selected: S.matter && m.matter_id === S.matter.matter_id }, `${m.name}  ·  ${say(m.status).toLowerCase()}`))
         : h('option', { value: '' }, 'No matter yet'));
     const profile = S.matter ? S.sys.profiles.find((p) => p.profile === S.matter.profile) : null;
     const model = S.sys.model.active_model_id;
@@ -242,9 +251,11 @@
       h('header', { class: 'top' }, h('span', { class: 'brand' }, 'ELI Legal'), h('span', { class: 'muted' }, 'Matter'), pick,
         h('span', { class: 'muted' }, profile ? profile.label : ''), h('span', { class: 'spacer' }),
         h('span', { class: `chip ${S.sys.audit.ok ? 'good' : 'bad'}` }, S.sys.audit.ok ? `Audit verified · ${S.sys.audit.events} events` : 'AUDIT CHAIN INVALID'),
-        h('span', { class: 'chip good' }, `Network ${S.sys.network_default} by default`),
+        S.sys.network && S.sys.network.hard_offline
+          ? h('span', { class: `chip ${/kernel|Firewall/.test(S.sys.network.enforced_by) ? 'good' : 'warn'}`, title: S.sys.network.detail }, /kernel|Firewall/.test(S.sys.network.enforced_by) ? 'Hard offline (kernel-enforced)' : 'Hard offline (this program only)')
+          : h('span', { class: 'chip good' }, `Network ${S.sys.network_default} by default`),
         h('span', { class: `chip ${model && model !== 'none' ? 'good' : ''}` }, model && model !== 'none' ? `Model ${model}` : 'No model'),
-        h('span', { class: 'chip human' }, `${S.user.display_name} · ${S.user.roles.map(words).join(', ')}`), btn('Sign out', signOut)),
+        h('span', { class: 'chip human' }, `${S.user.display_name} · ${S.user.roles.map(roleName).join(', ')}`), btn('Sign out', signOut)),
       h('nav', { class: 'tabs', role: 'tablist' }, TABS.map(([id, text]) => h('button', { class: 'tab', role: 'tab', id: `tab-${id}`, 'aria-selected': String(S.tab === id), onclick: () => { S.tab = id; render(); } }, text))),
       h('main', { id: 'view', role: 'tabpanel' }),
       h('footer', { class: 'note' }, 'Decision support only. Nothing here may be relied on until a named reviewer has approved it.'));
@@ -265,51 +276,135 @@
   const needMatter = () => (S.matter ? null : card('No matter is open', h('p', { class: 'muted' }, 'Open one in the Matter tab first.')));
   const needRun = () => needMatter() || (S.run ? null : card('No run yet', h('p', { class: 'muted' }, 'Start one in the DAG tab once the documents are in.')));
   const runPicker = () => h('select', { 'aria-label': 'Run', onchange: (e) => attempt(() => openRun(e.target.value)) },
-    S.runs.map((r) => h('option', { value: r.run_id, selected: S.run && r.run_id === S.run.run_id }, `${when(r.created_at)}  ·  ${words(r.status)}  ·  ${r.run_id.slice(-8)}`)));
+    S.runs.map((r) => h('option', { value: r.run_id, selected: S.run && r.run_id === S.run.run_id }, `${when(r.created_at)}  ·  ${say(r.status)}  ·  ${r.run_id.slice(-8)}`)));
+
+  // ── Home ───────────────────────────────────────────────────────────────────
+  const PAGE_TAB = { matter: 'matter', evidence: 'evidence', workflow: 'dag', review: 'review', findings: 'findings', governance: 'governance', settings: 'settings', laws: 'laws' };
+  const PAGE_NAME = { matter: 'Matter', evidence: 'Evidence', workflow: 'DAG', review: 'Review', findings: 'Findings', governance: 'Governance', settings: 'Settings', laws: 'Laws & Standards' };
+  const goTo = (page) => { S.tab = PAGE_TAB[page] || page; render(); };
+  const MARK = { ok: '✓', attention: '!', failed: '✗', could_not_run: '?' };
+  const checkTone = (state) => (state === 'ok' ? 'good' : state === 'attention' ? 'warn' : 'bad');
+  VIEWS.home = async () => {
+    const home = await api('GET', '/v1/home');
+    const guide = S.matter ? await api('GET', `${M()}/guide`) : null;
+    const stage = (s, i) => h('div', { class: `stage ${s.state}`, title: s.detail }, h('b', null, `${i + 1}. ${s.title}`), h('div', null, s.state === 'current' ? 'Now' : say(s.state)));
+    const step = (s, first) => h('div', { class: 'step' },
+      h('div', null, h('b', null, s.title), h('div', { class: 'muted' }, s.why), s.can_do ? null : h('div', { class: 'warn' }, `You cannot do this. ${s.who}`)),
+      btn(`Go to ${PAGE_NAME[s.page] || words(s.page)} →`, () => goTo(s.page), first && s.can_do ? 'go' : null));
+    const matterCard = guide
+      ? card(guide.matter_name, h('p', null, guide.headline),
+        h('p', { class: 'muted' }, h('b', null, `Your role on this matter: ${guide.role}. `), `${guide.role_summary} ${guide.reads}`),
+        h('div', { class: 'stages' }, guide.stages.map(stage)), h('h3', null, 'What to do next'),
+        guide.steps.length ? guide.steps.map((s, i) => step(s, i === 0)) : h('p', { class: 'muted' }, 'Nothing is waiting on this matter.'))
+      : card('No matter is open', h('p', { class: 'muted' }, 'Open a matter to begin: it asks who it is for, the legal system, the parties and issues, the team and their roles, the sources and the laws.'),
+        h('div', { class: 'row' }, btn('Open a matter…', () => goTo('matter'), 'go')));
+    const c = home.checks;
+    const open = async (w) => { if (!S.matter || S.matter.matter_id !== w.matter_id) await openMatter(w.matter_id, false); goTo(w.page); };
+    return h('div', { class: 'cols' }, matterCard, h('div', null,
+      card('Waiting for you on your matters', home.work.length
+        ? table([['Matter', 'matter_name'], ['What', 'text', 'wide']], home.work, { onRow: (w) => attempt(() => open(w)) })
+        : h('p', { class: 'muted' }, 'Nothing is waiting for you.')),
+      card('Routine checks', c
+        ? [h('p', { class: checkTone(c.state) }, h('b', null, c.headline)), h('p', { class: 'muted' }, `Last run ${when(c.finished_at)} UTC by ${c.by}.`),
+          h('ul', null, c.results.map((r) => h('li', { title: [r.what_to_do, ...r.items.slice(0, 8).map((i) => i.text)].join('\n') },
+            h('span', { class: checkTone(r.state) }, MARK[r.state] || '?'), ` ${r.title}: ${r.summary}`)))]
+        : h('p', { class: 'muted' }, 'The routine checks have not run yet.'),
+      h('div', { class: 'row' }, btn('Details…', () => goTo('governance')))),
+      card("The organisation's compliance", h('p', null, home.compliance), h('div', { class: 'row' }, btn('Open compliance…', () => goTo('governance'))))));
+  };
 
   // ── Matter ─────────────────────────────────────────────────────────────────
   VIEWS.matter = async () => {
     const users = await api('GET', '/v1/users');
     const sources = await api('GET', '/v1/sources');
     const m = S.matter;
+    const OVERSIGHT = ['legal_admin', 'governance_officer', 'auditor', 'reviewer', 'read_only'];
     const create = async () => {
-      const packs = (await api('GET', '/v1/frameworks')).filter((f) => f.usable);
-      const v = await ask('Open a matter', [
+      // Four short steps instead of one long form; nothing is created until the last.
+      const one = await ask('Open a matter — 1 of 4: who it is for', [
+        { name: 'profile', label: 'Who the work is for (fixes who may work on it and what the output may say; it cannot be changed later)', type: 'select', options: S.sys.profiles.map((p) => [p.profile, p.label]) },
         { name: 'name', label: 'Name', required: true }, { name: 'purpose', label: 'What the work product is for', type: 'textarea', required: true },
-        { name: 'profile', label: 'Who it is for', type: 'select', options: S.sys.profiles.map((p) => [p.profile, p.label]) },
         { name: 'jurisdiction', label: 'Legal system', type: 'select', options: S.sys.jurisdictions.map((j) => [j.code, `${j.code} · ${j.name}${j.validated ? '' : ' (unvalidated pack)'}`]) },
         { name: 'forum', label: 'Court, tribunal or forum' }, { name: 'procedural_rules', label: 'Procedural rules' },
-        { name: 'relevant_date', label: 'Relevant date (the law is checked as at this date)', type: 'date' },
-        { name: 'parties', label: 'Parties, one per line as  Name: role', type: 'textarea', hint: 'Harbour Freight Ltd: claimant' },
-        { name: 'issues', label: 'Issues, one per line', type: 'textarea' },
+        { name: 'relevant_date', label: 'Assess the law as it stood on (usually when the events happened)', type: 'date' }], 'Next');
+      if (!one) return;
+      const profile = S.sys.profiles.find((p) => p.profile === one.profile);
+      const rep = one.profile === 'party_representative';
+      const two = await ask('Open a matter — 2 of 4: parties and issues', [
+        { name: 'parties', label: 'Parties, one per line as  Name: role', type: 'textarea', hint: 'Harbour Freight Ltd: claimant\nNorthwind Logistics Ltd: respondent', required: true },
+        { name: 'issues', label: 'Issues, one per line, each framed as a question', type: 'textarea', hint: 'Whether time for delivery was of the essence' },
+        rep ? { name: 'represented_party', label: 'The party you act for (exactly as named above)', required: true } : null].filter(Boolean), 'Next');
+      if (!two) return;
+      const parties = lines(two.parties).map((l) => { const i = l.lastIndexOf(':'); return i > 0 ? { name: l.slice(0, i).trim(), role: l.slice(i + 1).trim() || 'party' } : { name: l, role: 'party' }; });
+      const fits = (u) => u.active && u.user_id !== S.user.user_id && u.roles.some((r) => profile.roles.includes(r) || OVERSIGHT.includes(r));
+      const people = users.filter(fits);
+      const three = await ask('Open a matter — 3 of 4: the team', [
+        { name: 'team', label: 'Who else works on it (you lead it)', type: 'select', multiple: true, options: people.map((u) => [u.user_id, `${u.display_name} · ${u.roles.map(roleName).join(', ')}`]) },
+        { name: 'me_review', label: 'I review and approve the report myself', type: 'checkbox', value: S.user.roles.some((r) => profile.reviewer_roles.includes(r)) }], 'Next',
+        'Next you choose each person’s role on this matter.');
+      if (!three) return;
+      const roles = Object.entries(S.w.matter_roles).filter(([code]) => code !== 'lead');
+      let team = [], reviewers = three.me_review ? [S.user.user_id] : [];
+      if (three.team.length) {
+        const fields = three.team.flatMap((uid) => {
+          const u = people.find((x) => x.user_id === uid);
+          const canReview = u.roles.some((r) => profile.reviewer_roles.includes(r));
+          return [
+            { name: `role:${uid}`, label: `${u.display_name}: role on this matter`, type: 'select', options: roles.map(([code, r]) => [code, `${r.label} — ${r.summary}`]), value: canReview ? 'decision_maker' : 'case_worker' },
+            { name: `party:${uid}`, label: `${u.display_name}: acts for`, type: 'select', options: [['', '(nobody in particular)'], ...parties.map((p) => [p.name, p.name])] },
+            canReview ? { name: `review:${uid}`, label: `${u.display_name} reviews and approves`, type: 'checkbox' } : null];
+        }).filter(Boolean);
+        const roleAnswers = await ask('The team: their roles on this matter', fields, 'Next');
+        if (!roleAnswers) return;
+        team = three.team.map((uid) => ({ user_id: uid, matter_role: roleAnswers[`role:${uid}`], party: roleAnswers[`party:${uid}`] || null }));
+        reviewers = reviewers.concat(three.team.filter((uid) => roleAnswers[`review:${uid}`]));
+      }
+      const packs = (await api('GET', '/v1/frameworks')).filter((f) => f.usable);
+      const covering = sources.filter((x) => x.approved && (x.jurisdictions.includes(one.jurisdiction) || x.jurisdictions.includes('*')));
+      const four = await ask('Open a matter — 4 of 4: legal sources, law and standards', [
+        { name: 'sources', label: 'Approved legal sources it may use', type: 'select', multiple: true, options: sources.filter((x) => x.approved).map((x) => [x.source_id, `${x.name} · ${x.jurisdictions.join(', ')}`]), value: covering.map((x) => x.source_id) },
         { name: 'recommended', label: 'Apply the law and standards packages recommended for this kind of matter and legal system', type: 'checkbox', value: true },
-        { name: 'frameworks', label: 'Also apply (change them later in Laws & Standards)', type: 'select', multiple: true, options: packs.map((f) => [f.id, `${f.short_title} · ${f.scope}`]) }], 'Open');
-      if (!v) return;
+        { name: 'frameworks', label: 'Also apply (change them later in Laws & Standards)', type: 'select', multiple: true, options: packs.map((f) => [f.id, `${f.short_title} · ${f.scope}`]) }], 'Open the matter',
+        reviewers.length ? '' : 'No reviewer is named yet: the analysis will not start until someone is.');
+      if (!four) return;
       const made = await attempt(() => api('POST', '/v1/matters', {
-        name: v.name, purpose: v.purpose, profile: v.profile, jurisdiction: v.jurisdiction, forum: v.forum, procedural_rules: v.procedural_rules,
-        relevant_date: v.relevant_date || null, stated_issues: lines(v.issues), frameworks: v.frameworks, recommended_frameworks: v.recommended,
-        parties: lines(v.parties).map((l) => { const [name, role] = l.split(':'); return { name: name.trim(), role: (role || 'party').trim() }; }) }), 'Matter opened.');
+        name: one.name, purpose: one.purpose, profile: one.profile, jurisdiction: one.jurisdiction, forum: one.forum, procedural_rules: one.procedural_rules,
+        relevant_date: one.relevant_date || null, stated_issues: lines(two.issues), parties, represented_party: rep ? two.represented_party : null,
+        frameworks: four.frameworks, recommended_frameworks: four.recommended, team, reviewers, sources: four.sources }), 'Matter opened.');
       if (made && made !== true) { S.matters = await api('GET', '/v1/matters'); await openMatter(made.matter_id); }
     };
-    const left = card('Matters', table([['Name', 'name'], ['For', (r) => words(r.profile)], ['Law', 'jurisdiction'], ['State', (r) => words(r.status)]], S.matters,
+    const left = card('Matters', table([['Name', 'name'], ['For', (r) => words(r.profile)], ['Law', 'jurisdiction'], ['State', (r) => tag(r.status)]], S.matters,
       { onRow: (r) => attempt(() => openMatter(r.matter_id)), on: (r) => m && r.matter_id === m.matter_id, empty: 'You have no matters yet.' }),
       h('div', { class: 'row' }, btn('Open a matter…', create, 'go')));
     if (!m) return h('div', { class: 'cols' }, left, card('Start here', h('p', { class: 'muted' }, 'A matter fixes who the work is for, which legal system applies, who may see it and who must approve anything before it is relied on.')));
+    const profile = S.sys.profiles.find((p) => p.profile === m.profile);
     const name = (id) => { const u = users.find((x) => x.user_id === id); return u ? `${u.display_name} (${id})` : id; };
+    const members = await api('GET', `${M()}/members`);
+    const roleChoices = Object.entries(S.w.matter_roles).filter(([code]) => code !== 'lead').map(([code, r]) => [code, `${r.label} — ${r.summary}`]);
     const again = () => openMatter(m.matter_id);
     const choose = async (title, label, options, current, path, intro) => {
       const v = await ask(title, [{ name: 'ids', label, type: 'select', multiple: true, options, value: current }], 'Set', intro);
       if (v && await attempt(() => api('PUT', `${M()}/${path}`, { ids: v.ids }), 'Recorded.')) again();
     };
-    const right = card(m.name, facts([['State', words(m.status)], ['For', words(m.profile)], ['Legal system', m.jurisdiction], ['Forum', m.forum || '—'],
+    const right = card(m.name, facts([['State', say(m.status)], ['For', profile ? profile.label : words(m.profile)], ['Legal system', m.jurisdiction], ['Forum', m.forum || '—'],
       ['Rules', m.procedural_rules || '—'], ['Relevant date', m.relevant_date || 'not set'], ['Purpose', m.purpose]]),
       h('h3', null, 'Parties'), list(m.parties.map((p) => `${p.name} — ${p.role}`)),
       h('h3', null, 'Issues stated at intake'), list(m.stated_issues),
-      h('h3', null, 'Who has access'), list(m.authorised_user_ids.map(name)),
+      h('h3', null, 'The team'),
+      table([['Person', (x) => `${x.name} (${x.user_id})`], ['Role on this matter', (x) => (S.w.matter_roles[x.matter_role] || {}).label || words(x.matter_role)],
+        ['Acts for', (x) => x.party || '—'], ['Reads', (x) => (x.reads.length === 4 ? 'Everything' : x.reads.map(scopeName).join(', ') || 'Nothing (withheld)')],
+        ['Reviews', (x) => (x.reviewer ? 'yes' : '')]], members),
       h('div', { class: 'row' }, btn('Give access…', async () => {
-        const v = await ask('Give access', [{ name: 'user', label: 'Person', type: 'select', options: users.filter((u) => u.active && !m.authorised_user_ids.includes(u.user_id)).map((u) => [u.user_id, `${u.display_name} · ${u.roles.map(words).join(', ')}`]) }], 'Give access',
-          'Only someone whose role fits this kind of matter can be added.');
-        if (v && v.user && await attempt(() => api('POST', `${M()}/members/${encodeURIComponent(v.user)}`), 'Access given.')) again();
+        const v = await ask('Give access', [{ name: 'user', label: 'Person', type: 'select', options: users.filter((u) => u.active && !m.authorised_user_ids.includes(u.user_id)).map((u) => [u.user_id, `${u.display_name} · ${u.roles.map(roleName).join(', ')}`]) },
+          { name: 'matter_role', label: 'Their role on this matter', type: 'select', options: roleChoices, value: 'case_worker' },
+          { name: 'party', label: 'Acts for', type: 'select', options: [['', '(nobody in particular)'], ...m.parties.map((p) => [p.name, p.name])] }], 'Give access',
+          'Only someone whose account fits this kind of matter can be added. Their role on the matter can only narrow what their account allows.');
+        if (v && v.user && await attempt(() => api('POST', `${M()}/members/${encodeURIComponent(v.user)}`, { matter_role: v.matter_role, party: v.party || null }), 'Access given.')) again();
+      }), btn('Change a role…', async () => {
+        const others = members.filter((x) => !x.owner);
+        const v = await ask('Change a role on this matter', [{ name: 'user', label: 'Person', type: 'select', options: others.map((x) => [x.user_id, `${x.name} (${x.user_id})`]) },
+          { name: 'matter_role', label: 'Role on this matter', type: 'select', options: roleChoices }], 'Change', 'The person who opened the matter always leads it.');
+        if (v && v.user && await attempt(() => api('PATCH', `${M()}/members/${encodeURIComponent(v.user)}`, { matter_role: v.matter_role }), 'Role changed.')) again();
       }), btn('Remove access…', async () => {
         const v = await ask('Remove access', [{ name: 'user', label: 'Person', type: 'select', options: m.authorised_user_ids.map((u) => [u, name(u)]) }], 'Remove');
         if (v && v.user && await attempt(() => api('DELETE', `${M()}/members/${encodeURIComponent(v.user)}`), 'Access removed.')) again();
@@ -332,7 +427,7 @@
     const files = h('input', { type: 'file', multiple: true, 'aria-label': 'Files' });
     const party = h('select', { 'aria-label': 'Filed by' }, h('option', { value: '' }, 'Filed by: not a party'), S.matter.parties.map((p) => h('option', { value: p.party_id }, `Filed by: ${p.name}`)));
     const kind = h('select', { 'aria-label': 'Kind' }, h('option', { value: '' }, 'Kind: work it out'), S.sys.document_types.map((t) => h('option', { value: t }, words(t))));
-    const scope = h('select', { 'aria-label': 'Who may see it' }, S.sys.access_scopes.map((s) => h('option', { value: s }, `Seen by: ${words(s)}`)));
+    const scope = h('select', { 'aria-label': 'Who may see it' }, S.sys.access_scopes.map((s) => h('option', { value: s, title: S.w && S.w.scopes[s] ? S.w.scopes[s].meaning : '' }, `Who may see it: ${scopeName(s)}`)));
     const custodian = h('input', { placeholder: 'Custodian (who held it)' });
     const upload = async () => {
       if (!files.files.length) { note('Choose at least one file.'); return; }
@@ -358,7 +453,7 @@
     return h('div', { class: 'cols' },
       h('div', null, card('Take documents in', h('div', { class: 'row' }, files), h('div', { class: 'row' }, party, kind, scope), h('div', { class: 'row' }, custodian, btn('File them', upload, 'go')),
         h('p', { class: 'muted' }, 'Each file is stored once, read-only, addressed by its SHA-256. A file that cannot be read is reported, never guessed at.')),
-      card('Documents', table([['File', 'filename'], ['Kind', (d) => words(d.doc_type)], ['Filed by', (d) => partyName(d.party_id)], ['State', (d) => h('span', { class: d.status === 'processed' ? 'good' : 'warn' }, words(d.status))],
+      card('Documents', table([['File', 'filename'], ['Kind', (d) => words(d.doc_type)], ['Filed by', (d) => partyName(d.party_id)], ['State', (d) => tag(d.status)],
         ['Passages', 'passages'], ['Flags', (d) => (d.injection_flags.length ? h('span', { class: 'warn' }, 'flagged') : '')]], docs, { onRow: open, on: (d) => d.document_id === S.picked.doc }))),
       card(null, pane));
   };
@@ -426,6 +521,21 @@
     });
     return svg('svg', { class: 'dag', viewBox: `0 0 ${width} ${top - BAND + 16}`, role: 'group', 'aria-label': 'Case-preparation workflow' }, ...edges, ...nodes);
   }
+  // A person's controls over the human stages: hold (or suspend reliance), and lift.
+  const personHold = () => (S.run ? (S.run.open_holds || []).find((x) => x.reason === 'held_by_person') : null);
+  async function holdRun() {
+    const approved = S.run.status === 'approved_for_reliance';
+    const v = await reason(approved ? 'Suspend reliance' : 'Put the run on hold', (approved
+      ? 'The report is approved. Holding it suspends reliance on it and stops its release'
+      : 'Nothing will be approved or released') + ' until a decision-maker lifts the hold or the run is stopped. Why are you holding it?');
+    if (v && await attempt(() => api('POST', `${R()}/hold`, v), approved ? 'Reliance suspended, under your name.' : 'On hold, under your name.')) { await openRun(S.run.run_id, false); show(); }
+  }
+  async function liftHold() {
+    const held = personHold();
+    if (!held) { note('Nobody has put this run on hold.'); return; }
+    const v = await reason('Lift the hold', `It was put on hold because: “${held.detail.split(';').slice(1).join(';').trim()}”. The run returns to where it was. Why can it be lifted?`);
+    if (v && await attempt(() => api('POST', `${M()}/holds/${encodeURIComponent(held.hold_id)}/resolve`, { action: 'lift', reason: v.reason }), 'Hold lifted, under your name.')) { await openRun(S.run.run_id, false); show(); }
+  }
   const kindOf = (agent) => (agent.kind === 'model-assisted' ? 'model-assisted' : 'rule-based');
   const busy = () => S.run && (S.run.status === 'running' || S.run.status === 'created');
   VIEWS.dag = async () => {
@@ -435,7 +545,20 @@
     const pick = (id) => { S.picked.step = id; show(); };
     const step = S.wf.steps.find((s) => s.id === S.picked.step) || S.wf.steps[0];
     const done = S.run ? S.run.steps.find((s) => s.step === step.id) : null;
-    detail.append(h('h2', null, step.agent.name), h('p', null, step.agent.role), facts([['Status', words(done ? done.status : 'not run')],
+    if (step.manual && S.run) {
+      const held = personHold(), st = S.run.status, isReview = step.id === 'human_review';
+      const said = held ? `On hold: “${held.detail.split(';').slice(1).join(';').trim()}”. Nothing goes further until a decision-maker lifts the hold, or the run is stopped.`
+        : done && done.status === 'ok' ? `Done. ${done.detail || ''}`
+          : isReview && st === 'awaiting_human_review' ? `Waiting for a named reviewer (${S.matter.reviewer_user_ids.join(', ')}) to read the report, acknowledge each stated limit, and approve, return or reject it. Anyone working on the matter can put it on hold first.`
+            : !isReview && st === 'approved_for_reliance' ? 'Waiting for a person to prepare the release, confirm each recipient and stage it in the outbox. The approved report can still be put on hold, which suspends reliance on it.'
+              : `Not reached yet: the run is ${say(st).toLowerCase()}.`;
+      detail.append(card('What this step needs', h('p', null, said), h('div', { class: 'row' },
+        isReview ? btn('Open the decision…', () => { S.tab = 'review'; render(); }, st === 'awaiting_human_review' && !held ? 'go' : null)
+          : btn('Open the release…', () => { S.tab = 'review'; render(); }, st === 'approved_for_reliance' && !held ? 'go' : null),
+        !held && (st === 'awaiting_human_review' || st === 'approved_for_reliance') ? btn('Put on hold…', holdRun) : null,
+        held ? btn('Lift the hold…', liftHold) : null)));
+    }
+    detail.append(h('h2', null, step.agent.name), h('p', null, step.agent.role), facts([['Status', say(done ? done.status : 'pending')],
       ['Runs after', step.depends_on.map((d) => S.wf.steps.find((s) => s.id === d).agent.name).join(', ') || 'nothing: it is first'], ['Done by', step.manual ? 'a named person' : kindOf(step.agent)],
       done && done.detail ? ['Detail', done.detail] : null]), h('h3', null, 'What it recorded'), h('pre', null, done && Object.keys(done.outputs || {}).length ? JSON.stringify(done.outputs, null, 2) : '—'));
     const begin = async () => {
@@ -449,7 +572,8 @@
       if (v && await attempt(() => api('POST', `${R()}/resume`, { reason: v.reason, from_step: v.from_step || null }), 'Restarted.')) setTimeout(() => openRun(S.run.run_id), 400);
     };
     if (busy()) S.poll = setInterval(async () => { try { await openRun(S.run.run_id); } catch { /* shown on the next action */ } }, 1500);
-    const state = S.run ? `${words(S.run.status)}${S.run.open_holds.length ? ` · ${S.run.open_holds.length} hold(s) open` : ''}${S.run.open_tasks ? ` · ${S.run.open_tasks} check(s) for a person` : ''}` : 'no run yet';
+    const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+    const state = S.run ? `${say(S.run.status)}${S.run.open_holds.length ? ` · ${plural(S.run.open_holds.length, 'hold', 'holds')} open` : ''}${S.run.open_tasks ? ` · ${plural(S.run.open_tasks, 'check', 'checks')} for a person` : ''}` : 'no run yet';
     return h('div', null, h('div', { class: 'row' }, h('span', { class: 'muted' }, 'Run'), S.runs.length ? runPicker() : null, h('span', { class: `chip ${busy() ? 'warn' : ''}` }, state), h('span', { class: 'spacer' }),
       btn('▶ Start a run', begin, 'go'), btn('↻ Restart…', restart), btn('■ Stop', stop, 'danger')),
     h('div', { class: 'cols' }, card('Case-preparation workflow', dag(statuses, step.id, pick),
@@ -489,15 +613,15 @@
           { name: 'reason', label: 'What you checked it against, and what you found', type: 'textarea', required: true }], 'Record');
         if (v && await attempt(() => api('POST', `${M()}/claims/${encodeURIComponent(c.claim_id)}/verifications`, v), 'Recorded under your name.')) { await openRun(S.run.run_id, false); show(); }
       };
-      fill(pane, h('h2', null, `${words(c.kind)} · `, h('span', { class: c.status === 'verified' ? 'good' : c.status === 'held' ? 'warn' : 'muted' }, words(c.status))),
+      fill(pane, h('h2', null, `${words(c.kind)} · `, tag(c.status)),
         h('blockquote', null, c.text), facts([c.citation ? ['Citation', c.citation] : null, c.event_date ? ['Date', c.event_date] : null, ['Where it came from', words(c.origin)], c.status_reason ? ['Why', c.status_reason] : null]),
         h('h3', null, 'Source passages'), c.evidence.length ? c.evidence.map((e) => [h('div', { class: 'muted mono' }, `${e.locator} · ${words(e.relationship)}`), h('blockquote', null, e.quote)]) : h('p', { class: 'muted' }, 'None.'),
-        h('h3', null, 'Checks'), table([['Check', (v) => words(v.verification_type)], ['Result', (v) => h('span', { class: v.status === 'verified' ? 'good' : v.status === 'failed' ? 'bad' : 'warn' }, words(v.status))], ['By', (v) => (v.by_human ? `${v.verifier} (person)` : v.verifier)], ['Detail', (v) => v.reason || v.detail]], checks, { empty: 'No check has been run.' }),
+        h('h3', null, 'Checks'), table([['Check', (v) => checkName(v.verification_type)], ['Result', (v) => tag(v.status)], ['By', (v) => (v.by_human ? `${v.verifier} (person)` : v.verifier)], ['Detail', (v) => v.reason || v.detail]], checks, { empty: 'No check has been run.' }),
         h('div', { class: 'row' }, btn('Record a check by hand…', record)));
     };
     return h('div', null, h('div', { class: 'row' }, h('span', { class: 'muted' }, 'Run'), runPicker(), option('status', claims.map((c) => c.status), 'Status'), option('kind', claims.map((c) => c.kind), 'Kind'),
       h('input', { placeholder: 'Search findings', value: f.text, onchange: (e) => { f.text = e.target.value; show(); } }), h('span', { class: 'muted' }, `${shown.length} of ${claims.length}`)),
-    h('div', { class: 'cols' }, card('Findings', table([['Status', (c) => h('span', { class: c.status === 'verified' ? 'good' : c.status === 'held' ? 'warn' : 'muted' }, words(c.status))], ['Kind', (c) => words(c.kind)], ['Finding', 'text', 'clip']], shown, { onRow: open, on: (c) => c.claim_id === S.picked.claim })), card(null, pane)));
+    h('div', { class: 'cols' }, card('Findings', table([['Status', (c) => tag(c.status)], ['Kind', (c) => words(c.kind)], ['Finding', 'text', 'clip']], shown, { onRow: open, on: (c) => c.claim_id === S.picked.claim })), card(null, pane)));
   };
 
   // ── Review ─────────────────────────────────────────────────────────────────
@@ -534,15 +658,16 @@
           if (sent && sent !== true) fill(staged, list(sent.map((r) => `${r.recipient_id}: ${words(r.status)} ${r.detail || ''}`)), h('p', { class: 'muted' }, 'Staged in the outbox. Nothing has been sent anywhere.'));
         }, 'go')));
     };
-    return h('div', null, h('div', { class: 'row' }, h('span', { class: 'muted' }, 'Run'), runPicker(), h('span', { class: 'chip' }, words(S.run.status))),
-      card(`Holds (${holds.length})`, h('p', { class: 'muted' }, 'A hold closes when its check passes, or when a named person decides, with reasons. Nothing reaches review while one is open.'),
-        table([['Held', (x) => (x.scope === 'claim' ? 'a finding' : `a ${words(x.scope)}`)], ['Why', (x) => words(x.reason_code)], ['Detail', (x) => words(x.detail)], ['What', subject, 'wide'], ['', (x) => h('div', { class: 'row' }, btn('Take out of reliance…', () => resolve(x, 'exclude'), 'danger'), btn('Accept the gap…', () => resolve(x, 'waive')))]], holds, { empty: 'No open holds.' })),
-      card(`Checks for you (${tasks.filter((t) => t.status === 'open').length})`, table([['Check', (t) => words(t.verification_type)], ['Question', 'question'], ['Finding', (t) => subject({ subject_id: t.claim_id }), 'wide'], ['', (t) => (t.status === 'open' ? btn('Answer…', () => answer(t)) : words(t.status))]], tasks, { empty: 'Nothing is waiting for a person.' })),
+    return h('div', null, h('div', { class: 'row' }, h('span', { class: 'muted' }, 'Run'), runPicker(), h('span', { class: 'chip' }, say(S.run.status))),
+      card(`Holds (${holds.length})`, h('p', { class: 'muted' }, 'A hold closes when its check passes, or when a named person decides, with reasons. Nothing reaches review while one is open. Each reason below says what it means and what you can do.'),
+        holds.length ? h('ul', null, [...new Set(holds.map((x) => x.reason_code))].map((code) => h('li', null, h('b', null, `${holdWhy(code)}. `), S.w && S.w.holds[code] ? `${S.w.holds[code].why} ${S.w.holds[code].options.join(' ')}` : ''))) : null,
+        table([['Held', (x) => (x.scope === 'claim' ? 'a finding' : `a ${words(x.scope)}`)], ['Why', (x) => h('span', { title: S.w && S.w.holds[x.reason_code] ? `${S.w.holds[x.reason_code].why} ${S.w.holds[x.reason_code].options.join(' ')}` : '' }, holdWhy(x.reason_code))], ['What the system found', (x) => x.detail], ['What', subject, 'wide'], ['', (x) => (x.reason_code === 'held_by_person' ? h('div', { class: 'row' }, btn('Lift the hold…', liftHold)) : h('div', { class: 'row' }, btn('Take out of reliance…', () => resolve(x, 'exclude'), 'danger'), btn('Accept the gap…', () => resolve(x, 'waive'))))]], holds, { empty: 'No open holds.' })),
+      card(`Checks for you (${tasks.filter((t) => t.status === 'open').length})`, table([['Check', (t) => checkName(t.verification_type)], ['Question', 'question'], ['Finding', (t) => subject({ subject_id: t.claim_id }), 'wide'], ['', (t) => (t.status === 'open' ? btn('Answer…', () => answer(t)) : words(t.status))]], tasks, { empty: 'Nothing is waiting for a person.' })),
       h('div', { class: 'cols' }, card('Report', report ? [facts([['Version', report.version], ['State', h('span', { class: report.release_status === 'approved_for_reliance' ? 'good' : 'warn' }, words(report.release_status))], ['SHA-256', h('span', { class: 'mono' }, report.sha256)]]),
         h('div', { class: 'row' }, btn('Download', () => attempt(() => download('GET', `${R()}/report.md`, `report_${S.run.run_id}.md`)))), h('div', { class: 'scroll' }, h('pre', null, report.text))] : h('p', { class: 'muted' }, 'No report has been drafted for this run yet.')),
       h('div', null, card('Decision', report ? [h('p', { class: 'muted' }, 'You approve this exact version, and only after acknowledging every limit it states.'), ticks.map(([, box, text]) => h('label', { class: 'check' }, box, text)), h('label', null, 'Reasons'), reasons,
-        h('div', { class: 'row' }, btn('Approve for reliance', () => decide('approve'), 'go'), btn('Return for correction', () => decide('return_for_correction')), btn('Reject', () => decide('reject'), 'danger'))] : h('p', { class: 'muted' }, 'There is nothing to decide yet.')),
-      card('Release', h('p', { class: 'muted' }, 'An approved report is staged for entitled recipients you confirm one by one. The system sends nothing itself.'), people, h('div', { class: 'row' }, btn('Prepare the release', prepare)), staged))));
+        h('div', { class: 'row' }, btn('Approve for reliance', () => decide('approve'), 'go'), btn('Return for correction', () => decide('return_for_correction')), btn('Reject', () => decide('reject'), 'danger'), h('span', { class: 'spacer' }), btn('Put on hold…', holdRun), personHold() ? btn('Lift the hold…', liftHold) : null)] : h('p', { class: 'muted' }, 'There is nothing to decide yet.')),
+      card('Release', h('p', { class: 'muted' }, 'An approved report is staged for entitled recipients you confirm one by one. The system sends nothing itself.'), people, h('div', { class: 'row' }, btn('Prepare the release', prepare), h('span', { class: 'spacer' }), S.run.status === 'approved_for_reliance' ? btn('Suspend reliance (put on hold)…', holdRun) : null, personHold() ? btn('Lift the hold…', liftHold) : null), staged))));
   };
 
   // ── Audit Trail ────────────────────────────────────────────────────────────
@@ -556,12 +681,96 @@
     return h('div', null, card('Ledger', h('div', { class: 'row' }, h('span', { class: `chip ${S.sys.audit.ok ? 'good' : 'bad'}` }, `${events.length} events shown`), h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: global, onchange: (e) => { S.picked.globalAudit = e.target.checked; show(); } }), 'Events outside any matter (sign-ins, users, sources, settings)'), h('span', { class: 'spacer' }),
       btn('Verify the chain', verify, 'go'), S.run ? btn("Check this run's record", record) : null, btn('Download a checkpoint', () => attempt(() => download('POST', '/v1/audit/checkpoint', 'audit_checkpoint.json'))), S.run ? btn('Download the evidence pack', () => attempt(() => download('POST', `${R()}/evidence-pack`, `evidence_pack_${S.run.run_id}.zip`))) : null),
       h('p', { class: 'muted' }, 'Each event is signed over the one before it. Editing, removing or truncating events breaks the chain. The ledger holds identifiers and hashes, never document text.')),
-    h('div', { class: 'cols' }, card('Events', table([['#', 'seq'], ['When (UTC)', (e) => when(e.created_at)], ['Event', (e) => words(e.event_type)], ['Who', 'actor_id'], ['How identity was proved', (e) => (e.payload || {}).auth || ''], ['Action', 'action'], ['Outcome', (e) => words(e.outcome)]], events, { onRow: (e) => { pane.textContent = JSON.stringify(e, null, 2); } })), card('Selected event', pane)));
+    h('div', { class: 'cols' }, card('Events', table([['#', 'seq'], ['When (UTC)', (e) => when(e.created_at)], ['What happened', (e) => e.said || words(e.event_type)], ['Who', 'actor_id'], ['How they proved who they were', (e) => e.proof || (e.payload || {}).auth || ''], ['Action', 'action'], ['Outcome', (e) => words(e.outcome)]], events, { onRow: (e) => { pane.textContent = JSON.stringify(e, null, 2); } })), card('Selected event', pane)));
   };
 
   // ── Governance ─────────────────────────────────────────────────────────────
+  const GOV = [['compliance', 'Requirements'], ['actions', 'Organisation actions'], ['checks', 'Routine checks'], ['matters', 'All matters'], ['registers', 'Registers, monitoring and incidents']];
+  const today = () => new Date().toISOString().slice(0, 10);
+  const ACTION_STATE = { done: 'Done', waiting: 'To do', review_due: 'Review due', not_applicable: 'Does not apply' };
+  async function recordAction(a, users) {
+    const path = `/v1/compliance/actions/${encodeURIComponent(a.id)}`;
+    const done = (r) => r && r !== true;
+    if (a.evidence === 'form') {
+      const v = await ask(a.title, [...a.form.map((f) => ({ name: f.key, label: f.label, type: 'textarea', required: true })), { name: 'reference', label: 'Where the signed copy is kept (optional)' }], 'Record', a.what_to_do);
+      if (v) { const { reference, ...answers } = v; return done(await attempt(() => api('POST', path, { answers, reference }), 'Recorded under your name.')); }
+    } else if (a.evidence === 'attestation') {
+      const v = await ask(a.title, [{ name: 'confirmed', label: `I confirm: “${a.statement}”`, type: 'checkbox' }, { name: 'notes', label: 'Notes', type: 'textarea' }, { name: 'reference', label: 'Reference (optional)' }], 'Record', a.what_to_do);
+      if (v) return done(await attempt(() => api('POST', path, v), 'Recorded under your name.'));
+    } else if (a.evidence === 'registration') {
+      const v = await ask(a.title, [{ name: 'reference', label: 'Registration number', required: true }, { name: 'notes', label: 'Notes', type: 'textarea' }], 'Record', a.what_to_do);
+      if (v) return done(await attempt(() => api('POST', path, v), 'Recorded under your name.'));
+    } else if (a.evidence === 'training') {
+      const v = await ask('Record training', [{ name: 'user_id', label: 'Person', type: 'select', options: users.filter((u) => u.active).map((u) => [u.user_id, `${u.display_name} (${u.user_id})`]) },
+        { name: 'course', label: 'Training', value: 'AI literacy and the instructions for use', required: true }, { name: 'completed_on', label: 'Completed on', type: 'date', value: today(), required: true },
+        { name: 'expires_on', label: 'Valid until (a year if blank)', type: 'date' }], 'Record', a.what_to_do);
+      if (v) return done(await attempt(() => api('POST', '/v1/compliance/training', { ...v, expires_on: v.expires_on || null }), 'Training recorded.'));
+    } else if (a.evidence === 'retention') {
+      const v = await ask('Retention', [{ name: 'audit_days', label: 'Keep the audit trail (days, at least 183)', type: 'number', value: '3653', required: true },
+        { name: 'closed_matter_days', label: 'Keep a closed matter’s documents (days)', type: 'number', value: '365', required: true }], 'Set', a.what_to_do);
+      if (v) return done(await attempt(() => api('POST', '/v1/compliance/retention', { audit_days: Number(v.audit_days), closed_matter_days: Number(v.closed_matter_days) }), 'Retention set.'));
+    } else if (a.evidence === 'evaluation') {
+      const r = await attempt(() => api('POST', '/v1/compliance/evaluation', {}));
+      if (done(r)) { note(r.summary, r.answers.passed === 'yes' ? 'good' : 'bad'); return true; }
+    } else if (a.evidence === 'document') {
+      const kind = a.id === 'OA-05' ? 'annex_iv' : 'declaration';
+      const drafted = await attempt(() => api('POST', `/v1/compliance/documents/${kind}`));
+      if (!done(drafted)) return false;
+      const url = URL.createObjectURL(new Blob([drafted.text], { type: 'text/markdown' }));
+      const link = h('a', { href: url, download: `${kind}.md` }); document.body.append(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      const v = await ask(`Sign off: ${a.title}`, [{ name: 'sha256', label: 'SHA-256 of the document you are signing off', value: drafted.sha256, required: true }, { name: 'notes', label: 'Notes', type: 'textarea' }], 'Sign off',
+        `The draft has been downloaded. Complete what only the provider can state, then sign it off. “${a.statement}”`);
+      if (v) return done(await attempt(() => api('POST', `${path}/sign-off`, v), 'Signed off under your name.'));
+    }
+    return false;
+  }
   VIEWS.governance = async () => {
-    const names = await api('GET', '/v1/governance/registers');
+    const pick = GOV.some(([k]) => k === S.picked.gov) ? S.picked.gov : 'compliance';
+    const sub = h('div', { class: 'subnav' }, GOV.map(([k, text]) => h('button', { 'aria-pressed': String(k === pick), onclick: () => { S.picked.gov = k; show(); } }, text)));
+    const body = await GOV_VIEWS[pick]();
+    return h('div', null, sub, body);
+  };
+  const GOV_VIEWS = {
+    compliance: async () => {
+      const c = await api('GET', '/v1/compliance');
+      return card(c.headline, h('p', { class: 'muted' }, 'Each requirement is met by the software, met once your organisation has recorded its part, or waiting for that. Working aids to check against the official texts: not legal advice, not a conformity assessment.'),
+        h('div', { class: 'scroll' }, table([['Ref', 'id'], ['Instrument', 'instrument'], ['Provision', 'reference'], ['Requirement', 'requirement', 'wide'], ['Who does it', 'who'], ['Status', (r) => tag(r.state)],
+          ['What remains', (r) => (r.actions.length ? r.actions.join(', ') : '—')], ['How it is met', 'how_met', 'clip']], c.requirements)));
+    },
+    actions: async () => {
+      const c = await api('GET', '/v1/compliance');
+      let users = [];
+      try { users = await api('GET', '/v1/users', undefined, { quiet: true }); } catch { /* not for this role */ }
+      const waiting = c.actions.filter((a) => a.state === 'waiting' || a.state === 'review_due').length;
+      const notApplicable = async (a) => {
+        const v = await reason(`${a.title}: it does not apply`, 'Say why it does not apply to this deployment. It is recorded in your name and reviewed again when its date comes.');
+        if (v && await attempt(() => api('POST', `/v1/compliance/actions/${encodeURIComponent(a.id)}`, { not_applicable: true, notes: v.reason }), 'Recorded.')) show();
+      };
+      return card(`Organisation actions (${waiting} to do)`, h('p', { class: 'muted' }, 'What the software cannot do for you. Record each one when done, or why it does not apply. Recording needs the governance or legal administrator role and your passphrase.'),
+        h('div', { class: 'scroll' }, table([['Action', (a) => `${a.id} ${a.title}`], ['What to do', 'what_to_do', 'wide'], ['For', (a) => words(a.owner)],
+          ['Status', (a) => h('span', { class: a.state === 'done' || a.state === 'not_applicable' ? 'good' : 'warn' }, ACTION_STATE[a.state] || say(a.state))], ['Where it stands', 'detail'],
+          ['', (a) => h('div', { class: 'row' }, btn('Record…', async () => { if (await recordAction(a, users)) show(); }, a.state === 'done' ? null : 'go'), btn('Does not apply…', () => notApplicable(a)))]], c.actions)));
+    },
+    checks: async () => {
+      const c = await api('GET', '/v1/checks');
+      const run = async () => { const r = await attempt(() => api('POST', '/v1/checks/run'), 'The routine checks have run.'); if (r) show(); };
+      const l = c.latest;
+      const schedule = c.every_hours > 0 ? `They run on their own every ${c.every_hours} hours.` : 'They run only when someone asks.';
+      return card('Routine checks', l ? [h('p', { class: checkTone(l.state) }, h('b', null, l.headline)), h('p', { class: 'muted' }, `Last run ${when(l.finished_at)} UTC by ${l.by}. ${schedule}`),
+        l.results.map((r) => h('details', { open: r.state !== 'ok' }, h('summary', null, h('span', { class: checkTone(r.state) }, MARK[r.state] || '?'), ` ${r.title}: ${r.summary}`),
+          r.what_to_do ? h('p', null, h('b', null, 'What to do: '), r.what_to_do) : null, r.items.length ? list(r.items.map((i) => i.text)) : null,
+          r.acted.length ? [h('p', null, h('b', null, 'What the check did:')), list(r.acted)] : null))]
+        : h('p', { class: 'muted' }, `The routine checks have not run yet. ${schedule}`), h('div', { class: 'row' }, btn('Run the checks now', run, 'go')));
+    },
+    matters: async () => {
+      let rows;
+      try { rows = await api('GET', '/v1/oversight/matters', undefined, { quiet: true }); } catch { return card('All matters', h('p', { class: 'muted' }, 'Overseeing every matter needs the auditor, governance or legal administrator role.')); }
+      return card('All matters', h('p', { class: 'muted' }, 'Every matter on this system. A matter you are not on shows no name, party or content.'),
+        table([['Matter', 'name'], ['For', (r) => words(r.profile)], ['Legal system', 'jurisdiction'], ['State', (r) => tag(r.status)], ['People', 'people'], ['Last run', (r) => (r.last_run ? tag(r.last_run) : 'none')], ['Open holds', 'open_holds']], rows));
+    },
+    registers: async () => {
+      const names = await api('GET', '/v1/governance/registers');
     const which = names.includes(S.picked.register) ? S.picked.register : names[0];
     const rows = await api('GET', `/v1/governance/registers/${encodeURIComponent(which)}`);
     let watch = null, incidents = [];
@@ -575,10 +784,19 @@
       const v = await ask('Close this incident', [{ name: 'containment', label: 'What was done to contain it', type: 'textarea', required: true }, { name: 'reason', label: 'Why it can be closed', type: 'textarea', required: true }], 'Close');
       if (v && await attempt(() => api('POST', `${M()}/incidents/${encodeURIComponent(i.incident_id)}/close`, v), 'Incident closed.')) show();
     };
+    const reporting = async (i) => {
+      const v = await ask('Decide on reporting (EU AI Act Art. 73)', [
+        { name: 'reportable', label: 'Decision', type: 'select', options: [['yes', 'Reportable to the market surveillance authority'], ['no', 'Not reportable']] },
+        { name: 'serious_kind', label: 'Kind', type: 'select', options: [['general', 'A serious incident (15 days)'], ['death', 'A person’s death (10 days)'], ['widespread', 'A widespread infringement or critical-infrastructure disruption (2 days)']] },
+        { name: 'reason', label: 'Your reasons', type: 'textarea', required: true }, { name: 'reported_on', label: 'Reported on (if it has been)', type: 'date' }, { name: 'reference', label: 'The authority’s reference' }], 'Record');
+      if (v && await attempt(() => api('POST', `${M()}/incidents/${encodeURIComponent(i.incident_id)}/reporting`, { ...v, reportable: v.reportable === 'yes', reported_on: v.reported_on || null }), 'Decision recorded under your name.')) show();
+    };
+    const reportState = (i) => (i.reported_at ? `reported ${when(i.reported_at).slice(0, 10)} (${i.report_reference})` : i.reportable === false ? 'not reportable' : i.severity === 'serious' ? h('span', { class: 'warn' }, 'decision needed') : '—');
     const cols = rows.length ? Object.keys(rows[0]).map((k) => [words(k), k]) : [];
     return h('div', null, card('Registers', h('div', { class: 'row' }, names.map((n) => h('button', { class: n === which ? 'go' : null, onclick: () => { S.picked.register = n; show(); } }, `${words(n)}`)), h('span', { class: 'muted' }, `${rows.length} rows. Each control names the code that carries it out and the tests that prove it; that link is checked automatically.`)), table(cols, rows)),
       h('div', { class: 'cols' }, card('Monitoring', watch ? [watch.alerts.length ? list(watch.alerts) : h('p', { class: 'good' }, 'No alert.'), facts(Object.entries(watch).filter(([k]) => k !== 'alerts').map(([k, v]) => [words(k), typeof v === 'object' ? JSON.stringify(v) : String(v)]))] : h('p', { class: 'muted' }, 'Your role does not include monitoring.')),
-        card('Incidents in this matter', table([['Opened', (i) => when(i.created_at)], ['Category', 'category'], ['Severity', (i) => words(i.severity)], ['State', (i) => words(i.status)], ['Detail', 'detail'], ['', (i) => (i.status === 'open' ? btn('Close…', () => close(i)) : '')]], incidents, { empty: 'None.' }), S.matter ? h('div', { class: 'row' }, btn('Open an incident…', open)) : null)));
+        card('Incidents in this matter', table([['Opened', (i) => when(i.created_at)], ['Category', 'category'], ['Severity', (i) => words(i.severity)], ['State', (i) => tag(i.status)], ['Detail', 'detail'], ['Reporting (Art. 73)', reportState], ['', (i) => (i.status === 'open' ? h('div', { class: 'row' }, btn('Decide on reporting…', () => reporting(i)), btn('Close…', () => close(i))) : '')]], incidents, { empty: 'None.' }), S.matter ? h('div', { class: 'row' }, btn('Open an incident…', open)) : null)));
+    },
   };
 
   // ── Sources ────────────────────────────────────────────────────────────────
@@ -615,7 +833,6 @@
   };
 
   // ── Laws & Standards ───────────────────────────────────────────────────────
-  const HOW = { enforced: 'enforced by the system', instruction: 'given to the model', attestation: 'reviewer confirms', disclosure: 'disclosed in the report', note: 'for the organisation' };
   VIEWS.laws = async () => {
     const all = await api('GET', '/v1/frameworks');
     const picked = all.find((f) => f.id === S.picked.law) || all[0];
@@ -634,6 +851,10 @@
         if (r && r !== true) { note(`${r.title}: ${r.requirements} requirement(s); ${r.standing}.`, r.usable ? 'good' : 'bad'); S.picked.law = r.id; show(); }
       });
       file.click();
+    };
+    const current = async () => {
+      const v = await reason('Confirm checked against the official text', `You checked “${picked.title}” against the official text today and it still states the law correctly. Say which text you checked it against; the routine checks then count its review from today.`);
+      if (v && await attempt(() => api('POST', `/v1/frameworks/${encodeURIComponent(picked.id)}/current`, { checked_on: today(), note: v.reason }), 'Recorded under your name.')) show();
     };
     const validate = async () => {
       const v = await ask('Record a lawyer\'s validation', [{ name: 'lawyer', label: 'Name of the qualified lawyer who checked this version against its official text', required: true }], 'Record');
@@ -655,11 +876,11 @@
       card('Law and standards packages', h('p', { class: 'muted' }, 'International, regional, national, professional and your organisation\'s own. The packages a matter applies are given to the model as rules in every call, tighten the system where they say so, become confirmations the reviewer must give before approval, and are listed in the report. Shipped packages are summaries until a qualified lawyer\'s validation is recorded; your own must be approved.'),
         table([['Package', (f) => f.short_title + (f.example ? ' (example)' : '')], ['Instrument', 'instrument', 'clip'], ['Scope', 'scope'], ['Applies in', (f) => f.jurisdictions.join(', ').replace('*', 'anywhere')], ['Standing', (f) => h('span', { class: f.usable ? (f.validated || f.origin !== 'shipped' ? 'good' : 'warn') : 'bad' }, f.standing)], ['Requirements', 'requirements']], all,
           { onRow: (f) => { S.picked.law = f.id; show(); }, on: (f) => picked && f.id === picked.id }),
-        may['framework.manage'] ? h('div', { class: 'row' }, btn('Import a package or document…', upload, 'go'), picked ? [btn('Approve', act('/approve', 'Approved.')), btn('Record a lawyer\'s validation…', validate), btn('Withdraw', act('/withdraw', 'Withdrawn.'), 'danger'), btn('Reinstate', act('/reinstate', 'Reinstated.')), picked.origin !== 'shipped' ? btn('Remove', act('', 'Removed.', 'DELETE')) : null, btn('Export', exportPack)] : null) : null),
+        may['framework.manage'] ? h('div', { class: 'row' }, btn('Import a package or document…', upload, 'go'), picked ? [btn('Approve', act('/approve', 'Approved.')), btn('Record a lawyer\'s validation…', validate), btn('Confirm checked against the official text…', current), btn('Withdraw', act('/withdraw', 'Withdrawn.'), 'danger'), btn('Reinstate', act('/reinstate', 'Reinstated.')), picked.origin !== 'shipped' ? btn('Remove', act('', 'Removed.', 'DELETE')) : null, btn('Export', exportPack)] : null) : null),
       h('div', { class: 'cols' },
         card(detail ? detail.pack.title : 'No package', detail ? [facts([['Instrument', detail.pack.instrument], ['Issued by', detail.pack.issuer], ['Version', detail.pack.version], ['Checked against its source', detail.pack.as_at || 'not recorded'], ['Standing', detail.standing]]),
           h('p', null, detail.pack.description), detail.pack.rules.status_max_age_days || detail.pack.rules.forbidden_terms.length ? h('p', { class: 'warn' }, 'Tightens the system: ' + [detail.pack.rules.status_max_age_days ? `authority status confirmed within ${detail.pack.rules.status_max_age_days} days` : '', detail.pack.rules.forbidden_terms.length ? `model-drafted text may not contain ${detail.pack.rules.forbidden_terms.join(', ')}` : ''].filter(Boolean).join('; ')) : null,
-          table([['Provision', 'reference'], ['Requirement', 'title'], ['How it is met', (r) => HOW[r.effect] + (r.controls.length ? ` (${r.controls.join(', ')})` : '')], ['Only for', (r) => r.profiles.map(words).join(', ') || 'all']], detail.pack.requirements,
+          table([['Provision', 'reference'], ['Requirement', 'title'], ['How it is met', (r) => (S.w ? S.w.effects : {})[r.effect] + (r.controls.length ? ` (${r.controls.join(', ')})` : '')], ['Only for', (r) => r.profiles.map(words).join(', ') || 'all']], detail.pack.requirements,
             { onRow: (r) => note(`${r.reference} — ${r.text}${r.effect === 'instruction' ? `\nThe model is told: ${r.instruction || r.text}` : ''}${r.statement ? `\n${r.effect === 'disclosure' ? 'The report says' : 'The reviewer confirms'}: ${r.statement}` : ''}`, 'good') }),
           h('p', { class: 'muted' }, detail.pack.status_note), detail.pack.licence_note ? h('p', { class: 'muted' }, detail.pack.licence_note) : null] : null),
         card('Packages applied to the open matter', S.matter ? [h('p', { class: 'muted' }, `${S.matter.name}. Ticked packages apply from the next run. ★ marks those recommended for this kind of matter and legal system.`),
@@ -670,6 +891,7 @@
 
   // ── Settings ───────────────────────────────────────────────────────────────
   VIEWS.settings = async () => {
+    const net = await api('GET', '/v1/network');
     const cfg = await api('GET', '/v1/config');
     const may = S.user.may;
     const users = may['user.manage'] ? await api('GET', '/v1/users') : [];
@@ -687,7 +909,7 @@
     };
     const person = (label, call) => async (u) => { if (await attempt(() => call(u), label)) show(); };
     const add = async () => {
-      const v = await ask('Add a user', [{ name: 'user_id', label: 'User identifier', required: true }, { name: 'display_name', label: 'Name', required: true }, { name: 'roles', label: 'Roles', type: 'select', multiple: true, options: roles },
+      const v = await ask('Add a user', [{ name: 'user_id', label: 'User identifier', required: true }, { name: 'display_name', label: 'Name', required: true }, { name: 'roles', label: 'Roles', type: 'select', multiple: true, options: roles.map((r) => [r, `${roleName(r)} — ${(S.w.roles[r] || {}).summary || ''}`]) },
         { name: 'passphrase', label: 'First passphrase (they should change it)', type: 'password', required: true }], 'Add');
       if (v && await attempt(() => api('POST', '/v1/users', v), 'User added.')) show();
     };
@@ -735,9 +957,9 @@
       if (await attempt(() => api('POST', '/v1/config/model', body), 'Model changed.')) { S.sys = await api('GET', '/v1/system'); render(); }
     };
     return h('div', { class: 'cols' }, h('div', null,
-      card('You', facts([['Signed in as', `${S.user.display_name} (${S.user.user_id})`], ['Roles', S.user.roles.map(words).join(', ')], ['Second factor', S.user.second_factor ? h('span', { class: 'good' }, 'set up') : h('span', { class: 'warn' }, 'not set up')]]),
+      card('You', facts([['Signed in as', `${S.user.display_name} (${S.user.user_id})`], ['Roles', S.user.roles.map(roleName).join(', ')], ['Second factor', S.user.second_factor ? h('span', { class: 'good' }, 'set up') : h('span', { class: 'warn' }, 'not set up')]]),
         h('div', { class: 'row' }, btn('Change passphrase…', passphrase), S.user.second_factor ? btn('Remove second factor', async () => { if (await attempt(() => api('DELETE', '/v1/auth/second-factor'), 'Removed. Sign in again.')) signOut(); }, 'danger') : btn('Set up a second factor…', async () => { if (await setUpSecondFactor()) show(); }, 'go'), btn('Create an API token…', token))),
-      may['user.manage'] ? card('Users and roles', table([['User', (u) => `${u.display_name} (${u.user_id})`], ['Roles', (u) => u.roles.map(words).join(', ')], ['State', (u) => (!u.active ? h('span', { class: 'muted' }, 'deactivated') : u.locked_until ? h('span', { class: 'bad' }, 'locked') : !u.has_passphrase ? h('span', { class: 'warn' }, 'no passphrase') : 'active')], ['2nd factor', (u) => (u.second_factor ? 'yes' : 'no')],
+      may['user.manage'] ? card('Users and roles', table([['User', (u) => `${u.display_name} (${u.user_id})`], ['Roles', (u) => u.roles.map(roleName).join(', ')], ['State', (u) => (!u.active ? h('span', { class: 'muted' }, 'deactivated') : u.locked_until ? h('span', { class: 'bad' }, 'locked') : !u.has_passphrase ? h('span', { class: 'warn' }, 'no passphrase') : 'active')], ['2nd factor', (u) => (u.second_factor ? 'yes' : 'no')],
         ['', (u) => h('div', { class: 'row' }, btn('Passphrase…', () => setPhrase(u)), u.locked_until ? btn('Unlock', () => person('Unlocked.', (x) => api('POST', `/v1/users/${encodeURIComponent(x.user_id)}/unlock`))(u)) : null,
           u.second_factor ? btn('Reset 2nd factor', () => person('Second factor removed.', (x) => api('DELETE', `/v1/users/${encodeURIComponent(x.user_id)}/second-factor`))(u)) : null,
           u.active ? btn('Deactivate', () => person('Deactivated.', (x) => api('POST', `/v1/users/${encodeURIComponent(x.user_id)}/deactivate`))(u), 'danger') : null)]], users), h('div', { class: 'row' }, btn('Add a user…', add, 'go'))) : null),
@@ -746,6 +968,14 @@
       h('div', { class: 'row' }, btn('Find models', findModels), btn('Apply', applyModel, 'go')), found),
     card('Legal systems installed', table([['Code', 'code'], ['Name', 'name'], ['Family', (j) => words(j.legal_family)], ['Validated by a qualified lawyer', (j) => (j.validated ? h('span', { class: 'good' }, j.validated_by) : h('span', { class: 'warn' }, 'no'))]], S.sys.jurisdictions),
       h('p', { class: 'muted' }, 'A pack describes courts and citation forms only. It contains no rules of law; the law comes from an approved source.')),
+    card('Hard offline', h('p', { class: 'muted' }, 'Hard offline makes the computer’s own kernel refuse every network connection from the server: Python code, native code and any program it starts. Nothing running in it can undo it; it lasts until the server stops. The server keeps answering on its own port. Live legal sources and a model server stop working; local GGUF models do not.'),
+      h('p', null, net.hard_offline ? `On, enforced by ${net.enforced_by}. ${net.detail}` : 'Off: the network guard denies connections by default and opens one approved host at a time for an approved legal source.'),
+      h('div', { class: 'row' }, net.hard_offline ? null : btn('Go hard offline now…', async () => {
+        const ok = await ask('Go hard offline', [], 'Go hard offline', 'From now until the server stops, the kernel will refuse every network connection it makes. This cannot be undone while it runs.');
+        if (ok && await attempt(() => api('POST', '/v1/network/offline'), 'Hard offline is on.')) { S.sys = await api('GET', '/v1/system'); render(); }
+      }, 'danger'), may['config.manage'] ? h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: net.at_every_start, onchange: async (e) => {
+        if (!await attempt(() => api('PUT', '/v1/network/at-start', { on: e.target.checked }), 'Recorded under your name.')) e.target.checked = !e.target.checked;
+      } }), 'Start hard offline every time') : null)),
     card('This installation', facts([['Version', S.sys.version], ['Network', `${S.sys.network_default} by default`], ['Encrypted connection', cfg.server.tls ? 'yes' : 'no (this machine only)'], ['Second factor', cfg.server.second_factor_required ? 'required' : 'optional'],
       ['Sessions end after', `${cfg.server.idle_minutes} idle minutes, or ${cfg.server.session_hours} hours`], ['Never permitted', cfg.policy.prohibited_actions.map(words).join(', ')]]))));
   };

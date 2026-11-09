@@ -14,6 +14,7 @@ import re
 from dataclasses import dataclass, field
 
 from eli_legal.application.container import AppContext
+from eli_legal.domain import plain
 from eli_legal.domain.enums import ClaimStatus, DocumentStatus
 from eli_legal.domain.enums import VerificationStatus as V
 from eli_legal.domain.errors import NotFound
@@ -33,6 +34,7 @@ from eli_legal.legal.frameworks import (
 )
 from eli_legal.legal.issue_mapper import stems
 from eli_legal.legal.llm import PROMPT_VERSIONS, LegalModel, fenced
+from eli_legal.security.access import Visibility
 from eli_legal.security.redaction import content_hash
 
 _REPLY_TOKENS = 700
@@ -108,10 +110,11 @@ class ChatService:
         matter = ctx.matter_for(matter_id, actor_id, "document.read")
         question = " ".join(question.split())
         run = self._latest_run(matter, run_id)
+        seen = ctx.authorizer().visibility(matter, actor_id)
         if question.startswith("/"):
-            answer = self._command(matter, run, question)
+            answer = self._command(matter, run, question, seen)
         else:
-            answer = self._answer(matter, run, question, use_model)
+            answer = self._answer(matter, run, question, use_model, seen)
         ctx.log(
             "chat_query",
             actor_id=actor_id,
@@ -133,7 +136,9 @@ class ChatService:
         return answer
 
     # ── commands: state of the run, never content ────────────────────────────
-    def _command(self, matter: Matter, run: Run | None, question: str) -> ChatAnswer:
+    def _command(
+        self, matter: Matter, run: Run | None, question: str, seen: Visibility
+    ) -> ChatAnswer:
         command = question.split()[0].lower()
         answer = ChatAnswer(question=question, mode="command")
         if command == "/help":
@@ -153,15 +158,16 @@ class ChatService:
         holds = self.ctx.holds.open_holds(mid, rid)
         if command == "/status":
             answer.notes.append(
-                f"Run {rid[-8:]} is {run.status.value.replace('_', ' ')}. "
-                f"{len(holds)} hold(s) open."
+                f"The latest run ({plain.short_id(rid)}) is "
+                f"{plain.state(run.status).lower()}, with {plain.count(len(holds), 'hold')} open."
             )
             claims = self.ctx.store.list(Claim, mid, run_id=rid)
             tally: dict[str, int] = {}
             for claim in claims:
                 tally[claim.status.value] = tally.get(claim.status.value, 0) + 1
             answer.notes.append(
-                "Findings: " + ", ".join(f"{n} {s}" for s, n in sorted(tally.items()))
+                "Findings: "
+                + ", ".join(f"{n} {plain.state(s).lower()}" for s, n in sorted(tally.items()))
                 if tally
                 else "No findings yet."
             )
@@ -169,7 +175,10 @@ class ChatService:
             if not holds:
                 answer.notes.append("No holds are open.")
             for hold in holds:
-                answer.notes.append(f"{hold.scope.value} hold — {hold.reason_code}: {hold.detail}")
+                answer.notes.append(
+                    f"On hold ({hold.scope.value}): {plain.hold_reason(hold.reason_code)}. "
+                    f"{hold.detail}"
+                )
         elif command == "/tasks":
             tasks = self.ctx.store.list(VerificationTask, mid, run_id=rid, status="open")
             by_id = {c.claim_id: c for c in self.ctx.store.list(Claim, mid, run_id=rid)}
@@ -177,21 +186,30 @@ class ChatService:
                 answer.notes.append("No checks are waiting for a person.")
             for task in tasks:
                 about = by_id.get(task.claim_id)
-                subject = (about.citation or about.text[:80]) if about else task.claim_id
-                answer.notes.append(f"{task.verification_type}: {task.question} — {subject}")
+                shown = seen.claim(about) if about else None
+                subject = (shown.citation or shown.text[:80]) if shown else task.claim_id
+                answer.notes.append(
+                    f"{plain.check_name(task.verification_type)}: {task.question} — {subject}"
+                )
         elif command == "/limits":
             report = self.ctx.store.get(Report, mid, run.report_id or "")
             if report is None:
                 answer.notes.append("No report has been drafted yet.")
             else:
-                answer.notes.extend(report.warnings or ["The current report states no limits."])
+                documents = self.ctx.store.list(Document, mid)
+                claims = self.ctx.store.list(Claim, mid, run_id=rid)
+                answer.notes.extend(
+                    seen.scrub(w, documents=documents, claims=claims) for w in report.warnings
+                )
+                if not report.warnings:
+                    answer.notes.append("The current report states no limits.")
         else:
             answer.notes.append(f"Unknown command {command}. Try /help.")
         return answer
 
     # ── questions ────────────────────────────────────────────────────────────
     def _answer(
-        self, matter: Matter, run: Run | None, question: str, use_model: bool
+        self, matter: Matter, run: Run | None, question: str, use_model: bool, seen: Visibility
     ) -> ChatAnswer:
         answer = ChatAnswer(question=question, mode="passages")
         spec = profile_spec(matter.profile)
@@ -202,7 +220,9 @@ class ChatService:
                 "should be decided; that is for you. Here is the material that bears on it."
             )
         packs = self._packs(matter)
-        answer.sources = self._sources(matter, run, question) + self._law(matter, packs, question)
+        answer.sources = self._sources(matter, run, question, seen, answer) + self._law(
+            matter, packs, question
+        )
         if not answer.sources:
             answer.notes.append(
                 "Nothing in the matter's documents, findings or approved sources matched that. "
@@ -241,8 +261,19 @@ class ChatService:
             )
         return out
 
-    def _sources(self, matter: Matter, run: Run | None, question: str) -> list[ChatSource]:
+    def _sources(
+        self,
+        matter: Matter,
+        run: Run | None,
+        question: str,
+        seen: Visibility,
+        answer: ChatAnswer,
+    ) -> list[ChatSource]:
+        """What bears on the question, from what this person may read. Material they are not
+        cleared for is neither shown to them nor given to the model; they are told how much
+        matched and why it is withheld."""
         ctx, mid = self.ctx, matter.matter_id
+        withheld: dict[str, int] = {}
         out: list[ChatSource] = []
         documents = {d.document_id: d for d in ctx.store.list(Document, mid)}
         flagged = (
@@ -259,6 +290,11 @@ class ChatService:
             document = documents.get(chunk.document_id)
             if document is None or document.status is not DocumentStatus.PROCESSED:
                 continue
+            if not seen.document_visible(document):
+                why = seen.why_withheld(document.access_scope, document.party_id)
+                withheld[why] = withheld.get(why, 0) + 1
+                continue
+            chunk = seen.chunk(chunk, document)
             is_flagged = chunk.document_id in flagged
             out.append(
                 ChatSource(
@@ -288,6 +324,11 @@ class ChatService:
             for overlap, claim in ranked:
                 if overlap < 2 or count >= 6:
                     break
+                if not seen.claim_visible(claim):
+                    why = seen.why_withheld(claim.access_scope, claim.party_id)
+                    withheld[why] = withheld.get(why, 0) + 1
+                    continue
+                claim = seen.claim(claim)
                 if (
                     claim.status is ClaimStatus.VERIFIED
                     and " ".join(claim.text.split()) in seen_text
@@ -295,17 +336,16 @@ class ChatService:
                     continue  # already shown as the passage it was taken from
                 count += 1
                 locator = claim.evidence[0].locator if claim.evidence else ""
-                state = claim.status.value.upper()
                 note = (
                     ""
                     if claim.status is ClaimStatus.VERIFIED
-                    else f"{state} — {claim.status_reason}"
+                    else f"{plain.state(claim.status).upper()} — {claim.status_reason}"
                 )
                 out.append(
                     ChatSource(
                         label=f"F{count}",
                         kind="finding",
-                        title=f"{claim.kind.value.replace('_', ' ')}"
+                        title=plain.kind(claim.kind)
                         + (f" · {claim.citation}" if claim.citation else ""),
                         locator=locator,
                         text=claim.text,
@@ -346,6 +386,12 @@ class ChatService:
                         usable=good,
                     )
                 )
+        for why, n in sorted(withheld.items()):
+            answer.notes.append(
+                f"{plain.count(n, 'passage or finding', 'passages or findings')} also matched "
+                f"but {'is' if n == 1 else 'are'} withheld from you ({why}). Your role on this "
+                "matter does not include that material; nothing from it was given to the model."
+            )
         return out
 
     def _summarise(

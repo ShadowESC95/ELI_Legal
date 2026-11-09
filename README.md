@@ -57,6 +57,13 @@ say:
 A party's lawyer cannot be added to a tribunal's matter, and a technical administrator has no
 access to any matter.
 
+Each person on a matter also has a **role on it** (lead, decision-maker, case worker, assistant,
+observer or auditor) that can only narrow what their account allows, and a **clearance** for its
+material. Anything they are not cleared for (the neutral's own notes, what one party gave in
+confidence, privileged work) is withheld from them everywhere it could appear, with the reason,
+never the content; someone who acts for one party never sees what another gave in confidence.
+Observers and auditors see contact, bank, card and identity numbers masked.
+
 ## Which legal systems
 
 Legal systems are data, not code: a **jurisdiction pack** describes a system's courts, how it
@@ -91,10 +98,11 @@ eli-legal serve                     # the server and browser application, on thi
 | Server and browser application | `eli-legal serve` | A chambers, firm or tribunal, over HTTPS |
 | Command line | `eli-legal` | Administration and scripted use |
 
-All three show the same screens or commands over the same services: **Matter · Evidence · Chat ·
-DAG · Agents · Findings · Review · Audit Trail · Governance · Sources · Laws & Standards ·
-Settings**. There
-is no general assistant, no shell and no web access in any of them.
+All three show the same screens or commands over the same services: **Home · Matter · Evidence ·
+Chat · DAG · Agents · Findings · Review · Audit Trail · Governance · Sources · Laws & Standards ·
+Settings**. Home says where the open matter stands, what to do next and who can do it; a new
+matter is opened step by step, with its team, reviewers, sources and laws; everything a person
+reads is in plain words. There is no general assistant, no shell and no web access in any of them.
 
 ## Law and standards
 
@@ -104,6 +112,19 @@ ISO/IEC 42001, professional guidance, and your organisation's own (imported from
 document, approved before use). The model is told their rules, the system enforces what it can,
 the reviewer confirms the rest, and the report lists every requirement. See
 [docs/6_manuals/11_laws_and_standards.md](docs/6_manuals/11_laws_and_standards.md).
+
+## Compliance and routine checks
+
+Every requirement of the instruments that apply is shown as met by the software, met, waiting for
+your organisation, or due for review. What only an organisation can do (classifying the
+deployment, the impact assessment, training, the conformity assessment, registration and the
+rest) is a list of actions recorded in the application in a named person's name and reviewed on
+time; the system drafts the Annex IV documentation and the declaration of conformity from its own
+records and runs its own accuracy evaluation. Every day it checks that each authority relied on is
+still good law, that each law package was checked against its official text recently, that stored
+originals are unaltered, and more, opening an incident where someone may already have relied on
+something that changed. See
+[docs/6_manuals/13_compliance_and_routine_checks.md](docs/6_manuals/13_compliance_and_routine_checks.md).
 
 ## Models
 
@@ -115,6 +136,14 @@ loads, and the model's own costs read from its file, decide its context and how 
 the graphics card (NVIDIA, AMD, Intel, Apple). What loaded is shown and recorded. The model writes
 literally: no manner of its own, no opinion, only what the sources state. See
 [docs/6_manuals/12_models.md](docs/6_manuals/12_models.md).
+
+## Hard offline
+
+A switch (desktop, browser and command line) makes the operating system's kernel refuse every
+network connection ELI Legal makes, from Python code, native code such as llama.cpp, or any
+program it starts. On Linux it is a seccomp filter that nothing in the program can remove until it
+exits; on macOS the kernel sandbox; on Windows a firewall rule. A server keeps answering on its
+own port. See the [administrator manual](docs/6_manuals/04_administrator_manual.md#6a-hard-offline).
 
 ## Identity
 
@@ -158,6 +187,8 @@ M=$(eli-legal matter create --name "A v B" --purpose "Bench memorandum" --jurisd
 eli-legal matter reviewers $M j.murphy && eli-legal matter sources $M my-corpus
 eli-legal ingest $M ./bundle --party "A Ltd"
 eli-legal run start $M              # then: holds, tasks, verify, hold, run resume, review, release
+eli-legal status $M                 # where it stands, and what to do next
+eli-legal checks show                # the latest routine checks
 ```
 
 Every command is in the [command-line reference](docs/6_manuals/07_command_line_reference.md).
@@ -185,12 +216,16 @@ question and Bundles menu).
 - **Not conformity-assessed.** ELI Legal is a high-risk AI system under the EU AI Act (Article
   6(2) and Annex III, point 8(a)); the Chapter III duties apply to it from 2 December 2027 in
   every member state. See [docs/5_legal_and_compliance/02_eu_ai_act.md](docs/5_legal_and_compliance/02_eu_ai_act.md). The registers under
-  `src/eli_legal/governance/registers` map requirements to controls and say plainly which duties are organisational and
-  remain undone. They are aids, to be checked against the official texts, not legal advice.
+  `src/eli_legal/governance/registers` map requirements to controls, and each duty that is an organisation's is
+  an action to record in the application; until it is recorded it shows as waiting. They are aids, to be checked against the official texts, not legal advice.
 - **Not validated on real matters.** The evaluation matter is synthetic. Accuracy thresholds on
   representative real matters must be set and met before anyone relies on it.
-- **No live legal database.** The one working connector reads a corpus you load yourself. Whether
-  a case is still good law is only as reliable as the status data in that corpus.
+- **Live databases for the EU and the UK only, and no case-law citator.** Live connectors reach
+  the EU's Publications Office (CELLAR and EUR-Lex) and the UK's legislation.gov.uk and Find Case
+  Law, once their licence is read and they are approved. They tell whether legislation is in force,
+  from and until when, and what repealed it, on the matter's relevant date. No open database records
+  whether a judgment was later overruled, so a judgment's standing goes to a person unless a licensed
+  citator is connected. Other legal systems use a corpus you load.
 - **No encryption at rest and no OCR.** Use an encrypted volume; convert scans before ingestion.
 - **Unsigned installers.** The Windows and macOS builds are made and smoke-tested by the release workflow but have not been used by a person.
 - **No single sign-on or hardware keys.** Passphrase, lock-out and one-time codes only.

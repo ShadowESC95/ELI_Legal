@@ -16,7 +16,7 @@ from eli_legal.application.container import AppContext, gguf_inference
 from eli_legal.domain.errors import InvalidInput
 from eli_legal.legal.llm import LegalModel
 from eli_legal.ports.inference import InferencePort
-from eli_legal.security import authn
+from eli_legal.security import authn, hard_offline
 
 
 @dataclass(slots=True)
@@ -274,6 +274,68 @@ class ConfigService:
             verifier_model=verifier,
             **options,
         )
+
+
+class NetworkControl:
+    """Hard offline: the kernel refuses every network connection (security/hard_offline.py).
+
+    Anyone signed in may switch it on for this session: it only ever makes the system stricter,
+    and it cannot be switched off again until the program restarts. Making it the setting at
+    every start, or removing that, changes the installation: it needs the right to manage the
+    configuration and the passphrase again. Every change is recorded."""
+
+    def __init__(self, ctx: AppContext) -> None:
+        self.ctx = ctx
+
+    def status(self) -> dict[str, Any]:
+        st = hard_offline.state()
+        return {
+            "hard_offline": st.active,
+            "enforced_by": st.enforced_by,
+            "detail": st.detail,
+            "verified": st.verified,
+            "at_every_start": bool(self.ctx.settings.hard_offline),
+            "guard_installed": self.ctx.guard.installed,
+        }
+
+    def go_offline(self, *, actor_id: str) -> dict[str, Any]:
+        if actor_id != "system":
+            authn.require(actor_id)
+        st = hard_offline.go_offline()
+        self.ctx.log(
+            "network_mode",
+            actor_id=actor_id,
+            matter_id="-",
+            action="config.network",
+            subject_id="hard_offline",
+            outcome="on",
+            object_type="configuration",
+            payload={"enforced_by": st.enforced_by, "verified": st.verified},
+        )
+        return self.status()
+
+    def set_at_every_start(
+        self, *, actor_id: str, on: bool, persist_to: Path | None = None
+    ) -> dict[str, Any]:
+        authn.require_step_up(actor_id, "change whether ELI Legal starts hard offline")
+        self.ctx.authorizer().require_global(actor_id, "config.manage")
+        self.ctx.settings.hard_offline = on
+        if persist_to is not None:
+            _update_env_file(persist_to, {"ELI_LEGAL_HARD_OFFLINE": "true" if on else "false"})
+        if not on:
+            hard_offline.remove_windows_rule()
+        self.ctx.log(
+            "network_mode",
+            actor_id=actor_id,
+            matter_id="-",
+            action="config.manage",
+            subject_id="hard_offline_at_start",
+            outcome="on" if on else "off",
+            object_type="configuration",
+        )
+        if on:
+            self.go_offline(actor_id=actor_id)
+        return self.status()
 
 
 def _update_env_file(path: Path, values: dict[str, str]) -> None:

@@ -80,3 +80,14 @@ svg.dag .node.on rect { stroke: #fff; stroke-width: 2.4; }
 .pill.manual { border-style: dashed; border-color: var(--human); } .pill.on { background: var(--panel2); }
 td .row { flex-wrap: nowrap; margin: 0; } td.wide { min-width: 280px; }
 header.top button { padding: 3px 10px; }
+
+.stages { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; margin: 10px 0; }
+@media (max-width: 1000px) { .stages { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.stage { border: 1px solid var(--idle); border-radius: 8px; padding: 6px 8px; text-align: center; color: var(--mut); font-size: 12.5px; }
+.stage.done { border-color: var(--good); color: var(--good); } .stage.current { border: 2px solid var(--accent); color: var(--accent); }
+.stage.waiting { border-color: var(--warn); color: var(--warn); }
+.step { display: flex; gap: 12px; align-items: center; justify-content: space-between; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin: 6px 0; }
+.step > div { min-width: 0; } .step > button { flex: none; }
+.active { color: var(--accent); } .idle { color: var(--mut); }
+.subnav { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.subnav button[aria-pressed=true] { background: #22304a; border-color: var(--accent); }

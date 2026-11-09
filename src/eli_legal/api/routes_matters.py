@@ -7,6 +7,7 @@ from typing import Annotated, Any
 from fastapi import Depends, FastAPI, HTTPException, Request
 
 from eli_legal import __version__
+from eli_legal.application.matter_service import TeamMember
 from eli_legal.application.services import Services
 from eli_legal.domain.enums import AccessScope, DocumentType, Profile, VerificationType
 from eli_legal.domain.models import Document
@@ -56,6 +57,7 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
             "version": __version__,
             "model": _public(sv.config.current()),
             "network_default": sv.ctx.settings.network_default,
+            "network": sv.network.status(),
             "audit": {"ok": chain.ok, "events": chain.count, "error": chain.error},
             "second_factor_required": cfg.require_second_factor,
             "profiles": [
@@ -139,6 +141,9 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
             represented_party=body.represented_party,
             frameworks=body.frameworks,
             recommended_frameworks=body.recommended_frameworks,
+            team=[TeamMember(t.user_id, t.matter_role, t.party) for t in body.team],
+            reviewers=body.reviewers,
+            sources=body.sources,
         )
         return js(m)
 
@@ -162,10 +167,37 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
             )
         )
 
+    @app.get("/v1/matters/{matter_id}/members")
+    def members(matter_id: str, actor: Actor) -> Any:
+        """Who is on the matter: their role on it, whom they act for, what they may read."""
+        return js(sv.matters.members(matter_id, actor))
+
     @app.post("/v1/matters/{matter_id}/members/{user_id}", status_code=204)
-    def grant(matter_id: str, user_id: str, actor: Actor) -> None:
-        """Give a user access to the matter. Their role must fit the matter's profile."""
-        sv.matters.grant(matter_id, actor_id=actor, user_id=user_id)
+    def grant(
+        matter_id: str, user_id: str, actor: Actor, body: schemas.MemberIn | None = None
+    ) -> None:
+        """Give a user access to the matter, optionally in a given role on it and acting for a
+        party. Their account role must fit the matter's profile."""
+        sv.matters.grant(
+            matter_id,
+            actor_id=actor,
+            user_id=user_id,
+            matter_role=body.matter_role if body else None,
+            party=body.party if body else None,
+        )
+
+    @app.patch("/v1/matters/{matter_id}/members/{user_id}", status_code=204)
+    def set_member(matter_id: str, user_id: str, body: schemas.MemberIn, actor: Actor) -> None:
+        """Change a member's role on the matter, the party they act for, or what they read."""
+        sv.matters.set_member(
+            matter_id,
+            actor_id=actor,
+            user_id=user_id,
+            matter_role=body.matter_role,
+            party=body.party,
+            clear_party=body.clear_party,
+            reads=body.reads,
+        )
 
     @app.delete("/v1/matters/{matter_id}/members/{user_id}", status_code=204)
     def revoke(matter_id: str, user_id: str, actor: Actor) -> None:

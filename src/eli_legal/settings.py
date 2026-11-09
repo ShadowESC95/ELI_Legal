@@ -36,6 +36,14 @@ class Settings(BaseSettings):
     policy_file: Path = _config("policy.default.json")
     jurisdictions_dir: Path = _config("jurisdictions")
     workflow_file: Path = _config("workflows/case_preparation.json")
+    law_calendar_file: Path = _config("law_calendar.json")
+    # How often the routine checks run on their own, in hours, and after how many days a law
+    # package summary is due to be checked against the official text again.
+    checks_every_hours: float = 24.0
+    # Hard offline at every start: the kernel refuses every network connection (see
+    # security/hard_offline.py). Live legal sources and a model server cannot be used.
+    hard_offline: bool = False
+    law_review_days: int = 180
     # Offered first when a matter is opened. EU: Union law, and any member state's decisions by
     # their European Case Law Identifier. Choose a national pack where one exists.
     default_jurisdiction: str = "EU"

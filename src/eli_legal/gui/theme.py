@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from eli_legal.domain import plain
+
 BG = "#141821"
 PANEL = "#181e29"
 INPUT = "#10151e"
@@ -15,24 +17,15 @@ BAD = "#bf616a"
 IDLE = "#6b7a90"
 HUMAN = "#b48ead"
 
-# How a state reads at a glance, everywhere in the application.
-_STATE_COLOURS = {
-    GOOD: {"ok", "verified", "approved", "approved_for_reliance", "processed", "valid", "resolved",
-           "implemented", "treated", "approve", "done", "staged", "active", "in_force", "signed_in"},
-    WARN: {"held", "inconclusive", "conflict", "open", "awaiting_human_review", "partial", "waived",
-           "returned_for_correction", "return_for_correction", "unverified", "registered", "amended",
-           "doubted", "not_run", "not_for_reliance"},
-    BAD: {"failed", "rejected", "blocked", "denied", "invalid", "unsupported", "reject", "overruled",
-          "repealed", "reversed", "superseded", "sign_in_refused", "serious", "high"},
-    ACCENT: {"running", "created", "started", "restarted", "recorded"},
-    IDLE: {"pending", "skipped", "stopped", "excluded", "cancelled", "closed", "draft", "unknown",
-           "organisational", "inactive", "none"},
-}  # fmt: skip
-STATE_COLOUR = {state: colour for colour, states in _STATE_COLOURS.items() for state in states}
+# How a state reads at a glance, everywhere in the application. The tone of each state is decided
+# once, in eli_legal.domain.plain, for every front end; this only gives each tone its colour.
+_TONE_COLOURS = {"good": GOOD, "warn": WARN, "bad": BAD, "active": ACCENT, "idle": IDLE}
+STATE_COLOUR = {state: _TONE_COLOURS[tone] for state, tone in plain.TONE.items()}
 
 
 def colour_for(state: str) -> str:
-    return STATE_COLOUR.get(str(state).lower(), TEXT)
+    """The colour for a state code (``held``) or its plain words ("On hold")."""
+    return _TONE_COLOURS.get(plain.tone(state), TEXT)
 
 
 STYLESHEET = f"""

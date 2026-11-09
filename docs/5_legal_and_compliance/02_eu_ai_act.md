@@ -78,23 +78,23 @@ place before it adopts a tool, whatever the date.
 | **Art. 8** | Comply with the requirements, taking account of intended purpose and the state of the art | The requirements below are each tied to controls | Requirements register | See each row |
 | **Art. 9** Risk management | A continuous, documented process over the lifecycle; Art. 9(2)(c): evaluate risks from post-market data; Art. 9(8): test against prior defined metrics | A risk register of 21 risks, each tied to controls and to code and tests, checked automatically. Monitoring feeds alerts from control evidence | `risk_register.csv`; `eli-legal governance`; Governance screen | **Partly.** A periodic process owned by an accountable person, and the feed from deployments back into the file, are organisational and not yet set up |
 | **Art. 10** Data and data governance | Relevant, representative, documented data; provenance | The system trains no model. Every legal source is registered with its origin, owner, licence, version and retrieval date before it can be used; every document is hashed and its origin recorded | Source register; document vault; evidence pack | **Partly.** Bites on evaluation data: the evaluation set is one synthetic matter |
-| **Art. 11, Annex IV** Technical documentation | Drawn up before placing on the market and kept up to date | Architecture, data model, controls, tests, intended purpose, limits and instructions are documented, and the registers are generated evidence | `docs/3_architecture`, `docs/4_security`, registers | **Partly.** Not yet assembled in the Annex IV structure |
+| **Art. 11, Annex IV** Technical documentation | Drawn up before placing on the market and kept up to date | Architecture, data model, controls, tests, intended purpose, limits and instructions are documented, and the registers are generated evidence | `docs/3_architecture`, `docs/4_security`, registers | **Partly.** Not yet assembled in the Annex IV structure; the application drafts the Annex IV file from the system's own records for the provider to complete and sign off (OA-05) |
 | **Art. 12** Record-keeping | Automatic logging of events over the lifetime | Every step, tool call, source with version and date, model and prompt version, hold, decision and release is logged in a signed chain; each run's record is reconciled with it | Audit Trail; evidence pack; `tests/security/test_audit.py` | **Implemented** |
 | **Art. 13** Transparency and instructions for use | Enough for deployers to interpret output and use it properly; instructions issued to the deployer | Every report states its limits and what was and was not verified; each agent's mandate, each finding's checks and each hold's reason are shown; instructions for use ship | `docs/6_manuals/08_instructions_for_use.md`; report section 8 | **Implemented**, to be adapted per deployment |
 | **Art. 14** Human oversight | Art. 14(4)(a) understand capacities and limits; (b) remain aware of automation bias; (c) correctly interpret output; (d) decide not to use or to override; (e) intervene or stop | A named reviewer is required before any run; holds stop work until a person decides; every stated limit must be acknowledged before approval; the reviewer can exclude, return or reject; any authorised person can stop a run; approvals that follow no challenge are flagged | Review screen; `test_only_a_human_can_hold_a_role_review_or_resolve`; monitoring alert | **Implemented.** Making review real is the deployer's |
-| **Art. 15** Accuracy, robustness, cybersecurity | Art. 15(1),(3): appropriate and declared accuracy; (4): resilience to errors and inconsistencies; (5): resilience to attempts to alter use, outputs or performance | Three separate checks on every authority; nothing passes on a partial result; re-running reproduces findings; text addressed to a model is flagged, held and kept out of prompts; proven identity, lock-out, second factor; hardened server; network denied | `tests/evaluation`, `tests/security`, `tests/api` | **Partly.** No accuracy figure on representative real matters can be declared. No penetration test |
+| **Art. 15** Accuracy, robustness, cybersecurity | Art. 15(1),(3): appropriate and declared accuracy; (4): resilience to errors and inconsistencies; (5): resilience to attempts to alter use, outputs or performance | Three separate checks on every authority; nothing passes on a partial result; re-running reproduces findings; text addressed to a model is flagged, held and kept out of prompts; proven identity, lock-out, second factor; hardened server; network denied | `tests/evaluation`, `tests/security`, `tests/api` | **Partly.** No accuracy figure on representative real matters can be declared. No penetration test; a built-in evaluation measures how many planted defects are caught against declared thresholds (OA-07) |
 
 ## 5. Provider obligations (Articles 16 to 25)
 
 | Provision | What it requires | State |
 |---|---|---|
-| **Art. 16** | Ensure compliance with Arts. 8 to 15; identify the provider on the system; and the duties below | Organisational |
-| **Art. 17** Quality management system | Documented policies, procedures and instructions | **Not done** |
-| **Art. 18** Keep documentation | Ten years after placing on the market | **Not arranged** |
+| **Art. 16** | Ensure compliance with Arts. 8 to 15; identify the provider on the system; and the duties below | Organisational; each duty below is an organisation action recorded in the application |
+| **Art. 17** Quality management system | Documented policies, procedures and instructions | **Not done.** Where it is documented and who runs it is recorded in the application (OA-08) |
+| **Art. 18** Keep documentation | Ten years after placing on the market | **Not arranged.** Retention periods are set and enforced in the application (OA-09); the ten-year keeping is the provider's |
 | **Art. 19** Automatically generated logs | Keep the logs under the provider's control | **Implemented** in each installation; retention at the provider is organisational |
-| **Art. 20** Corrective action and duty of information | Withdraw, disable or recall; inform deployers and authorities | **Partly.** Holds, incidents and controlled restart exist per installation; a provider procedure does not |
-| **Art. 21** Cooperation with authorities | Provide information and access to logs on request | The evidence pack is built for this |
-| **Art. 22** Authorised representative | For providers established outside the Union | Only if that applies |
+| **Art. 20** Corrective action and duty of information | Withdraw, disable or recall; inform deployers and authorities | **Partly.** Holds, incidents and controlled restart exist per installation; the routine checks open an incident when an approved report's law changes; the provider's procedure is recorded in the application (OA-15) |
+| **Art. 21** Cooperation with authorities | Provide information and access to logs on request | The evidence pack is built for this; the contact point is recorded (OA-15) |
+| **Art. 22** Authorised representative | For providers established outside the Union | Only if that applies; whether it does is recorded (OA-19) |
 | **Art. 25** Responsibilities along the value chain | See section 2 | Checked on any change of role |
 
 ## 6. Deployer obligations (Articles 26 and 27)
@@ -102,24 +102,24 @@ place before it adopts a tool, whatever the date.
 | Provision | What it requires | What helps |
 |---|---|---|
 | **Art. 26(1)** | Use the system in accordance with the instructions for use | Instructions for use |
-| **Art. 26(2)** | Assign oversight to people with the competence, training and authority | Named reviewers; role-based access; per-matter membership |
+| **Art. 26(2)** | Assign oversight to people with the competence, training and authority | Named reviewers, whose role on the matter must let them approve; a role on each matter; training recorded per person, and reviewers without it reported by the routine checks (OA-03, OA-10) |
 | **Art. 26(4)** | Input data relevant and sufficiently representative, where the deployer controls it | Coverage check; unread documents hold the run |
 | **Art. 26(5)** | Monitor operation; suspend and inform on risk or serious incident | Monitoring; incidents; stop |
-| **Art. 26(6)** | Keep the automatically generated logs, at least six months | The ledger is on from the first run; the deployer keeps it with its key |
+| **Art. 26(6)** | Keep the automatically generated logs, at least six months | The ledger is on from the first run and never shortened; the retention setting cannot go below six months (OA-09); the deployer keeps it with its key |
 | **Art. 26(7)** | Inform workers' representatives before use at work | — |
 | **Art. 26(8)**, 49(3) | Public authorities register their use | — |
 | **Art. 26(11)** | Inform people subject to decisions made with the system's assistance | A tribunal needs a position on how |
-| **Art. 27** | Fundamental-rights impact assessment before first use, for bodies governed by public law and private bodies providing public services | `impact_assessment.md` template, combined with the data-protection assessment |
-| **Art. 4** | AI literacy of the people operating and using the system | User manual; instructions for use; training before access is the deployer's |
+| **Art. 27** | Fundamental-rights impact assessment before first use, for bodies governed by public law and private bodies providing public services | Completed and signed in the application (OA-02), whose form is the `impact_assessment.md` template, combined with the data-protection assessment |
+| **Art. 4** | AI literacy of the people operating and using the system | User manual; instructions for use; training recorded per person in the application (OA-03), and anyone working on matters without a current record reported by the routine checks |
 
 ## 7. Conformity and registration (Articles 43, 47 to 49)
 
 | Provision | What it requires | State |
 |---|---|---|
-| **Art. 43**, Annex VI | Conformity assessment before placing on the market. For Annex III points 2 to 8 the route is **internal control** under Annex VI: no notified body | **Not done** |
-| **Art. 47** | EU declaration of conformity | **Not done** |
+| **Art. 43**, Annex VI | Conformity assessment before placing on the market. For Annex III points 2 to 8 the route is **internal control** under Annex VI: no notified body | **Not done.** The application shows which actions remain before it can be recorded (OA-11) |
+| **Art. 47** | EU declaration of conformity | **Not done.** The application drafts it from the system's records, marked not to be issued until the assessment is recorded (OA-12) |
 | **Art. 48** | CE marking | **Not done** |
-| **Art. 49** | Registration in the EU database | **Not done** |
+| **Art. 49** | Registration in the EU database | **Not done.** The registration number is recorded in the application (OA-13) |
 
 ## 8. Transparency (Article 50)
 
@@ -162,3 +162,12 @@ documents. If a report or an extract is passed on, the labels go with it.
 Up to EUR 15 million or 3% of worldwide annual turnover for breach of operator obligations; up
 to EUR 7.5 million or 1% for supplying incorrect information. The regime for smaller enterprises
 was amended by Regulation (EU) 2026/1744; read the current text.
+
+## 9. Where each requirement stands, live
+
+The requirements register lists, for every requirement above and of the GDPR and ISO/IEC 42001,
+what the software does about it. That alone would read as "partial" wherever an organisation also
+has a duty. In the application (Governance, "Requirements"; `eli-legal compliance show`) each
+requirement is instead shown as **met by the software**, **met** (the software's part done and
+the organisation's part recorded), **waiting for your organisation** (naming the action), or
+**review due**. See [Compliance and routine checks](../6_manuals/13_compliance_and_routine_checks.md).

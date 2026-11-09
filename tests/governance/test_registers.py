@@ -74,3 +74,27 @@ def test_the_check_catches_a_register_that_drifts_from_the_code(tmp_path, monkey
     assert "R-01 refers to unknown control C-99" in problems
     assert "Q-01 is marked implemented but names no control" in problems
     assert "C-02 is not linked to any risk or requirement" in problems
+    assert "missing register: organisation_actions.csv" in problems
+    with open(fake / "organisation_actions.csv", "w", newline="") as handle:
+        csv.writer(handle).writerows(
+            [
+                [
+                    "action_id",
+                    "title",
+                    "what_to_do",
+                    "requirement_ids",
+                    "owner",
+                    "evidence",
+                    "template",
+                    "statement",
+                    "review_days",
+                    "before_real_use",
+                ],
+                ["OA-01", "t", "w", "Q-99", "provider", "attestation", "", "", "30", "no"],
+                ["OA-02", "t", "w", "Q-01", "provider", "form", "no_such_template", "", "30", "no"],
+            ]
+        )
+    problems = check_registers(tmp_path)
+    assert "OA-01 refers to unknown requirement Q-99" in problems
+    assert "OA-01 needs the statement a person confirms" in problems
+    assert "OA-02 names template 'no_such_template', which has no questions" in problems

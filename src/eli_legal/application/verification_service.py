@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
+from pathlib import Path
 
 from eli_legal.application.container import AppContext
 from eli_legal.domain.enums import (
@@ -10,18 +12,28 @@ from eli_legal.domain.enums import (
     HoldResolution,
     HoldScope,
     HoldStatus,
+    RunStatus,
+    StepStatus,
     TaskStatus,
     VerificationStatus,
     VerificationType,
 )
-from eli_legal.domain.errors import InvalidInput, InvalidState, NotFound, PolicyDenied
+from eli_legal.domain.errors import (
+    AuditIntegrityError,
+    InvalidInput,
+    InvalidState,
+    NotFound,
+    PolicyDenied,
+)
 from eli_legal.domain.models import (
     Claim,
     Document,
     Hold,
     Issue,
     Matter,
+    Report,
     Run,
+    RunStep,
     VerificationResult,
     VerificationTask,
     utcnow,
@@ -30,6 +42,11 @@ from eli_legal.governance.completeness import verification_digest
 from eli_legal.governance.gates import apply_decision, effective_results, evaluate_claim
 from eli_legal.security import authn
 from eli_legal.security.redaction import content_hash
+from eli_legal.workflows.runner import record_person_step
+
+# A person's own hold on a run, at the human stages of the workflow.
+HELD_BY_PERSON = "held_by_person"
+_PERSON_HOLDABLE = (RunStatus.AWAITING_HUMAN_REVIEW, RunStatus.APPROVED_FOR_RELIANCE)
 
 # Which permission lets a person decide each kind of check.
 _ACTION_FOR_CHECK = {
@@ -60,8 +77,11 @@ class VerificationService:
         )
 
     def claims(self, matter_id: str, run_id: str, *, actor_id: str) -> list[Claim]:
+        """The run's findings as this person may see them: one resting on material they are
+        not cleared for is listed with its words withheld and the reason."""
         matter = self.ctx.matter_for(matter_id, actor_id, "document.read")
-        return self.ctx.store.list(Claim, matter.matter_id, run_id=run_id)
+        seen = self.ctx.authorizer().visibility(matter, actor_id)
+        return [seen.claim(c) for c in self.ctx.store.list(Claim, matter.matter_id, run_id=run_id)]
 
     def issues(self, matter_id: str, run_id: str, *, actor_id: str) -> list[Issue]:
         matter = self.ctx.matter_for(matter_id, actor_id, "document.read")
@@ -302,7 +322,115 @@ class HoldService:
                 )
             raise InvalidState("a document hold is closed with action 'waive' or 'exclude'")
 
+        if hold.scope is HoldScope.RUN and hold.reason_code == HELD_BY_PERSON:
+            if action != "lift":
+                raise InvalidState(
+                    "a run a person put on hold is released with action 'lift', or stopped"
+                )
+            return self._lift(matter, hold, actor_id=actor_id, reason=reason)
+
         raise InvalidState(
             "a hold on a step clears when the cause is corrected and the run is restarted "
             "by an authorised person"
+        )
+
+    # ── a person's own hold on a run ─────────────────────────────────────────
+    def place(self, matter_id: str, run_id: str, *, actor_id: str, reason: str) -> Hold:
+        """Put a run on hold at the human stages: while it waits for review, or after it is
+        approved (which suspends reliance on it and stops its release). Anyone who may hold
+        work may do this; only someone who may resolve holds can lift it."""
+        ctx = self.ctx
+        authn.require_step_up(actor_id, "put this run on hold")
+        matter = ctx.matter_for(matter_id, actor_id, "workflow.hold")
+        run = ctx.store.get(Run, matter.matter_id, run_id)
+        if run is None:
+            raise NotFound(f"run not found in this matter: {run_id}")
+        if run.status not in _PERSON_HOLDABLE:
+            raise InvalidState(
+                f"the run is {run.status.value.replace('_', ' ')}: a person can put a run on "
+                "hold while it waits for review or once it is approved; a running run is "
+                "stopped instead"
+            )
+        if len(reason.strip()) < 10:
+            raise InvalidInput("give the reason for holding it")
+        previous = run.status
+        hold = ctx.holds.raise_hold(
+            matter_id=matter.matter_id,
+            run_id=run.run_id,
+            scope=HoldScope.RUN,
+            subject_id=run.run_id,
+            reason_code=HELD_BY_PERSON,
+            detail=f"previous:{previous.value}; {' '.join(reason.split())}",
+            actor_id=actor_id,
+        )
+        run.status = RunStatus.HELD
+        ctx.store.put(run)
+        step = self._person_step_at(matter.matter_id, run.run_id, previous)
+        if step is not None:
+            record_person_step(
+                ctx.store,
+                ctx.audit,
+                matter_id=matter.matter_id,
+                run_id=run.run_id,
+                step_id=step,
+                status=StepStatus.HELD,
+                actor_id=actor_id,
+                detail=f"put on hold by {actor_id}: {' '.join(reason.split())[:160]}",
+                outputs={"hold_id": hold.hold_id},
+            )
+        return hold
+
+    def _person_step_at(self, matter_id: str, run_id: str, status: RunStatus) -> str | None:
+        """The person step the run is at: review while it waits for review; after approval,
+        the first release step not yet done."""
+        if status is RunStatus.AWAITING_HUMAN_REVIEW:
+            return "human_review"
+        done = {
+            s.step_id
+            for s in self.ctx.store.list(RunStep, matter_id, run_id=run_id)
+            if s.status is StepStatus.OK
+        }
+        return next(
+            (
+                s
+                for s in ("prepare_release", "recipient_approval", "controlled_delivery")
+                if s not in done
+            ),
+            None,
+        )
+
+    def _lift(self, matter: Matter, hold: Hold, *, actor_id: str, reason: str) -> Hold:
+        ctx = self.ctx
+        run = ctx.store.require(Run, matter.matter_id, hold.run_id)
+        previous = RunStatus(hold.detail.split(";", 1)[0].removeprefix("previous:"))
+        if previous is RunStatus.APPROVED_FOR_RELIANCE:
+            # Reliance resumes only on the very report that was approved.
+            report = ctx.store.get(Report, matter.matter_id, run.report_id or "")
+            path = Path(report.artifact_ref) if report else None
+            if (
+                report is None
+                or path is None
+                or not path.is_file()
+                or hashlib.sha256(path.read_bytes()).hexdigest() != report.sha256
+            ):
+                raise AuditIntegrityError(
+                    "the approved report is missing or no longer matches its recorded hash; "
+                    "stop this run and start a new one"
+                )
+        run.status = previous
+        ctx.store.put(run)
+        step = self._person_step_at(matter.matter_id, run.run_id, previous)
+        if step is not None:
+            record_person_step(
+                ctx.store,
+                ctx.audit,
+                matter_id=matter.matter_id,
+                run_id=run.run_id,
+                step_id=step,
+                status=StepStatus.PENDING,
+                actor_id=actor_id,
+                detail=f"hold lifted by {actor_id}",
+            )
+        return ctx.holds.resolve(
+            hold, resolved_by=actor_id, resolution=HoldResolution.LIFTED, reason=reason
         )

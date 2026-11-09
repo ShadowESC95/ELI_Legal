@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from eli_legal.domain import plain
 from eli_legal.domain.enums import MatterStatus
 from eli_legal.domain.errors import AuthenticationFailed, MatterAccessDenied, PolicyDenied
 from eli_legal.domain.models import AuditEvent, Matter
 from eli_legal.domain.policy import RuntimePolicy
 from eli_legal.domain.profiles import OVERSIGHT_ROLES, profile_spec
 from eli_legal.ports.audit import AuditPort
-from eli_legal.security import authn
+from eli_legal.security import access, authn
 from eli_legal.security.matter_guard import require_matter_access
 from eli_legal.security.rbac import RoleBindings
 
@@ -105,6 +106,18 @@ class MatterAuthorizer:
             require_matter_access(matter, user_id)
         except MatterAccessDenied as exc:
             self._deny(exc, user_id=user_id, action=action, matter_id=mid, reason="not_a_member")
+        if not access.permits(matter, user_id, self.bindings.roles_for(user_id), action):
+            role = access.matter_role(matter, user_id, self.bindings.roles_for(user_id))
+            self._deny(
+                PolicyDenied(
+                    f"as {access.MATTER_ROLES[role].label.lower()} on this matter, {user_id!r} "
+                    f"may not {plain.action(action)}"
+                ),
+                user_id=user_id,
+                action=action,
+                matter_id=mid,
+                reason="matter_role_lacks_permission",
+            )
         if matter.status is MatterStatus.CLOSED and action not in _CLOSED_MATTER_ACTIONS:
             self._deny(
                 PolicyDenied(f"matter {mid} is closed"),
@@ -137,4 +150,10 @@ class MatterAuthorizer:
         spec = profile_spec(matter.profile)
         if not self.bindings.can(user_id, action, roles=spec.roles | OVERSIGHT_ROLES):
             return False
-        return user_id == matter.owner_user_id or user_id in matter.authorised_user_ids
+        if not (user_id == matter.owner_user_id or user_id in matter.authorised_user_ids):
+            return False
+        return access.permits(matter, user_id, self.bindings.roles_for(user_id), action)
+
+    def visibility(self, matter: Matter, user_id: str) -> access.Visibility:
+        """What this person may read of the matter."""
+        return access.Visibility.of(matter, user_id, self.bindings.roles_for(user_id))

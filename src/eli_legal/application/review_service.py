@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from eli_legal.application.container import AppContext
-from eli_legal.domain.enums import ActorType, ReviewDecision, RunStatus
+from eli_legal.domain.enums import ActorType, ReviewDecision, RunStatus, StepStatus
 from eli_legal.domain.errors import (
     AuditIntegrityError,
     InvalidInput,
@@ -15,13 +15,23 @@ from eli_legal.domain.errors import (
     PolicyDenied,
     VerificationGateFailed,
 )
-from eli_legal.domain.models import HumanReview, Report, Run, RunStep, VerificationResult, utcnow
+from eli_legal.domain.models import (
+    Claim,
+    Document,
+    HumanReview,
+    Report,
+    Run,
+    RunStep,
+    VerificationResult,
+    utcnow,
+)
 from eli_legal.domain.profiles import profile_spec
 from eli_legal.governance.completeness import check_run_completeness
 from eli_legal.legal.human_review_gate import HumanReviewGate
 from eli_legal.security import authn
 from eli_legal.security.redaction import content_hash
 from eli_legal.workflows.case_preparation import build_report, warning_id, write_report
+from eli_legal.workflows.runner import record_person_step
 
 _BODY_MARK = "## 1. Matter"
 
@@ -40,11 +50,47 @@ class ReviewService:
     def release_for_reliance(self, run: Run, review: HumanReview | None) -> Run:
         return HumanReviewGate().release(run, review)
 
+    def report_text(self, matter_id: str, run_id: str, *, actor_id: str) -> tuple[str, bool]:
+        """The run's current report as this person may read it, and whether anything in it was
+        withheld from them. A person cleared for all of the matter's material reads the file
+        exactly as it was hashed and approved."""
+        matter = self.ctx.matter_for(matter_id, actor_id, "document.read")
+        run = self.ctx.store.require(Run, matter.matter_id, run_id)
+        report = self.ctx.store.get(Report, matter.matter_id, run.report_id or "")
+        if report is None:
+            raise NotFound("no report has been drafted for this run")
+        path = Path(report.artifact_ref)
+        if not path.is_file():
+            raise NotFound("the report file is missing")
+        text = path.read_text(encoding="utf-8")
+        seen = self.ctx.authorizer().visibility(matter, actor_id)
+        if seen.sees_everything:
+            return text, False
+        shown = seen.scrub(
+            text,
+            documents=self.ctx.store.list(Document, matter.matter_id),
+            claims=self.ctx.store.list(Claim, matter.matter_id, run_id=run_id),
+        )
+        return shown, shown != text
+
     def pending_warnings(self, matter_id: str, run_id: str, *, actor_id: str) -> list[str]:
         matter = self.ctx.matter_for(matter_id, actor_id, "report.review")
         run = self.ctx.store.require(Run, matter.matter_id, run_id)
         report = self.ctx.store.get(Report, matter.matter_id, run.report_id or "")
-        return list(report.warnings) if report else []
+        if report is None:
+            return []
+        seen = self.ctx.authorizer().visibility(matter, actor_id)
+        if seen.sees_everything:
+            return list(report.warnings)
+        documents = self.ctx.store.list(Document, matter.matter_id)
+        claims = self.ctx.store.list(Claim, matter.matter_id, run_id=run_id)
+        # The id before ": " is what is acknowledged; only the description can name material.
+        return [
+            f"{warning_id(w)}: {seen.scrub(w.split(': ', 1)[1], documents=documents, claims=claims)}"
+            if ": " in w
+            else w
+            for w in report.warnings
+        ]
 
     def decide(
         self,
@@ -197,6 +243,22 @@ class ReviewService:
         run.reviewer_user_id = actor_id
         ctx.store.put(review)
         ctx.store.put(run)
+        outcome = {
+            ReviewDecision.APPROVE: (StepStatus.OK, "approved for reliance"),
+            ReviewDecision.REJECT: (StepStatus.FAILED, "rejected"),
+            ReviewDecision.RETURN_FOR_CORRECTION: (StepStatus.HELD, "returned for correction"),
+        }[review.decision]
+        record_person_step(
+            ctx.store,
+            ctx.audit,
+            matter_id=run.matter_id,
+            run_id=run.run_id,
+            step_id="human_review",
+            status=outcome[0],
+            actor_id=actor_id,
+            detail=f"{outcome[1]} by {actor_id}",
+            outputs={"review_id": review.review_id, "report_hash": review.report_hash},
+        )
         ctx.log(
             "review_decision",
             actor_id=actor_id,

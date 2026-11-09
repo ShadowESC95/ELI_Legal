@@ -115,11 +115,19 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
         """The holds on the run. Nothing reaches review while one is open."""
         return js(sv.holds.list(matter_id, run_id, actor_id=actor, open_only=open_only))
 
+    @app.post("/v1/matters/{matter_id}/runs/{run_id}/hold", status_code=201)
+    def hold_run(matter_id: str, run_id: str, body: schemas.Reasoned, actor: Actor) -> Any:
+        """Put a run on hold while it waits for review or once approved (suspending reliance
+        and its release), with reasons. A decision; lifting it needs someone who may resolve
+        holds."""
+        return js(sv.holds.place(matter_id, run_id, actor_id=actor, reason=body.reason))
+
     @app.post("/v1/matters/{matter_id}/holds/{hold_id}/resolve")
     def resolve_hold(
         matter_id: str, hold_id: str, body: schemas.HoldResolveIn, actor: Actor
     ) -> Any:
-        """Close a hold by a named decision, `exclude` or `waive`, with reasons. A decision."""
+        """Close a hold by a named decision, `exclude` or `waive` (or `lift`, for a run a person
+        put on hold), with reasons. A decision."""
         return js(
             sv.holds.resolve(
                 matter_id, hold_id, actor_id=actor, action=body.action, reason=body.reason
@@ -137,7 +145,8 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
         current = sv.runs.summary(matter_id, run_id, actor_id=actor)["report"]
         if not current:
             raise NotFound("no report has been drafted for this run")
-        return Path(current["path"]).read_text(encoding="utf-8"), current
+        text, withheld = sv.reviews.report_text(matter_id, run_id, actor_id=actor)
+        return text, current | {"withheld": withheld}
 
     @app.get("/v1/matters/{matter_id}/runs/{run_id}/report")
     def report(matter_id: str, run_id: str, actor: Actor) -> dict[str, Any]:
@@ -149,6 +158,7 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
             "version": current["version"],
             "release_status": current["release_status"],
             "warnings": sv.reviews.pending_warnings(matter_id, run_id, actor_id=actor),
+            "withheld": current["withheld"],
         }
 
     @app.get("/v1/matters/{matter_id}/runs/{run_id}/report.md", response_class=PlainTextResponse)

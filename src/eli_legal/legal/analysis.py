@@ -27,6 +27,7 @@ from eli_legal.legal.llm import (
     declare_step,
     fenced,
 )
+from eli_legal.security.access import strictest_scope
 
 MAX_ARGUMENT_ITEMS = 30
 _REPLY_TOKENS = 1200
@@ -217,6 +218,8 @@ class Analyst:
                     issue_ids=[issue.issue_id],
                     depends_on=[c.claim_id for c in relied],
                     party_id=party.party_id,
+                    # Never shown more widely than the most restricted item it rests on.
+                    access_scope=strictest_scope(relied),
                     origin=f"model:{self.model.model_id}|{PROMPT_VERSIONS['arguments']}",
                     uncertainty="Model-drafted argument for the reviewer's judgement.",
                 )

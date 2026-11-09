@@ -31,6 +31,7 @@ REGISTER_FILES = {
     "controls": "control_register.csv",
     "risks": "risk_register.csv",
     "responsibilities": "provider_deployer_matrix.csv",
+    "actions": "organisation_actions.csv",
 }
 
 
@@ -126,4 +127,12 @@ def check_registers(root: Path | None = None) -> list[str]:
             problems.append(f"{qid} must say what remains for the organisation")
     for orphan in sorted(known - referenced):
         problems.append(f"{orphan} is not linked to any risk or requirement")
+    # What remains of each requirement for an organisation must be an action someone can take.
+    from eli_legal.governance.compliance import check_actions, load_actions
+
+    if not (governance / REGISTER_FILES["actions"]).is_file():
+        return [*problems, f"missing register: {REGISTER_FILES['actions']}"]
+    problems += check_actions(
+        load_actions(governance), _rows(governance / "requirements_register.csv")
+    )
     return problems

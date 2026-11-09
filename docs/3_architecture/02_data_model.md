@@ -6,7 +6,7 @@ and for sources `source_id`, `authority_id`, `source_version_id`, `passage_id`.
 
 | Record | Holds |
 |---|---|
-| Matter | profile, jurisdiction, governing law, forum, relevant date, parties, stated issues, members, named reviewers, approved sources |
+| Matter | profile, jurisdiction, governing law, forum, relevant date, parties, stated issues, members with each one's role on the matter, the party they act for and their clearance, named reviewers, approved sources |
 | Document | filename, SHA-256, type, party, access scope, custodian, status, injection flags, any waiver |
 | Chunk | one paragraph of a document, with its locator and hash |
 | Claim (finding) | kind, verbatim text, evidence links, issue links, dependencies, party, date, authority, status and reason |
@@ -19,8 +19,12 @@ and for sources `source_id`, `authority_id`, `source_version_id`, `passage_id`.
 | HumanReview | reviewer, decision, reasons, the report hash reviewed, limits acknowledged |
 | Report | version, hash, audience, release status, the audit head it was built against |
 | ReleasePackage | exact report version, recipients and whether each is entitled |
-| Incident | category, severity, containment, closure |
+| Incident | category, severity, containment, closure; for a serious one, which Art. 73 deadline applies, whether a person decided it is reportable, and when and under what reference it was reported |
 | AuditEvent | actor, action, subject, outcome, hashes, versions; no content |
+| Compliance record | one organisation action done or not applying: who recorded it, when, its answers or reference, its review date (kept in the registry, never deleted) |
+| Training record | a person, the training, when completed, until when it counts |
+| Routine check run | when the checks ran, who ran them, and each check's state, findings and what it did (the latest 60 are kept) |
+| Law currency | for a law package, who checked it against its official text and on what date |
 
 Finding ids are derived from run, kind, source and text, so re-running a step reproduces the same
 ids. Legal sources are not matter data and live in their own tables; a matter reaches them only

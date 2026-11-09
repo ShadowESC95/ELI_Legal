@@ -80,6 +80,13 @@ class Matter:
     framework_ids: list[str] = field(default_factory=list)
     created_at: datetime = field(default_factory=utcnow)
     closed_at: datetime | None = None
+    # Each member's role on this matter (eli_legal.security.access.MATTER_ROLES). Someone on the
+    # matter with no entry has the narrowest role that keeps what their account allows.
+    member_roles: dict[str, str] = field(default_factory=dict)
+    # A member who acts for one party never sees what another party gave in confidence.
+    member_parties: dict[str, str] = field(default_factory=dict)
+    # Material a member may read, where the lead has set it rather than leaving the role's own.
+    member_clearance: dict[str, list[str]] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -351,6 +358,15 @@ class Incident:
     closed_by: str | None = None
     closed_at: datetime | None = None
     closure_reason: str = ""
+    # EU AI Act Art. 73, for a serious incident: which deadline applies ("general" 15 days,
+    # "death" 10 days, "widespread" 2 days), whether a person decided it is reportable, and
+    # when and under what reference it was reported to the market surveillance authority.
+    serious_kind: str = ""
+    reportable: bool | None = None
+    report_decided_by: str | None = None
+    report_reason: str = ""
+    reported_at: datetime | None = None
+    report_reference: str = ""
 
 
 @dataclass(slots=True)

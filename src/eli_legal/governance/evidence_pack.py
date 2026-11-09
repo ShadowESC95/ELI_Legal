@@ -56,7 +56,10 @@ def export_evidence_pack(
     target.mkdir(parents=True)
 
     documents = ctx.store.list(Document, mid)
-    claims = ctx.store.list(Claim, mid, run_id=run_id)
+    # The pack holds what its exporter may read. Someone who audits a matter without being
+    # cleared for its material gets every record, hash and decision, with content withheld.
+    seen = ctx.authorizer().visibility(matter, actor_id)
+    claims = [seen.claim(c) for c in ctx.store.list(Claim, mid, run_id=run_id)]
     verifications = ctx.store.list(VerificationResult, mid, run_id=run_id)
     steps = ctx.store.list(RunStep, mid, run_id=run_id)
     holds = ctx.holds.all_holds(mid, run_id)
@@ -151,8 +154,22 @@ def export_evidence_pack(
     for report in ctx.store.list(Report, mid, run_id=run_id):
         for ref in (report.artifact_ref, report.data_ref):
             source = Path(ref)
-            if source.is_file():
+            if not source.is_file():
+                continue
+            if seen.sees_everything:
                 shutil.copyfile(source, target / source.name)
+            else:
+                raw = source.read_bytes()
+                _write(
+                    target / f"{source.name}.withheld.json",
+                    {
+                        "file": source.name,
+                        "sha256": hashlib.sha256(raw).hexdigest(),
+                        "bytes": len(raw),
+                        "withheld": "the exporter's role on the matter does not include all of "
+                        "its material; the hash identifies the file without disclosing it",
+                    },
+                )
     _write(
         target / "configuration.json",
         {
@@ -183,6 +200,8 @@ def export_evidence_pack(
         "exported_by": actor_id,
         "matter_id": mid,
         "run_id": run_id,
+        "content": "full" if seen.sees_everything else "withheld where the exporter is not cleared",
+        "exporter_role_on_matter": seen.role,
         "files": {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in files},
     }
     _write(target / "MANIFEST.json", manifest)

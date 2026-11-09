@@ -16,26 +16,31 @@ make it.
 
 ## The header
 
-Always visible: the open matter and who it is for; whether the audit chain verifies and how many
-events it holds; that the network is denied by default; which model is in use, if any; and who
-is signed in, with their roles.
+Always visible: the open matter and who it is for; the result of the latest routine checks;
+whether the audit chain verifies and how many events it holds; that the network is denied by
+default; which model is in use, if any; and who is signed in, with their roles.
 
-## Tabs
+## Pages
 
-| Tab | What it is for |
+The pages are listed down the left, in three groups: **this matter** (Home to Review),
+**oversight** (Audit Trail, Governance) and **library and settings** (Sources, Laws & Standards,
+Settings). Ctrl+1 to Ctrl+9 open the first nine.
+
+| Page | What it is for |
 |---|---|
-| 📁 Matter | Open a matter under a profile; parties, issues, relevant date; who has access; the named reviewers; the approved sources; close a matter. |
-| 📄 Evidence | Take documents in (who filed them, what they are, who may see them); read any document as located passages; see what was not read and what was flagged. |
+| 🏠 Home | Where the open matter stands (six stages: set up, documents, analysis, holds and checks, review, release), your role on it and what you may read, the next things to do with a button to each, the work waiting for you on every matter you are on, the routine checks, and where compliance stands. |
+| 📁 Matter | Open a matter with the six-page wizard; parties, issues, relevant date; the team, each person's role on the matter, whom they act for and what they read; change a role; the named reviewers; the approved sources; close a matter. |
+| 📄 Evidence | Take documents in, saying for each file what it is, who filed it, who may see it and where it came from; read any document as located passages; see what was not read and what was flagged. Anything you are not cleared to read is listed as withheld, with the reason. |
 | 💬 Chat | Ask about the matter. Answers come from its documents, the run's findings and the approved sources, each with its locator and whether it may be relied on. With a model, a short summary whose every sentence is tied to its sources. It will not say who should win, and nothing can be decided from chat. |
 | 🕸 DAG | The workflow as a graph, coloured by what happened to each step. Start, stop or restart a run; select a step to see what it did. Runs execute in the background. |
 | 🤖 Agents | Each step as an agent with a fixed mandate: what it reads, what it writes, what it may never do, which controls it carries out, and what it did in the selected run. Three are model-assisted (marked ✦); four are people. |
 | 🔎 Findings | Every finding of the run with its source passage, its checks and who decided them. Record a check by hand, or take a held finding out of reliance. |
 | ⚖ Review | Holds; checks waiting for a person; the report; the decision (tick each stated limit, give reasons, approve / return / reject); release to confirmed recipients. |
 | 🧾 Audit Trail | The ledger for the matter, including how each actor's identity was proved; verify the chain; reconcile a run's record; export a checkpoint or the evidence pack. |
-| 🛡 Governance | The requirement, control, risk and responsibility registers; monitoring computed from control evidence; incidents. |
+| 🛡 Governance | Every requirement and where it stands (met, waiting for your organisation, review due); the organisation's actions, recorded here with your passphrase (forms, statements, training, retention, the accuracy evaluation, the drafted Annex IV documentation and declaration, registration); the routine checks and what they found; every matter on the system, for oversight; the control, risk and responsibility registers; monitoring; incidents, with each serious incident's reporting deadline and the decision on it. |
 | 📚 Sources | The approved-source register; register, approve or revoke a source; load a corpus; read what a source holds and each authority's status history. |
-| 📜 Laws & Standards | The law, regulation and standards packages: the library, your organisation's own, and which apply to the open matter. See [Laws & Standards](11_laws_and_standards.md). |
-| ⚙ Settings | Your passphrase; users and roles; the model; the legal systems installed; the policy; this installation. |
+| 📜 Laws & Standards | The law, regulation and standards packages: the library, when each was last checked against its official text, your organisation's own, and which apply to the open matter; record that you checked one. See [Laws & Standards](11_laws_and_standards.md). |
+| ⚙ Settings | Your passphrase; users and roles, each role described; what every account role and every role on a matter may do; the model; the legal systems installed; the policy; this installation. |
 
 ## What it will not let you do
 

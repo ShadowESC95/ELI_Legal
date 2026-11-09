@@ -5,6 +5,7 @@ from typing import Any
 
 from eli_legal.application.container import AppContext
 from eli_legal.application.incident_service import IncidentService
+from eli_legal.application.verification_service import HELD_BY_PERSON
 from eli_legal.domain.enums import HoldResolution, HoldScope, MatterStatus, RunStatus, StepStatus
 from eli_legal.domain.errors import InvalidInput, InvalidState, NotFound
 from eli_legal.domain.models import (
@@ -20,7 +21,7 @@ from eli_legal.domain.models import (
 from eli_legal.security import authn
 from eli_legal.security.redaction import content_hash
 from eli_legal.workflows.case_preparation import CasePreparation
-from eli_legal.workflows.runner import WorkflowRunner
+from eli_legal.workflows.runner import WorkflowRunner, record_person_step
 
 _RESUMABLE = {
     RunStatus.HELD,
@@ -110,7 +111,28 @@ class RunService:
             raise InvalidState(f"run is {run.status.value}; only a held or stopped run can restart")
         if not reason.strip():
             raise InvalidInput("a reason is required to restart a run")
+        if any(
+            h.reason_code == HELD_BY_PERSON for h in ctx.holds.open_holds(matter.matter_id, run_id)
+        ):
+            raise InvalidState(
+                "a person put this run on hold: lift that hold (Review), or stop the run; it "
+                "is not restarted over a person's hold"
+            )
         ctx.audit.verify_chain()
+        # A restart sends the work back through review: the person steps start again.
+        recorded = {s.step_id for s in ctx.store.list(RunStep, matter.matter_id, run_id=run_id)}
+        for step in ctx.workflow.order():
+            if step.manual and step.id in recorded:
+                record_person_step(
+                    ctx.store,
+                    ctx.audit,
+                    matter_id=matter.matter_id,
+                    run_id=run_id,
+                    step_id=step.id,
+                    status=StepStatus.PENDING,
+                    actor_id=actor_id,
+                    detail="to be done again after the restart",
+                )
         steps = {s.step_id: s for s in ctx.store.list(RunStep, matter.matter_id, run_id=run_id)}
         if from_step is None:
             from_step = next(

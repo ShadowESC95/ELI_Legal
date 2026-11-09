@@ -7,7 +7,7 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 QtWidgets = pytest.importorskip("PySide6.QtWidgets", reason="the desktop application needs PySide6")
-
+from PySide6 import QtCore  # noqa: E402
 from PySide6.QtWidgets import QInputDialog, QMessageBox  # noqa: E402
 
 from eli_legal.application.matter_service import hash_passphrase  # noqa: E402
@@ -16,6 +16,7 @@ from eli_legal.demo import build_demo_workspace  # noqa: E402
 from eli_legal.demo_run import ADMIN, ARBITRATOR, SECRETARY, demo_settings, setup_demo  # noqa: E402
 from eli_legal.domain.enums import ReviewDecision  # noqa: E402
 from eli_legal.domain.errors import AuthenticationFailed, SecondFactorRequired  # noqa: E402
+from eli_legal.governance.registers import load_register  # noqa: E402
 from eli_legal.gui.app import (  # noqa: E402
     FirstRunDialog,
     SignInDialog,
@@ -76,7 +77,9 @@ class Desk:
 @pytest.fixture
 def desk(qt, tmp_path, monkeypatch):
     workspace = build_demo_workspace(tmp_path / "demo")
-    sv = build_services(demo_settings(tmp_path, workspace), install_network_guard=False)
+    # The schedule is driven by hand in tests, so nothing runs behind a test's back.
+    settings = demo_settings(tmp_path, workspace, checks_every_hours=0)
+    sv = build_services(settings, install_network_guard=False)
     mid = setup_demo(sv, workspace)
     for user, phrase in PHRASE.items():
         if user == ADMIN:  # the first administrator's passphrase comes from set-up, not from anyone
@@ -113,6 +116,7 @@ def test_the_application_has_the_specialised_tabs_and_nothing_else(desk):
     d = desk()
     titles = [d.window.tabs.tabText(i) for i in range(d.window.tabs.count())]
     for wanted in (
+        "Home",
         "Matter",
         "Evidence",
         "Chat",
@@ -127,7 +131,7 @@ def test_the_application_has_the_specialised_tabs_and_nothing_else(desk):
         "Settings",
     ):
         assert any(wanted in t for t in titles), wanted
-    assert len(titles) == 12
+    assert len(titles) == 13
     for unwanted in (
         "Images",
         "Screen",
@@ -141,7 +145,8 @@ def test_the_application_has_the_specialised_tabs_and_nothing_else(desk):
     ):
         assert not any(unwanted in t for t in titles), "no general-assistant tab belongs here"
     chips = " ".join(c.text() for c in d.window.chips.values())
-    assert "Audit verified" in chips and "Aoife Keane" in chips and "arbitrator" in chips
+    assert "Audit verified" in chips and "Aoife Keane" in chips and "Arbitrator" in chips
+    assert "Checks not run yet" in chips
 
 
 def test_sign_in_needs_the_passphrase_and_signing_out_ends_the_identity(desk, qt):
@@ -167,7 +172,7 @@ def test_a_run_started_from_the_dag_tab_executes_in_the_background_and_every_tab
     d.settle()
     assert d.session.run.status.value == "held"
     assert dag.dag.nodes["current_law_check"].status == "ok"
-    assert dag.dag.nodes["human_review"].status == "pending" and "hold(s) open" in dag.state.text()
+    assert dag.dag.nodes["human_review"].status == "pending" and "6 holds open" in dag.state.text()
     dag._show_step("current_law_check")
     assert (
         "Current-law citator" in dag.step_title.text()
@@ -192,9 +197,12 @@ def test_a_run_started_from_the_dag_tab_executes_in_the_background_and_every_tab
     audit = d.page(AuditTab)
     assert audit.events.rowCount() > 40 and "chain verified" in audit.chain.text()
     proofs = {audit.events.item(r, 4).text() for r in range(audit.events.rowCount())}
-    assert "gui-passphrase" in proofs, "the ledger shows the run was done by a signed-in person"
+    assert any("desktop sign-in with passphrase · gui-passphrase" in p for p in proofs), (
+        "the ledger shows the run was done by a signed-in person"
+    )
     governance = d.page(GovernanceTab)
-    assert governance.requirements.rowCount() == 35 and governance.controls.rowCount() >= 33
+    assert governance.requirements.rowCount() == len(load_register("requirements"))
+    assert governance.controls.rowCount() == len(load_register("controls"))
     assert not d.warnings, d.warnings
 
 
@@ -213,7 +221,7 @@ def test_chat_answers_from_the_matter_and_refuses_to_decide(desk):
     chat._ask("Who should win this case?")
     assert "do not say who should succeed" in chat.transcript.toPlainText()
     chat._ask("/holds")
-    assert "verification_failed" in chat.transcript.toPlainText()
+    assert "A check failed" in chat.transcript.toPlainText()
 
 
 def test_the_administrator_sees_the_machine_and_how_a_model_would_be_placed_before_choosing(
@@ -376,3 +384,136 @@ def test_first_run_creates_the_key_and_insists_on_a_real_passphrase(qt, tmp_path
     dialog.second.setText("a long enough passphrase")
     dialog._check()
     assert dialog.result() == 1
+
+
+def test_home_shows_where_the_matter_stands_and_takes_you_to_the_next_step(desk):
+    from eli_legal.gui.tabs.home_tab import HomeTab
+
+    d = desk()
+    home = d.page(HomeTab)
+    assert home.heading.text() == "Harbour Freight Ltd v Northwind Logistics Ltd"
+    assert "Your role on this matter: Lead" in home.role.text()
+    assert home.stages.count() == 6
+    d.sv.runs.start(d.mid, actor_id=ARBITRATOR)
+    d.session.notify()
+    d.qt.processEvents()
+    first = home.steps.itemAt(0).widget()
+    assert "Resolve" in first.findChild(QtWidgets.QLabel).text()
+    first.findChild(QtWidgets.QPushButton).click()
+    assert isinstance(d.window.tabs.currentWidget(), ReviewTab)
+    assert home.work.count() >= 1 and "Harbour Freight" in home.work.item(0).text()
+
+
+def test_the_wizard_opens_a_matter_with_its_team_reviewers_and_sources(desk):
+    from eli_legal.gui.matter_wizard import MatterWizard
+
+    d = desk()
+    wizard = MatterWizard(
+        d.window,
+        actor_id=ARBITRATOR,
+        jurisdictions=d.sv.ctx.jurisdictions.codes(),
+        default_jurisdiction="XX",
+        users=d.sv.users.directory(ARBITRATOR),
+        sources=[s for s in d.sv.sources.list() if s.approved],
+        frameworks=[s for s in d.sv.frameworks.list(actor_id=ARBITRATOR) if s.usable],
+        recommend=lambda profile, code: d.sv.frameworks.recommended(
+            profile, code, actor_id=ARBITRATOR
+        ),
+    )
+    wizard.show()
+    wizard.next()
+    wizard.name.setText("Gantry Marine v Holloway")
+    wizard.purpose.setText("Bench memorandum on acceptance of late delivery")
+    wizard.jurisdiction.setCurrentText("XX")
+    wizard.next()
+    wizard.parties.item(0, 0).setText("Gantry Marine Ltd")
+    wizard.parties.item(1, 0).setText("Holloway plc")
+    wizard.issues.setPlainText("Whether acceptance waived the delay")
+    wizard.next()
+    secretary = next(
+        r for r in range(wizard.team.rowCount()) if SECRETARY in wizard.team.item(r, 0).text()
+    )
+    wizard.team.item(secretary, 0).setCheckState(QtCore.Qt.CheckState.Checked)
+    wizard.next()
+    assert wizard.source_list.count() and wizard.law_list.count()
+    wizard.next()
+    assert "Gantry Marine v Holloway" in wizard.summary.text()
+    values = wizard.values()
+    assert values["team"][0].matter_role == "case_worker" and values["reviewers"] == [ARBITRATOR]
+    matter = d.sv.matters.create(actor_id=ARBITRATOR, **values)
+    assert matter.member_roles == {SECRETARY: "case_worker"}
+    assert matter.reviewer_user_ids == {ARBITRATOR} and matter.approved_source_ids
+    assert [p.name for p in matter.parties] == ["Gantry Marine Ltd", "Holloway plc"]
+    wizard.close()
+
+
+def test_routine_checks_run_on_their_schedule_in_the_application(desk):
+    d = desk()
+    assert not d.sv.checks.due(), "switched off in these tests: nothing is due on its own"
+    d.sv.ctx.settings.checks_every_hours = 24
+    assert d.sv.checks.latest() is None and d.sv.checks.due()
+    d.window.scheduled_checks()
+    d.settle()
+    latest = d.sv.checks.latest()
+    assert latest is not None and latest.actor_id == "system"
+    d.window.refresh()
+    assert "Checks" in d.window.chips["checks"].text()
+    d.window.scheduled_checks()  # not due again yet: nothing more runs
+    d.settle()
+    assert d.sv.checks.latest().run_id == latest.run_id
+
+
+def test_compliance_is_recorded_from_the_governance_page_in_the_persons_name(desk, monkeypatch):
+    d = desk()
+    d.window.close()  # signs out: the administrator sets up the new person
+    with authn.harness("test-harness"):
+        d.sv.users.add_user(
+            actor_id=ADMIN, user_id="gov.x", display_name="Gov", roles=["governance_officer"]
+        )
+        d.sv.users.set_passphrase(actor_id=ADMIN, user_id="gov.x", new="governance passphrase")
+    monkeypatch.setitem(PHRASE, "gov.x", "governance passphrase")
+    g = desk("gov.x")
+    governance = g.page(GovernanceTab)
+    rows = [
+        governance.org_actions.item(r, 0).text() for r in range(governance.org_actions.rowCount())
+    ]
+    governance.org_actions.selectRow(next(i for i, t in enumerate(rows) if t.startswith("OA-19")))
+    governance._not_applicable()
+    governance.refresh()
+    assert not g.warnings, g.warnings
+    record = g.sv.compliance.records("OA-19")[-1]
+    assert record.recorded_by == "gov.x" and record.not_applicable
+    statuses = {
+        r.requirement_id: r.state for r in g.sv.compliance.overview(actor_id="gov.x").requirements
+    }
+    assert statuses["AIA-22"] == "met"
+
+
+def test_documents_are_taken_in_file_by_file_and_the_outcome_is_said_plainly(
+    desk, tmp_path, monkeypatch
+):
+    from eli_legal.domain.enums import AccessScope
+    from eli_legal.gui.tabs import documents_tab
+    from eli_legal.gui.tabs.documents_tab import IntakeDialog
+
+    d = desk()
+    letter = tmp_path / "without_prejudice.txt"
+    letter.write_text("On 3 May 2023 the Respondent offered €40,000 to settle.\n")
+    photo = tmp_path / "scan.jpg"
+    photo.write_bytes(b"\xff\xd8\xff\xe0 not really a photograph")
+    told: list[str] = []
+    monkeypatch.setattr(documents_tab.QMessageBox, "information", lambda *a, **k: told.append(a[2]))
+
+    def accept(dialog):
+        scopes = dialog.grid.cellWidget(0, 3)
+        scopes.setCurrentIndex(scopes.findData(AccessScope.PARTY_CONFIDENTIAL.value))
+        assert [row["path"] for row in dialog.plan()] == [str(letter), str(photo)]
+        return QtWidgets.QDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(IntakeDialog, "exec", accept)
+    tab = d.page(DocumentsTab)
+    tab._ingest([str(letter), str(photo)])
+    assert told and "1 document read." in told[0] and "could not be read" in told[0]
+    stored = {doc.filename: doc for doc in d.sv.matters.documents(d.mid, ARBITRATOR)}
+    assert stored["without_prejudice.txt"].access_scope is AccessScope.PARTY_CONFIDENTIAL
+    assert stored["scan.jpg"].access_scope is AccessScope.ALL_PARTIES

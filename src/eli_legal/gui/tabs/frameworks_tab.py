@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 
 from PySide6.QtCore import Qt
@@ -18,17 +19,21 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from eli_legal.domain import plain
 from eli_legal.gui.tabs.base import Tab
-from eli_legal.gui.widgets import button, card, fill, fit, label, row, selected_id, table
+from eli_legal.gui.widgets import (
+    ReasonDialog,
+    button,
+    card,
+    fill,
+    fit,
+    label,
+    row,
+    selected_id,
+    table,
+)
 from eli_legal.legal.framework_library import PackState
 
-HOW = {
-    "enforced": "enforced by the system",
-    "instruction": "given to the model",
-    "attestation": "reviewer confirms",
-    "disclosure": "disclosed in the report",
-    "note": "for the organisation",
-}
 FILES = (
     "Packages and documents (*.json *.csv *.pdf *.docx *.odt *.rtf *.txt *.md *.html *.htm *.eml)"
 )
@@ -86,7 +91,16 @@ class FrameworksTab(Tab):
     def __init__(self, session) -> None:  # type: ignore[no-untyped-def]
         super().__init__(session)
         self.library = table(
-            ["Package", "Instrument", "Scope", "Applies in", "Version", "Standing", "Requirements"],
+            [
+                "Package",
+                "Instrument",
+                "Scope",
+                "Applies in",
+                "Version",
+                "Standing",
+                "Checked against the official text",
+                "Requirements",
+            ],
             stretch=1,
         )
         self.library.itemSelectionChanged.connect(self._show)
@@ -114,6 +128,7 @@ class FrameworksTab(Tab):
                     button("Import a package or document…", self._import, kind="primary"),
                     button("Approve…", self._approve),
                     button("Record a lawyer's validation…", self._validate),
+                    button("Confirm checked against the official text…", self._confirm_current),
                     button("Withdraw", self._withdraw, kind="danger"),
                     button("Reinstate…", self._reinstate),
                     button("Remove", self._remove),
@@ -165,13 +180,14 @@ class FrameworksTab(Tab):
                     ", ".join(s.pack.jurisdictions).replace("*", "anywhere"),
                     s.pack.version,
                     s.why,
+                    self._checked(s.pack.pack_id),
                     str(len(s.pack.requirements)),
                 ]
                 for s in states
             ],
             ids=[s.pack.pack_id for s in states],
         )
-        fit(self.library, [190, 0, 100, 110, 140, 300, 60])
+        fit(self.library, [190, 0, 100, 110, 140, 260, 220, 60])
         self._show()
         self._matter()
 
@@ -191,7 +207,7 @@ class FrameworksTab(Tab):
                 [
                     r.reference or r.req_id,
                     r.title,
-                    HOW[r.effect] + (f" ({', '.join(r.controls)})" if r.controls else ""),
+                    plain.effect(r.effect) + (f" ({', '.join(r.controls)})" if r.controls else ""),
                     ", ".join(r.addressed_to),
                     ", ".join(x.replace("_", " ") for x in r.profiles) or "every kind of matter",
                 ]
@@ -236,7 +252,7 @@ class FrameworksTab(Tab):
             f"{state.pack.short_title} — {r.reference}",
             r.title,
             r.text,
-            f"How it is met: {HOW[r.effect]}",
+            f"How it is met: {plain.effect(r.effect)}",
         ]
         if r.effect == "instruction":
             parts.append(f"The model is told: {r.model_rule}")
@@ -309,6 +325,35 @@ class FrameworksTab(Tab):
         )
         if done is not None:
             self.refresh()
+
+    def _checked(self, pack_id: str) -> str:
+        on, by = self.sv.checks.law_checked_on(pack_id)
+        if on is None:
+            return "never recorded"
+        age = (date.today() - on).days
+        due = age > self.sv.ctx.settings.law_review_days
+        return f"{on.isoformat()} ({by})" + (" — due again" if due else "")
+
+    def _confirm_current(self) -> None:
+        state = self._selected()
+        if state is None:
+            return
+        note = ReasonDialog.ask(
+            self,
+            "Confirm checked against the official text",
+            f"You checked “{state.pack.title}” (version {state.pack.version}) against the "
+            "official text today and it still states the law correctly. Say which text you "
+            "checked it against (for example the consolidated version and its date). The "
+            "routine checks then count its review from today.",
+        )
+        if note:
+            self.session.decide(
+                self,
+                "confirm this package is current",
+                lambda: self.sv.checks.confirm_law_current(
+                    state.pack.pack_id, actor_id=self.actor, checked_on=date.today(), note=note
+                ),
+            )
 
     def _withdraw(self) -> None:
         state = self._selected()

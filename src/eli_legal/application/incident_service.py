@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 
 from eli_legal.application.container import AppContext
 from eli_legal.domain.enums import IncidentSeverity
 from eli_legal.domain.errors import InvalidInput, InvalidState, NotFound
 from eli_legal.domain.models import Incident, Run, utcnow
+from eli_legal.security import authn
 from eli_legal.security.redaction import content_hash
 
 # Hold reasons that are incidents in their own right, not just work to be done.
@@ -15,6 +17,23 @@ SYSTEM_INCIDENT_REASONS = {
     "audit_gap": IncidentSeverity.HIGH,
     "audit_integrity_failure": IncidentSeverity.SERIOUS,
 }
+
+
+# EU AI Act Art. 73(2)-(4): a serious incident is reported at once, and at the latest within
+# these many days. Counted here from when the incident was opened in this system, which may be
+# later than when the provider first became aware of it.
+REPORTING_DAYS = {"general": 15, "death": 10, "widespread": 2}
+
+
+def reporting_deadline(incident: Incident) -> datetime | None:
+    """When a serious incident must have been reported, unless a person decided it is not
+    reportable or it has been reported."""
+    if incident.severity is not IncidentSeverity.SERIOUS or incident.reportable is False:
+        return None
+    if incident.reported_at is not None:
+        return None
+    days = REPORTING_DAYS.get(incident.serious_kind or "general", REPORTING_DAYS["general"])
+    return incident.created_at + timedelta(days=days)
 
 
 @dataclass(slots=True)
@@ -96,6 +115,48 @@ class IncidentService:
         incident.closed_by, incident.closed_at = actor_id, utcnow()
         self.ctx.store.put(incident)
         self._log(incident, actor_id, "incident_closed", "closed", content_hash(reason))
+        return incident
+
+    def decide_reporting(
+        self,
+        matter_id: str,
+        incident_id: str,
+        *,
+        actor_id: str,
+        reportable: bool,
+        reason: str,
+        serious_kind: str = "general",
+        reported_on: datetime | None = None,
+        reference: str = "",
+    ) -> Incident:
+        """A person's decision on a serious incident: whether it must be reported to the market
+        surveillance authority (Art. 73), and if it was, when and under what reference."""
+        authn.require_step_up(actor_id, "decide whether an incident is reportable")
+        matter = self.ctx.matter_for(matter_id, actor_id, "incident.manage")
+        incident = self.ctx.store.get(Incident, matter.matter_id, incident_id)
+        if incident is None:
+            raise NotFound(f"incident not found in this matter: {incident_id}")
+        if serious_kind not in REPORTING_DAYS:
+            raise InvalidInput("the kind is general, death or widespread")
+        if len(reason.strip()) < 10:
+            raise InvalidInput("give the reasons for the decision")
+        if reported_on is not None and not reportable:
+            raise InvalidInput("an incident decided not reportable has no report date")
+        incident.severity = IncidentSeverity.SERIOUS
+        incident.serious_kind = serious_kind
+        incident.reportable = reportable
+        incident.report_decided_by = actor_id
+        incident.report_reason = reason.strip()
+        if reported_on is not None:
+            incident.reported_at, incident.report_reference = reported_on, reference.strip()
+        self.ctx.store.put(incident)
+        self._log(
+            incident,
+            actor_id,
+            "incident_reporting_decided",
+            "reported" if reported_on else ("reportable" if reportable else "not_reportable"),
+            content_hash(reason),
+        )
         return incident
 
     def _log(

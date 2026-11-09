@@ -147,9 +147,18 @@ def test_a_person_can_sign_in_read_the_matter_and_take_a_decision_in_the_browser
             "return JSON.stringify([...document.querySelectorAll('nav.tabs .tab')].map(t=>t.textContent));"
         )
     )
-    assert len(tabs) == 12 and all(
-        any(w in t for t in tabs) for w in ("Chat", "DAG", "Agents", "Audit Trail", "Settings")
+    assert (
+        len(tabs) == 13
+        and "Home" in tabs[0]
+        and all(
+            any(w in t for t in tabs) for w in ("Chat", "DAG", "Agents", "Audit Trail", "Settings")
+        )
     )
+    # Home opens first: where the matter stands and the next thing to do.
+    assert page.until("document.querySelectorAll('#view .stage').length === 6"), page.text("#view")[
+        :300
+    ]
+    assert "Your role on this matter: Lead" in page.text("#view")
     assert "Aoife Keane" in page.text("header.top") and "Audit verified" in page.text("header.top")
     assert page.js("return document.cookie;") == "", (
         "the session cookie is not readable by page scripts"
@@ -204,6 +213,23 @@ def test_a_person_can_sign_in_read_the_matter_and_take_a_decision_in_the_browser
         -1
     ]
     assert decided["actor_id"] == A and decided["payload"]["auth"] == "web-session+step-up"
+
+    page.tab("home")
+    assert page.until("document.querySelector('#view .step')")
+    assert "Resolve" in page.text("#view .step")
+    page.tab("governance")
+    assert page.until("document.querySelector('#view .subnav')")
+    assert "requirements met" in page.text("#view")
+    for label in ("Organisation actions", "Routine checks", "All matters", "Registers"):
+        page.click_button(label)
+        assert page.until(
+            "document.getElementById('view').children.length > 0 && !document.querySelector('#view > .banner.bad')"
+        ), label
+    page.tab("matter")
+    assert page.until(
+        "document.querySelector('#view') && document.getElementById('view').textContent.includes('Role on this matter')"
+    )
+    assert "Case worker" in page.text("#view")
 
     for name in ("matter", "agents", "findings", "audit", "governance", "sources", "settings"):
         page.tab(name)

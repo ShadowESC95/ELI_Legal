@@ -44,7 +44,7 @@ def test_chat_answers_from_the_matter_with_locators_and_flags_what_cannot_be_rel
         and "overruled" in authorities["[2011] XXSC 14"].note
     )
     assert authorities["[2022] XXSC 7"].usable is True
-    held = [s for s in law.sources if s.kind == "finding" and s.note.startswith("HELD")]
+    held = [s for s in law.sources if s.kind == "finding" and s.note.startswith("ON HOLD")]
     assert held and not any(s.usable for s in held)
 
 
@@ -65,11 +65,11 @@ def test_chat_will_not_give_the_decision_but_still_shows_the_material(held_run):
 def test_chat_commands_report_state_and_chat_is_access_controlled_and_logged(held_run):
     sv, mid, rid = held_run
     status = sv.chat.ask(mid, actor_id=A, question="/status")
-    assert status.mode == "command" and "is held" in status.notes[0]
+    assert status.mode == "command" and "is on hold" in status.notes[0]
+    assert any("A check failed" in n for n in sv.chat.ask(mid, actor_id=A, question="/holds").notes)
     assert any(
-        "verification_failed" in n for n in sv.chat.ask(mid, actor_id=A, question="/holds").notes
+        "It is still good law" in n for n in sv.chat.ask(mid, actor_id=A, question="/tasks").notes
     )
-    assert any("current_law" in n for n in sv.chat.ask(mid, actor_id=A, question="/tasks").notes)
     assert any(
         "jurisdiction_pack_unvalidated" in n
         for n in sv.chat.ask(mid, actor_id=A, question="/limits").notes

@@ -1,0 +1,15 @@
+{
+  "note": "Dates on which parts of an instrument begin to apply, taken from the instruments the shipped law and standards packages summarise (Regulation (EU) 2024/1689 Art. 113, and the package's own description for the date as amended). The routine checks warn as each approaches and ask for any package summarised before a date that has since passed to be checked again. Confirm every date against the official text; an organisation may add its own entries.",
+  "entries": [
+    {
+      "pack_id": "eu-ai-act-high-risk",
+      "date": "2025-02-02",
+      "what": "AI literacy (Art. 4) and the prohibited practices (Art. 5) apply."
+    },
+    {
+      "pack_id": "eu-ai-act-high-risk",
+      "date": "2027-12-02",
+      "what": "Chapter III, Sections 1 to 3 apply to Annex III high-risk systems, as amended by Regulation (EU) 2026/1744: the requirements and obligations this system is classified under."
+    }
+  ]
+}

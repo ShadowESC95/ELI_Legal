@@ -2,7 +2,7 @@
 
 Generated from the server's routes by `scripts/generate_reference_docs.py`. Do not edit by hand.
 
-The server exposes 84 operations under `/v1`, plus `/health` and the browser application at `/`.
+The server exposes 106 operations under `/v1`, plus `/health` and the browser application at `/`.
 It has no other routes: no general assistant, no shell, no device or media control, no plug-ins.
 
 ## Conventions
@@ -12,7 +12,8 @@ It has no other routes: no general assistant, no shell, no device or media contr
 - **Changing anything from a browser session** also needs the header `X-ELI-CSRF`, whose value
   is returned by sign-in and by `GET /v1/auth/session`.
 - **Decisions.** Resolving a hold, recording a check, reviewing, restarting, releasing, closing a
-  matter, approving a source, changing the model and managing users need the caller's
+  matter, approving a source, changing the model, managing users and recording compliance work
+  or a law package's check need the caller's
   passphrase with the request: `X-ELI-Passphrase`, or `X-ELI-Passphrase-B64` (base64 of the
   UTF-8 text) for passphrases with characters a header cannot carry. Sent without it, such a
   request is answered `401` with `"error": "StepUpRequired"`; send it again with the header.
@@ -72,6 +73,9 @@ request body (`Content-Type: application/octet-stream`); optional query fields `
 | `GET` | `/v1/config/models` | yes | The models that can be chosen: GGUF files found on this machine (by reference, never by path), and those a model server on this machine offers. Only an address on this machine can be asked, so the server cannot be made to call anywhere else. |
 | `GET` | `/v1/config/models/{ref}/placement` | yes | How that GGUF model would be placed on this machine if it were loaded now: context, layers on the graphics card, and the reasons. Nothing is loaded or changed. |
 | `POST` | `/v1/config/model` | yes | Change the model. A decision, recorded. For GGUF, give the references from the list. |
+| `GET` | `/v1/network` | yes | Whether hard offline is on, what enforces it, and whether it is set for every start. |
+| `POST` | `/v1/network/offline` | yes | Switch hard offline on now: from here until the server stops, the kernel refuses every connection it would open. It keeps answering on its own port. |
+| `PUT` | `/v1/network/at-start` | yes | Start hard offline every time, or not. Needs the right to manage the configuration and the passphrase. Switching it off takes effect at the next start. |
 
 ## Matters and documents
 
@@ -81,7 +85,9 @@ request body (`Content-Type: application/octet-stream`); optional query fields `
 | `POST` | `/v1/matters` | yes | Open a matter under a profile, with its legal system, parties, issues and relevant date. |
 | `GET` | `/v1/matters/{matter_id}` | yes | One matter: parties, issues, who has access, the named reviewers, the approved sources. |
 | `PATCH` | `/v1/matters/{matter_id}` | yes | Change the relevant date, issues, forum or rules, or add parties. |
-| `POST` | `/v1/matters/{matter_id}/members/{user_id}` | yes | Give a user access to the matter. Their role must fit the matter's profile. |
+| `GET` | `/v1/matters/{matter_id}/members` | yes | Who is on the matter: their role on it, whom they act for, what they may read. |
+| `POST` | `/v1/matters/{matter_id}/members/{user_id}` | yes | Give a user access to the matter, optionally in a given role on it and acting for a party. Their account role must fit the matter's profile. |
+| `PATCH` | `/v1/matters/{matter_id}/members/{user_id}` | yes | Change a member's role on the matter, the party they act for, or what they read. |
 | `DELETE` | `/v1/matters/{matter_id}/members/{user_id}` | yes | Remove a user's access to the matter. |
 | `PUT` | `/v1/matters/{matter_id}/reviewers` | yes | Name the people who must approve before anything is relied on. |
 | `PUT` | `/v1/matters/{matter_id}/sources` | yes | Choose which approved legal sources this matter may use. |
@@ -92,6 +98,7 @@ request body (`Content-Type: application/octet-stream`); optional query fields `
 | `POST` | `/v1/matters/{matter_id}/chat` | yes | Ask about the matter. The answer is its sources; nothing can be decided here. |
 | `GET` | `/v1/matters/{matter_id}/frameworks` | yes | The packages applied to a matter, and exactly what the model is told about them. |
 | `PUT` | `/v1/matters/{matter_id}/frameworks` | yes | Choose the packages that apply to a matter, from its next run. |
+| `GET` | `/v1/matters/{matter_id}/guide` | yes | Where the matter stands, your role on it, what you read, and what to do next. |
 
 ## Audit and governance
 
@@ -130,6 +137,25 @@ request body (`Content-Type: application/octet-stream`); optional query fields `
 | `POST` | `/v1/frameworks/{pack_id}/withdraw` | yes | Stop a package being applied to any matter from the next run. |
 | `POST` | `/v1/frameworks/{pack_id}/reinstate` | yes | Allow a withdrawn package again. A decision. |
 | `DELETE` | `/v1/frameworks/{pack_id}` | yes | Delete an organisation's package. |
+| `POST` | `/v1/frameworks/{pack_id}/current` | yes | Record that you checked a law package against its official text. A decision. |
+
+## What to do next, compliance and the routine checks
+
+| Method | Path | Sign-in | What it does |
+|---|---|---|---|
+| `GET` | `/v1/words` | yes | The words the system uses for its states, checks, holds, roles and scopes, so every screen says the same thing the same way. |
+| `GET` | `/v1/home` | yes | What is waiting for you on every matter you are on, the latest routine checks as you may see them, and where compliance stands. |
+| `GET` | `/v1/compliance` | yes | Every requirement and where it stands; every organisation action, its form and its latest record. |
+| `POST` | `/v1/compliance/actions/{action_id}` | yes | Record an organisation action as done (a form, a statement, a registration number), or as not applying, with reasons. A decision: send your passphrase. |
+| `POST` | `/v1/compliance/retention` | yes | Set how long the audit trail and a closed matter's documents are kept. |
+| `GET` | `/v1/compliance/training` | yes | Training records, and who works on matters without a current one. |
+| `POST` | `/v1/compliance/training` | yes | Record training a person has completed. |
+| `POST` | `/v1/compliance/evaluation` | yes | Run the accuracy evaluation on the planted-defect matter, against the thresholds. |
+| `POST` | `/v1/compliance/documents/{kind}` | yes | Draft the Annex IV documentation (annex_iv) or the declaration (declaration). |
+| `POST` | `/v1/compliance/actions/{action_id}/sign-off` | yes | Sign off a drafted document by its SHA-256, once completed and reviewed. |
+| `GET` | `/v1/checks` | yes | The latest routine checks as you may see them, and when the earlier ones ran. |
+| `POST` | `/v1/checks/run` | yes | Run the routine checks now. |
+| `GET` | `/v1/oversight/matters` | yes | Every matter, for those who oversee the system; content withheld where you are not on the matter. |
 
 ## Runs, findings, review and release
 
@@ -146,7 +172,8 @@ request body (`Content-Type: application/octet-stream`); optional query fields `
 | `GET` | `/v1/matters/{matter_id}/claims/{claim_id}/verifications` | yes | Every check made on a finding, by rule, model or person. |
 | `POST` | `/v1/matters/{matter_id}/claims/{claim_id}/verifications` | yes | Record a check made by hand, with what it was checked against. A decision. |
 | `GET` | `/v1/matters/{matter_id}/runs/{run_id}/holds` | yes | The holds on the run. Nothing reaches review while one is open. |
-| `POST` | `/v1/matters/{matter_id}/holds/{hold_id}/resolve` | yes | Close a hold by a named decision, `exclude` or `waive`, with reasons. A decision. |
+| `POST` | `/v1/matters/{matter_id}/runs/{run_id}/hold` | yes | Put a run on hold while it waits for review or once approved (suspending reliance and its release), with reasons. A decision; lifting it needs someone who may resolve holds. |
+| `POST` | `/v1/matters/{matter_id}/holds/{hold_id}/resolve` | yes | Close a hold by a named decision, `exclude` or `waive` (or `lift`, for a run a person put on hold), with reasons. A decision. |
 | `GET` | `/v1/matters/{matter_id}/runs/{run_id}/tasks` | yes | Checks waiting for a person. |
 | `GET` | `/v1/matters/{matter_id}/runs/{run_id}/report` | yes | The report text, its SHA-256, its release state and the limits a reviewer must acknowledge. |
 | `GET` | `/v1/matters/{matter_id}/runs/{run_id}/report.md` | yes | The report as a Markdown file. |
@@ -162,3 +189,4 @@ request body (`Content-Type: application/octet-stream`); optional query fields `
 | `GET` | `/v1/matters/{matter_id}/incidents` | yes | Incidents recorded for the matter. |
 | `POST` | `/v1/matters/{matter_id}/incidents` | yes | Open an incident. |
 | `POST` | `/v1/matters/{matter_id}/incidents/{incident_id}/close` | yes | Close an incident, recording what contained it and why it can be closed. |
+| `POST` | `/v1/matters/{matter_id}/incidents/{incident_id}/reporting` | yes | Decide whether a serious incident must be reported (EU AI Act Art. 73), and record the report. A decision: send your passphrase. |

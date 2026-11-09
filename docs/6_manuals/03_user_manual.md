@@ -24,6 +24,7 @@ an administrator unlocks it. Sign out when you leave the machine.
 
 | Screen | You use it to |
 |---|---|
+| Home | See where the open matter stands, your role on it, what to do next (with a button that takes you there, or who can do it if you cannot), what is waiting for you on your other matters, and the routine checks |
 | Matter | Open a matter; see parties, issues, relevant date; decide who has access, who reviews, which sources apply |
 | Evidence | File documents; read any document as numbered passages; see what was not read and what was flagged |
 | Chat | Ask about the matter and get its own passages back, with where each comes from |
@@ -37,6 +38,9 @@ an administrator unlocks it. Sign out when you leave the machine.
 ## Step by step
 
 ### 1. Open the matter
+
+**Open a matter…** asks six short questions, one page each; nothing is created until you press
+Finish on the last, which shows everything you chose.
 
 Choose **who it is for**. This cannot be changed later, and it fixes who can be given access and
 what the report may say.
@@ -52,13 +56,29 @@ that is the date of the events, not today.
 
 State the **issues** as you understand them. The system will also lift issues from the papers.
 
-Name the **reviewer**. Without one, no run will start.
+Choose **the team**: tick who else works on the matter and each person's **role on it**. You lead
+it. A colleague can decide (resolve holds, approve, release), work the case (add documents, run,
+record checks), assist (add documents, run), observe (read what is before all parties) or audit
+(read the audit trail only). A role on the matter only ever narrows what someone's account
+allows. Say whom each person **acts for**, where that matters: they will never see what another
+party gave in confidence.
+
+Name the **reviewer**: tick "I review and approve the report myself", or "Reviews" beside a
+colleague whose account can approve. Without a reviewer, no run will start.
+
+Tick the **legal sources** and the **law and standards** that apply; those recommended for this
+kind of matter and legal system are ticked for you.
+
+Afterwards, the Home page always says what to do next.
 
 ### 2. File the documents
 
-For each file say who filed it, what it is, and who may see it. Scope matters most in mediation
-and for privileged material: a document filed "in confidence" by one party never appears in
-anything shared.
+Choose the files (Add files…, or Add a folder…). A list then shows each one, and for each you
+say what it is, who filed it, who may see it and where it came from; hover over a choice of who
+may see it for what that means. Scope matters most in mediation and for privileged material: a
+document filed "in confidence" by one party never appears in anything shared, and is withheld
+from anyone on the matter who acts for another party. When they are in, you are told in plain
+words what was read, what could not be read and why, and what was flagged.
 
 Then check the list. A file marked **not read** (a scan, a photograph, a damaged file) will hold
 the run until you either supply a readable version or accept the gap. A file marked **flagged**
@@ -164,3 +184,12 @@ conversation is not kept.
 - An argument is attributed to the wrong party: possible with a model. Check each one.
 - The audit chain will not verify: stop. Do not continue the matter. Tell your administrator.
 - You think the system has caused or nearly caused harm: open an incident (Governance).
+
+## If something is marked withheld
+
+Your role on a matter decides which of its material you may read. Anything outside it is shown
+as **[withheld]** with the reason ("given in confidence by Northwind Logistics Ltd", "for the
+neutral only", "privileged"), wherever it would appear: in the document list, a passage, a
+finding, chat, the report. You are told that it exists, never what it says. If you need it, ask
+the matter's lead to change your role or clearance; the request and the change are recorded.
+

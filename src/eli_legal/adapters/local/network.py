@@ -7,7 +7,9 @@ network generally.
 
 Limits, stated plainly: this guards Python sockets in this process. It does not constrain a
 subprocess or a native library that opens its own sockets, so it is defence in depth beneath an
-operating-system or container egress rule, not a replacement for one.
+operating-system or container egress rule, not a replacement for one. Hard offline
+(``security/hard_offline.py``) is that rule, applied by the kernel; while it is on, this guard
+also refuses every connection, including to this machine's own network address.
 """
 
 from __future__ import annotations
@@ -30,6 +32,18 @@ _approved_hosts: set[str] = set()
 _open_hosts: dict[str, int] = {}
 _open_ips: dict[str, int] = {}
 _attempts: list[dict[str, str]] = []
+_hard_offline = False
+
+
+def set_hard_offline(on: bool) -> None:
+    """Hard offline is on: refuse every connection, and every window, from now on."""
+    global _hard_offline
+    with _lock:
+        _hard_offline = on
+
+
+def hard_offline() -> bool:
+    return _hard_offline
 
 
 def _is_loopback(host: str) -> bool:
@@ -51,6 +65,11 @@ def _permitted(sock: socket.socket, address: Any) -> bool:
     if sock.family not in (socket.AF_INET, socket.AF_INET6):
         return True
     host = _host_of(address)
+    if _hard_offline:
+        with _lock:
+            _attempts.append({"host": str(host), "outcome": "blocked (hard offline)"})
+            del _attempts[:-200]
+        return False
     if host is None or _is_loopback(host):
         return True
     with _lock:
@@ -104,6 +123,7 @@ class NetworkGuard:
             _installed = False
             _open_hosts.clear()
             _open_ips.clear()
+            set_hard_offline(False)
 
     @property
     def installed(self) -> bool:
@@ -125,6 +145,11 @@ class NetworkGuard:
     def allow(self, *, host: str, reason: str) -> Iterator[None]:
         """Open egress to one approved host for the duration of the block."""
         host = host.lower()
+        if _hard_offline:
+            raise NetworkDenied(
+                f"hard offline is on: nothing on this computer may reach {host} until it is "
+                "switched off and the program restarted"
+            )
         if not reason.strip():
             raise NetworkDenied("a reason is required to open a network window")
         with _lock:

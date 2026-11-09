@@ -20,6 +20,7 @@ from eli_legal.adapters.local.hmac_audit import HmacAuditLedger
 from eli_legal.adapters.local.network import NetworkGuard
 from eli_legal.adapters.local.parsers import LocalDocumentParser
 from eli_legal.adapters.local.vault import EvidenceVault
+from eli_legal.adapters.sources import live
 from eli_legal.adapters.sources.local_corpus import LocalCorpusConnector
 from eli_legal.domain.errors import InvalidInput, NotFound, PolicyDenied
 from eli_legal.domain.models import AuditEvent, Matter, User
@@ -116,6 +117,10 @@ class AppContext:
                 out[source_id] = self.extra_connectors[source_id]
             elif source.connector == "local_corpus":
                 out[source_id] = LocalCorpusConnector(self.store, source)
+            elif source.connector in live.CONNECTORS:
+                out[source_id] = live.connector_for(
+                    self.store, source, self.guard, matter.relevant_date
+                )
         return out
 
     def record_loads(self, model: LegalModel) -> None:

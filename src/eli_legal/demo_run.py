@@ -137,6 +137,56 @@ def setup_demo(services: Services, workspace: DemoWorkspace) -> str:
     return mid
 
 
+def resolve_demo_holds(
+    sv: Services, mid: str, rid: str, say: Callable[[str], None] = lambda _line: None
+) -> None:
+    """The arbitrator's decision on each hold of the first run, with reasons."""
+    claims = {c.claim_id: c for c in sv.verification.claims(mid, rid, actor_id=ARBITRATOR)}
+    for hold in sv.holds.list(mid, rid, actor_id=ARBITRATOR):
+        still_open = {h.hold_id for h in sv.holds.list(mid, rid, actor_id=ARBITRATOR)}
+        if hold.hold_id not in still_open:
+            continue  # closed as a consequence of an earlier decision about the same authority
+        if hold.scope is HoldScope.DOCUMENT and hold.reason_code == "coverage_gap":
+            sv.holds.resolve(
+                mid,
+                hold.hold_id,
+                actor_id=ARBITRATOR,
+                action="waive",
+                reason="Photograph of the terminal gate; neither party relies on it.",
+            )
+            say("    waived   the unreadable photograph (gap accepted, recorded)")
+        elif hold.scope is HoldScope.DOCUMENT:
+            sv.holds.resolve(
+                mid,
+                hold.hold_id,
+                actor_id=ARBITRATOR,
+                action="exclude",
+                reason="Contains an instruction aimed at an AI system; removed pending enquiry.",
+            )
+            say("    removed  the file carrying a hidden instruction")
+        elif hold.reason_code == "verification_inconclusive":
+            claim = claims[hold.subject_id]
+            sv.verification.record_human_result(
+                mid,
+                claim.claim_id,
+                actor_id=ARBITRATOR,
+                verification_type="current_law",
+                status=VerificationStatus.VERIFIED,
+                reason="Checked the treatment table today: no negative treatment of this authority.",
+            )
+            say(f"    verified {claim.citation} by hand (status was stale in the source)")
+        elif hold.scope is HoldScope.CLAIM:
+            claim = claims[hold.subject_id]
+            sv.holds.resolve(
+                mid,
+                hold.hold_id,
+                actor_id=ARBITRATOR,
+                action="exclude",
+                reason="Authority overruled or not found; not to be relied on.",
+            )
+            say(f"    excluded {claim.citation} ({hold.reason_code})")
+
+
 def run_demo(
     root: str | Path,
     *,
@@ -228,50 +278,7 @@ def _run_demo(
     refused("administrator opens the matter", lambda: sv.matters.get(mid, ADMIN))
 
     say("4. The arbitrator deals with each hold, giving reasons")
-    claims = {c.claim_id: c for c in sv.verification.claims(mid, rid, actor_id=ARBITRATOR)}
-    for hold in sv.holds.list(mid, rid, actor_id=ARBITRATOR):
-        still_open = {h.hold_id for h in sv.holds.list(mid, rid, actor_id=ARBITRATOR)}
-        if hold.hold_id not in still_open:
-            continue  # closed as a consequence of an earlier decision about the same authority
-        if hold.scope is HoldScope.DOCUMENT and hold.reason_code == "coverage_gap":
-            sv.holds.resolve(
-                mid,
-                hold.hold_id,
-                actor_id=ARBITRATOR,
-                action="waive",
-                reason="Photograph of the terminal gate; neither party relies on it.",
-            )
-            say("    waived   the unreadable photograph (gap accepted, recorded)")
-        elif hold.scope is HoldScope.DOCUMENT:
-            sv.holds.resolve(
-                mid,
-                hold.hold_id,
-                actor_id=ARBITRATOR,
-                action="exclude",
-                reason="Contains an instruction aimed at an AI system; removed pending enquiry.",
-            )
-            say("    removed  the file carrying a hidden instruction")
-        elif hold.reason_code == "verification_inconclusive":
-            claim = claims[hold.subject_id]
-            sv.verification.record_human_result(
-                mid,
-                claim.claim_id,
-                actor_id=ARBITRATOR,
-                verification_type="current_law",
-                status=VerificationStatus.VERIFIED,
-                reason="Checked the treatment table today: no negative treatment of this authority.",
-            )
-            say(f"    verified {claim.citation} by hand (status was stale in the source)")
-        elif hold.scope is HoldScope.CLAIM:
-            claim = claims[hold.subject_id]
-            sv.holds.resolve(
-                mid,
-                hold.hold_id,
-                actor_id=ARBITRATOR,
-                action="exclude",
-                reason="Authority overruled or not found; not to be relied on.",
-            )
-            say(f"    excluded {claim.citation} ({hold.reason_code})")
+    resolve_demo_holds(sv, mid, rid, say)
 
     say("5. Controlled restart by the arbitrator")
     refused(

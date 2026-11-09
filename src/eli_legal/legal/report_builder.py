@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+from eli_legal.domain import plain
 from eli_legal.domain.enums import (
     AccessScope,
     ClaimKind,
@@ -117,6 +118,87 @@ def _table(headers: list[str], rows: list[list[str]]) -> list[str]:
     return [*out, ""]
 
 
+def _why_not(claim: Claim) -> str:
+    """Why a finding may not be relied on, said once: "Taken out of reliance by arb.keane: …"."""
+    reason = claim.status_reason
+    who, sep, rest = reason.partition(": ")
+    if who.startswith("excluded by ") and sep:
+        return f"{plain.state(claim.status)} by {who.removeprefix('excluded by ')}: {rest}"
+    return f"{plain.state(claim.status)}: {reason}" if reason else plain.state(claim.status)
+
+
+# The limits a reviewer acknowledges, in the groups a reader takes them in. Each warning keeps
+# its reference, which is what an approval records.
+_LIMIT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("Confirm before approving", ("framework_confirm",)),
+    (
+        "About the material",
+        (
+            "coverage_waived",
+            "injection_flagged",
+            "content_withheld",
+            "findings_not_relied_on",
+            "possible_conflicts",
+            "ambiguous_dates",
+        ),
+    ),
+    (
+        "About the law applied",
+        (
+            "no_legal_sources",
+            "no_relevant_date",
+            "jurisdiction_pack_missing",
+            "jurisdiction_pack_unvalidated",
+            "no_frameworks",
+            "framework_unvalidated",
+        ),
+    ),
+    (
+        "About how it was prepared",
+        ("no_model", "model_used", "model_drafted_arguments", "human_overrides", "model_note"),
+    ),
+)
+_UNVALIDATED = re.compile(
+    r"^(?P<title>.+?) is a summary prepared for this software, checked against its source as at (?P<when>[^,]+), and not validated by a qualified lawyer\. Check the official text\.$"
+)
+
+
+def limits_section(warnings: Sequence[str]) -> list[str]:
+    """Section 8 as a reader takes it in: grouped, each limit once. Packages that are all
+    unvalidated summaries are named in one sentence rather than one each."""
+    by_group: dict[str, list[str]] = {title: [] for title, _ in _LIMIT_GROUPS}
+    other: list[str] = []
+    unvalidated: list[tuple[str, str, str]] = []
+    for w in warnings:
+        ident, _, text = w.partition(": ")
+        kind = ident.split(":", 1)[0]
+        text = text.strip() or w
+        match = _UNVALIDATED.match(text) if kind == "framework_unvalidated" else None
+        if match:
+            unvalidated.append((match["title"], match["when"], ident))
+            continue
+        group = next((t for t, kinds in _LIMIT_GROUPS if kind in kinds), None)
+        (by_group[group] if group else other).append(f"- {text} _({ident})_")
+    if unvalidated:
+        dates = sorted({when for _, when, _ in unvalidated})
+        by_group["About the law applied"].append(
+            "- These law and standards packages are summaries prepared for this software, "
+            f"checked against their sources as at {', '.join(dates)}, and not validated by a "
+            "qualified lawyer; check the official texts: "
+            + "; ".join(title for title, _, _ in unvalidated)
+            + ". _("
+            + ", ".join(ident for _, _, ident in unvalidated)
+            + ")_"
+        )
+    out: list[str] = []
+    for title, _ in _LIMIT_GROUPS:
+        if by_group[title]:
+            out += [f"**{title}**", "", *by_group[title], ""]
+    if other:
+        out += ["**Other**", "", *other, ""]
+    return out
+
+
 class LegalReportBuilder:
     def build(self, ctx: ReportContext) -> BuiltReport:
         matter, run = ctx.matter, ctx.run
@@ -202,6 +284,9 @@ class LegalReportBuilder:
         add(">")
         add(f"> {spec.disclaimer}")
         add("")
+        lines += self._at_a_glance(
+            ctx, spec.label, docs, claims, verified, not_relied, warnings, party_cited
+        )
 
         add("## 1. Matter")
         add("")
@@ -236,9 +321,11 @@ class LegalReportBuilder:
                 [
                     doc_ref[d.document_id],
                     d.title or d.filename,
-                    d.doc_type.value.replace("_", " "),
+                    plain.kind(d.doc_type),
                     party.get(d.party_id or "", d.custodian or "—"),
-                    d.status.value + (f" — {d.error}" if d.error else ""),
+                    plain.state(d.status)
+                    + (f" — {d.error}" if d.error else "")
+                    + (f" ({d.waived_by}: {d.waiver_reason})" if d.waived_by else ""),
                     d.sha256[:16],
                 ]
                 for d in docs
@@ -247,8 +334,8 @@ class LegalReportBuilder:
         gaps = [d for d in docs if d.status is not DocumentStatus.PROCESSED]
         if gaps:
             add(
-                f"**{len(gaps)} document(s) were not read by the system** and are not reflected "
-                "in anything below."
+                f"**{plain.count(len(gaps), 'document was', 'documents were')} not read by the "
+                f"system** and {'is' if len(gaps) == 1 else 'are'} not reflected in anything below."
             )
             add("")
 
@@ -405,11 +492,11 @@ class LegalReportBuilder:
             [
                 [
                     ref[c.claim_id],
-                    c.kind.value.replace("_", " "),
+                    plain.kind(c.kind),
                     f"“{c.text}”",
                     c.citation or "—",
                     source_of(c),
-                    f"{c.status.value}: {c.status_reason}",
+                    _why_not(c),
                 ]
                 for c in not_relied
             ],
@@ -426,8 +513,8 @@ class LegalReportBuilder:
                     human.append(
                         [
                             ref[c.claim_id],
-                            vtype,
-                            r.status.value,
+                            plain.check_name(vtype),
+                            plain.state(r.status),
                             r.verifier,
                             "yes" if r.override else "no",
                             r.reason,
@@ -435,7 +522,7 @@ class LegalReportBuilder:
                     )
         lines += _table(
             ["Check", "Result", "Findings"],
-            [[k[0], k[1], str(v)] for k, v in sorted(tally.items())],
+            [[plain.check_name(k[0]), plain.state(k[1]), str(v)] for k, v in sorted(tally.items())],
         )
         if human:
             add("### Checks decided by a person")
@@ -446,8 +533,12 @@ class LegalReportBuilder:
 
         add("## 8. Limits of this document")
         add("")
-        for w in warnings:
-            add(f"- `{w.split(':', 1)[0]}` — {w.split(':', 1)[1].strip() if ':' in w else w}")
+        add(
+            "The reviewer acknowledges each of these before approving. The reference in "
+            "brackets is what the approval records."
+        )
+        add("")
+        lines += limits_section(warnings)
         if not warnings:
             add("_None recorded._")
         add("")
@@ -514,9 +605,97 @@ class LegalReportBuilder:
         )
 
     @staticmethod
+    def _at_a_glance(
+        ctx: ReportContext,
+        prepared_for: str,
+        docs: Sequence[Document],
+        claims: Sequence[Claim],
+        verified: Sequence[Claim],
+        not_relied: Sequence[Claim],
+        warnings: Sequence[str],
+        party_cited: set[str],
+    ) -> list[str]:
+        """The report in a few lines, for a reader who has a minute: what it is, what it rests
+        on, what may be relied on, and what must be done before relying on it. It sits before
+        the body, so it may say whether the report has been approved."""
+        read = sum(1 for d in docs if d.status is DocumentStatus.PROCESSED)
+        kinds: dict[ClaimKind, int] = {}
+        for c in verified:
+            kinds[c.kind] = kinds.get(c.kind, 0) + 1
+        named: list[tuple[ClaimKind, str, str]] = [
+            (ClaimKind.FACT, "fact", "facts"),
+            (ClaimKind.PROCEDURAL, "procedural fact", "procedural facts"),
+            (
+                ClaimKind.PARTY_AUTHORITY,
+                "authority cited by a party",
+                "authorities cited by a party",
+            ),
+            (ClaimKind.LEGAL_PROPOSITION, "passage of law", "passages of law"),
+            (ClaimKind.APPLICATION, "drafted argument", "drafted arguments"),
+        ]
+        parts = [plain.count(kinds[k], one, many) for k, one, many in named if kinds.get(k)]
+        new_law = [
+            c
+            for c in verified
+            if c.kind is ClaimKind.LEGAL_PROPOSITION
+            and normalise_citation(c.citation or "") not in party_cited
+        ]
+        confirm = [w for w in warnings if w.startswith("framework_confirm:")]
+        approved = bool(ctx.approved_by)
+        status = (
+            f"Approved for reliance by {ctx.approved_by}"
+            + (f" on {ctx.approved_at.date().isoformat()}" if ctx.approved_at else "")
+            + "."
+            if approved
+            else "Draft. Not to be relied on until a named reviewer approves it."
+        )
+        out = [
+            "## At a glance",
+            "",
+            f"- **What this is:** prepared for {prepared_for.lower()}; it decides nothing.",
+            f"- **Status:** {status}",
+            f"- **Documents:** {read} of {len(docs)} read"
+            + (f"; {len(docs) - read} not read (see section 2)." if read < len(docs) else "."),
+            "- **May be relied on"
+            + ("" if approved else " once approved")
+            + ":** "
+            + (", ".join(parts) if parts else "nothing")
+            + " (sections 3 to 5).",
+            f"- **Not to be relied on:** {plain.count(len(not_relied), 'finding')}, each with "
+            "the reason (section 6).",
+        ]
+        if new_law:
+            out.append(
+                f"- **Law no party cited:** {plain.count(len(new_law), 'passage')} found by "
+                "research alone. Put "
+                + ("it" if len(new_law) == 1 else "them")
+                + " to the parties before relying on "
+                + ("it." if len(new_law) == 1 else "them.")
+                if ctx.matter.profile is not Profile.PARTY_REPRESENTATIVE
+                else f"- **Law no party cited:** {plain.count(len(new_law), 'passage')} found "
+                "by research alone."
+            )
+        if confirm:
+            out.append(
+                f"- **The reviewer confirms:** {plain.count(len(confirm), 'statement')} required "
+                "by the law and standards that apply (section 8)."
+            )
+        out.append(
+            f"- **Limits to read first:** {plain.count(len(warnings), 'point')} (section 8)."
+        )
+        if len(claims) != len(ctx.claims):
+            out.append(
+                "- **Shared version:** material given in confidence is left out of this copy."
+            )
+        return [*out, ""]
+
+    @staticmethod
     def _check_detail(results: Sequence[VerificationResult], vtype: str) -> str:
         r = effective_results(results).get(vtype)
-        return f"{r.status.value}: {r.detail}" if r else "not run"
+        if r is None:
+            return "Not checked."
+        said = plain.check_result(vtype, r.status, r.detail)
+        return f"{said} (confirmed by {r.verifier})" if r.by_human else said
 
     @staticmethod
     def _closest_passage(claim: Claim, passages: Sequence[AuthorityPassage]) -> str:
@@ -547,7 +726,7 @@ class LegalReportBuilder:
     def _human_support(results: Sequence[VerificationResult]) -> str:
         r = effective_results(results).get("proposition")
         if r and r.by_human:
-            return f"{r.status.value} by {r.verifier}"
+            return f"{plain.state(r.status)} by {r.verifier}"
         return "no"
 
     @staticmethod
@@ -672,12 +851,12 @@ class LegalReportBuilder:
         overrides = [r for r in ctx.verifications if r.override]
         if overrides:
             w.append(
-                f"human_overrides: {len(overrides)} automated check result(s) were overridden by a person; see section 7."
+                f"human_overrides: {plain.count(len(overrides), 'automated check result was', 'automated check results were')} overridden by a person; see section 7."
             )
         not_relied = [c for c in claims if c.status is not ClaimStatus.VERIFIED and c.material]
         if not_relied:
             w.append(
-                f"findings_not_relied_on: {len(not_relied)} finding(s) failed or lacked verification and are excluded from sections 3–5; see section 6."
+                f"findings_not_relied_on: {plain.count(len(not_relied), 'finding')} failed or lacked verification and {'is' if len(not_relied) == 1 else 'are'} excluded from sections 3–5; see section 6."
             )
         if any(c.kind is ClaimKind.APPLICATION for c in verified):
             w.append(
@@ -689,11 +868,11 @@ class LegalReportBuilder:
             )
         if withheld:
             w.append(
-                f"content_withheld: {withheld} finding(s) rest on material confidential to one party or to the neutral and are omitted from this shared version."
+                f"content_withheld: {plain.count(withheld, 'finding rests', 'findings rest')} on material confidential to one party or to the neutral and {'is' if withheld == 1 else 'are'} omitted from this shared version."
             )
         if ctx.conflicts:
             w.append(
-                f"possible_conflicts: {len(ctx.conflicts)} pair(s) of statements may conflict; see section 4."
+                f"possible_conflicts: {plain.count(len(ctx.conflicts), 'pair')} of statements may conflict; see section 4."
             )
         w.extend(f"model_note: {n}" for n in ctx.model_notes)
         return w

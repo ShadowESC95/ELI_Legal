@@ -1,5 +1,5 @@
 {
-  "policy_version": "0.3.0",
+  "policy_version": "0.4.0",
   "runtime": {
     "network_default": "deny",
     "audit_fail_closed": true,
@@ -56,7 +56,9 @@
     "incident.manage",
     "audit.read",
     "audit.verify",
-    "evidence.export"
+    "evidence.export",
+    "compliance.manage",
+    "checks.run"
   ],
   "prohibited_actions": [
     "award.issue",

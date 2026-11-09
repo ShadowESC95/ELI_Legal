@@ -193,3 +193,12 @@ def test_an_adverb_does_not_hide_an_outcome():
         )
         is None
     )
+
+
+def test_every_permission_a_role_grants_is_allowed_by_the_default_policy():
+    """A role's permission that the default policy omits would be refused for everyone, so a
+    new action must be added to both or neither."""
+    from eli_legal.security.rbac import ALL_ACTIONS
+
+    policy = RuntimePolicy.from_file(Settings(_env_file=None).policy_file)  # type: ignore[call-arg]
+    assert sorted(a for a in ALL_ACTIONS if not policy.permits(a)) == []

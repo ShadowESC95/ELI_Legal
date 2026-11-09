@@ -142,6 +142,7 @@ class HoldResolution(str, Enum):
     EXCLUDED = "excluded"  # the finding was removed from reliance
     WAIVED = "waived"  # an authorised human accepted the gap, with reasons
     CORRECTED = "corrected"  # the underlying defect was fixed and the step re-run
+    LIFTED = "lifted"  # a person's own hold on the run, lifted by a person with reasons
 
 
 class ReviewDecision(str, Enum):

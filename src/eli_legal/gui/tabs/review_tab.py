@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -15,10 +13,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from eli_legal.domain import plain
 from eli_legal.domain.enums import HoldScope, ReviewDecision, VerificationStatus
-from eli_legal.domain.models import Claim, Document
+from eli_legal.domain.models import Claim, Hold
 from eli_legal.domain.release import ReleasePackage
 from eli_legal.gui import theme
+from eli_legal.gui.run_controls import hold_run, lift_hold
 from eli_legal.gui.tabs.base import Tab
 from eli_legal.gui.widgets import (
     ReasonDialog,
@@ -33,13 +33,21 @@ from eli_legal.gui.widgets import (
 )
 from eli_legal.workflows.case_preparation import warning_id
 
-_CHECK = {
-    "citation": "Authority exists",
-    "current_law": "Still good law",
-    "proposition": "Authority says this",
-    "evidence_support": "Words appear in the document",
-    "provenance": "Source exists unchanged",
+_STATUS_OF_REASON = {
+    "verification_failed": "failed",
+    "verification_inconclusive": "inconclusive",
+    "verification_conflict": "conflict",
+    "verification_missing": "not_run",
 }
+
+
+def _found(hold: Hold) -> str:
+    """A hold's detail ("current_law: status today: overruled …") as a sentence."""
+    check, sep, rest = hold.detail.partition(": ")
+    status = _STATUS_OF_REASON.get(hold.reason_code)
+    if sep and status and plain.check_meaning(check):
+        return plain.check_result(check, status, rest)
+    return hold.detail[:1].upper() + hold.detail[1:] if hold.detail else ""
 
 
 class ReviewTab(Tab):
@@ -54,17 +62,21 @@ class ReviewTab(Tab):
         # holds
         self.show_closed = QCheckBox("Show resolved holds too")
         self.show_closed.toggled.connect(self.refresh)
-        self.holds = table(["Held", "Why", "Detail", "What", "State"], stretch=3)
+        self.holds = table(["On hold", "Why", "What the system found", "What", "State"], stretch=3)
+        self.holds.itemSelectionChanged.connect(self._explain)
+        self.explain = label("", wrap=True, selectable=True)
         page = QWidget()
         box = QVBoxLayout(page)
         box.addWidget(
             label(
-                "A hold closes when its check passes, or when a named person decides, with reasons. Nothing reaches review while one is open.",
+                "A hold closes when its check passes, or when a named person decides, with reasons. Nothing reaches review while one is open. Select a hold to see what it means and what you can do.",
                 "muted",
                 wrap=True,
             )
         )
         box.addWidget(self.holds, 1)
+        box.addWidget(card("What this hold means", self.explain))
+        self._explain()
         box.addWidget(
             row(
                 button("Verify by hand…", self._verify, tip="You checked the authority yourself"),
@@ -102,6 +114,7 @@ class ReviewTab(Tab):
 
         # decision
         self.limits = QListWidget()
+        self.limits.setWordWrap(True)
         self.reasons = QPlainTextEdit()
         self.reasons.setPlaceholderText("Your reasons for the decision (recorded with your name)")
         self.reasons.setMaximumHeight(110)
@@ -126,6 +139,8 @@ class ReviewTab(Tab):
                 ),
                 button("Reject…", lambda: self._decide(ReviewDecision.REJECT), kind="danger"),
                 None,
+                button("Put on hold…", lambda: hold_run(self)),
+                button("Lift the hold…", lambda: lift_hold(self)),
             )
         )
         self.inner.addTab(page, "Decision")
@@ -138,7 +153,14 @@ class ReviewTab(Tab):
         box = QVBoxLayout(page)
         box.addWidget(self.release_note)
         box.addWidget(card("Who should receive the approved report", self.recipients))
-        box.addWidget(row(button("Prepare the release", self._prepare), None))
+        box.addWidget(
+            row(
+                button("Prepare the release", self._prepare),
+                None,
+                button("Suspend reliance (put on hold)…", lambda: hold_run(self)),
+                button("Lift the hold…", lambda: lift_hold(self)),
+            )
+        )
         box.addWidget(card("Prepared releases", self.packages), 1)
         box.addWidget(
             row(
@@ -176,7 +198,13 @@ class ReviewTab(Tab):
             or []
         )
         self._claims = {c.claim_id: c for c in claims}
-        docs = {d.document_id: d for d in self.sv.ctx.store.list(Document, self.mid)}
+        docs = {
+            d.document_id: d
+            for d in self.session.attempt(
+                self, lambda: self.sv.matters.documents(self.mid, self.actor), quiet=True
+            )
+            or []
+        }
 
         def subject(scope: HoldScope, subject_id: str) -> str:
             if scope is HoldScope.CLAIM and subject_id in self._claims:
@@ -194,16 +222,20 @@ class ReviewTab(Tab):
             [
                 [
                     {
-                        "claim": "a finding",
-                        "document": "a document",
-                        "step": "a step",
-                        "run": "the run",
+                        "claim": "A finding",
+                        "document": "A document",
+                        "step": "A step",
+                        "run": "The run",
                     }[h.scope.value],
-                    h.reason_code.replace("_", " "),
-                    h.detail,
+                    plain.hold_reason(h.reason_code),
+                    _found(h),
                     subject(h.scope, h.subject_id),
-                    h.status.value
-                    + (f" — {h.resolution.value} by {h.resolved_by}" if h.resolution else ""),
+                    plain.state(h.status)
+                    + (
+                        f" — {plain.resolution(h.resolution).lower()} by {h.resolved_by}"
+                        if h.resolution
+                        else ""
+                    ),
                 ]
                 for h in holds
             ],
@@ -219,7 +251,7 @@ class ReviewTab(Tab):
             self.tasks,
             [
                 [
-                    _CHECK.get(t.verification_type, t.verification_type),
+                    plain.check_name(t.verification_type),
                     t.question,
                     subject(HoldScope.CLAIM, t.claim_id),
                     self._claims[t.claim_id].status_reason if t.claim_id in self._claims else "",
@@ -235,18 +267,36 @@ class ReviewTab(Tab):
         report = summary["report"]
         self.limits.clear()
         if report:
-            path = Path(report["path"])
-            self.report.setMarkdown(
-                path.read_text(encoding="utf-8")
-                if path.is_file()
-                else "_The report file is missing._"
+            shown = self.session.attempt(
+                self,
+                lambda: self.sv.reviews.report_text(self.mid, self.rid, actor_id=self.actor),
+                quiet=True,
             )
-            state = report["release_status"].replace("_", " ").lower()
+            text, withheld = shown if shown else ("_The report could not be read._", False)
+            self.report.setMarkdown(text)
+            state = plain.state(report["release_status"]).lower()
             self.report_info.setText(
-                f"Version {report['version']} · {state} · SHA-256 {report['sha256']} · {path}"
+                f"Version {report['version']} · {state} · SHA-256 {report['sha256'][:16]}…"
+                + (
+                    " · material your role does not include is withheld from this copy"
+                    if withheld
+                    else ""
+                )
             )
-            for warning in report["warnings"]:
-                item = QListWidgetItem(warning.split(": ", 1)[-1])
+            warnings = (
+                self.session.attempt(
+                    self,
+                    lambda: self.sv.reviews.pending_warnings(
+                        self.mid, self.rid, actor_id=self.actor
+                    ),
+                    quiet=True,
+                )
+                or []
+            )
+            for warning in warnings:
+                ident, _, said = warning.partition(": ")
+                item = QListWidgetItem(said or warning)
+                item.setToolTip(f"Recorded as acknowledged: {ident}")
                 item.setData(Qt.ItemDataRole.UserRole, warning_id(warning))
                 item.setCheckState(Qt.CheckState.Unchecked)
                 self.limits.addItem(item)
@@ -262,7 +312,7 @@ class ReviewTab(Tab):
             else "It cannot be approved in this state."
         )
         self.decision_note.setText(
-            f"The run is <b style='color:{colour}'>{status.replace('_', ' ')}</b>. {ready} Approval is tied to the exact report version shown in the Report tab."
+            f"The run is <b style='color:{colour}'>{plain.state(status).lower()}</b>. {ready} Approval is tied to the exact report version shown in the Report tab."
         )
 
         matter = self.session.matter
@@ -285,7 +335,7 @@ class ReviewTab(Tab):
             [
                 [
                     p.release_id[-8:],
-                    p.status.replace("_", " "),
+                    plain.state(p.status),
                     ", ".join(r.display_name for r in p.recipients),
                     "yes"
                     if all(r.authorised_for_matter for r in p.recipients)
@@ -307,6 +357,20 @@ class ReviewTab(Tab):
         )
 
     # ── holds and checks ─────────────────────────────────────────────────────
+    def _explain(self) -> None:
+        hold = getattr(self, "_holds", {}).get(selected_id(self.holds))
+        if hold is None:
+            self.explain.setText(
+                "Select a hold above to see what it means and what you can do about it."
+            )
+            return
+        said = plain.hold_explanation(hold.reason_code)
+        options = "".join(f"<li>{o}</li>" for o in said.options)
+        self.explain.setText(
+            f"<b>{said.headline}.</b> {said.why}<br><b>What you can do:</b><ul>{options}</ul>"
+            f"<span style='color:{theme.MUTED}'>The system found: {_found(hold)}</span>"
+        )
+
     def _resolve(self, action: str) -> None:
         hold_id = selected_id(self.holds)
         if not hold_id:
@@ -330,8 +394,8 @@ class ReviewTab(Tab):
 
     def _record(self, claim_id: str, default_check: str) -> None:
         check = QComboBox()
-        for key, text in _CHECK.items():
-            check.addItem(text, key)
+        for key in ("citation", "current_law", "proposition", "evidence_support", "provenance"):
+            check.addItem(plain.check_name(key), key)
         check.setCurrentIndex(max(0, check.findData(default_check)))
         result = QComboBox()
         result.addItem("Verified — I checked and it holds", VerificationStatus.VERIFIED.value)

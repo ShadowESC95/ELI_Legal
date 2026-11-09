@@ -19,11 +19,15 @@ PUBLIC = {"/health", "/v1/boundaries", "/v1/auth/login", "/v1/auth/logout", "/"}
 SECTIONS = (
     ("Signing in and your own account", ("/health", "/v1/boundaries", "/v1/auth")),
     ("Users and roles", ("/v1/users", "/v1/roles")),
-    ("The installation", ("/v1/system", "/v1/workflow", "/v1/config")),
+    ("The installation", ("/v1/system", "/v1/workflow", "/v1/config", "/v1/network")),
     ("Matters and documents", ("/v1/matters",)),
     ("Audit and governance", ("/v1/audit", "/v1/governance", "/v1/monitoring")),
     ("Approved legal sources", ("/v1/sources", "/v1/authorities")),
     ("Law and standards packages", ("/v1/frameworks",)),
+    (
+        "What to do next, compliance and the routine checks",
+        ("/v1/words", "/v1/home", "/v1/compliance", "/v1/checks", "/v1/oversight"),
+    ),
 )
 
 
@@ -75,6 +79,9 @@ def api_reference() -> str:
                 ):
                     rows[title].append(line)
                     break
+            else:
+                # A route no section claims would be left out of the reference without a word.
+                raise SystemExit(f"no section of the API reference covers {path}; add one")
     rows.update(extra)
     total = sum(len(v) for v in rows.values())
     out = [
@@ -92,7 +99,8 @@ def api_reference() -> str:
         "- **Changing anything from a browser session** also needs the header `X-ELI-CSRF`, whose value",
         "  is returned by sign-in and by `GET /v1/auth/session`.",
         "- **Decisions.** Resolving a hold, recording a check, reviewing, restarting, releasing, closing a",
-        "  matter, approving a source, changing the model and managing users need the caller's",
+        "  matter, approving a source, changing the model, managing users and recording compliance work",
+        "  or a law package's check need the caller's",
         "  passphrase with the request: `X-ELI-Passphrase`, or `X-ELI-Passphrase-B64` (base64 of the",
         "  UTF-8 text) for passphrases with characters a header cannot carry. Sent without it, such a",
         '  request is answered `401` with `"error": "StepUpRequired"`; send it again with the header.',

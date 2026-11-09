@@ -6,10 +6,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from eli_legal.application.container import AppContext
-from eli_legal.domain.enums import Profile, ReviewDecision, RunStatus
+from eli_legal.domain.enums import Profile, ReviewDecision, RunStatus, StepStatus
 from eli_legal.domain.errors import InvalidState, NotFound, VerificationGateFailed
 from eli_legal.domain.models import HumanReview, Matter, Report, Run
 from eli_legal.domain.release import Recipient, ReleasePackage
+from eli_legal.workflows.runner import record_person_step
 
 
 @dataclass(slots=True)
@@ -113,5 +114,16 @@ class ReleaseService:
                 ],
                 "classification": classification,
             },
+        )
+        record_person_step(
+            ctx.store,
+            ctx.audit,
+            matter_id=mid,
+            run_id=run_id,
+            step_id="prepare_release",
+            status=StepStatus.OK,
+            actor_id=actor_id,
+            detail=f"prepared for {len(package.recipients)} recipient(s) by {actor_id}",
+            outputs={"release_id": package.release_id, "report_hash": report_hash},
         )
         return package

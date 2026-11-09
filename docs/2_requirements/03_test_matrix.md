@@ -23,5 +23,11 @@
 | Server, rules | `tests/api/test_api.py` | same rules as other front ends; no route without credentials; the whole lifecycle over HTTP |
 | Server, protection | `tests/api/test_server_security.py` | cookie and CSRF; host, origin, size and rate checks; headers; lock-out; second factor; TLS rules; no path or network disclosure |
 | Browser application | `tests/web/test_web_app.py` | a real browser engine against a real TLS server: sign-in, every screen, a decision with step-up |
+| Roles on a matter, redaction | `tests/security/test_matter_roles_and_redaction.py` | a role on a matter narrows and never widens; only the lead manages the team; withheld material in lists, passages, findings, chat and the evidence pack; masking; oversight without content; drafted arguments scoped to what they rest on |
+| Compliance, routine checks | `tests/governance/test_compliance_and_checks.py` | every requirement met, waiting or due, never partial; forms from the templates; step-up; review dates; training; retention enforced; the evaluation; drafted documents; an overruled authority after approval and an altered original each open an incident; results never show a matter to someone not on it; incident deadlines |
+| Guidance | `tests/integration/test_guidance.py` | each stage of a matter points to the next thing to do, for the right person |
+| Plain words | `tests/unit/test_plain_words.py` | every state, hold reason, check, action and role a person is shown has words, and a tone |
+| Guidance over the server | `tests/api/test_guidance_api.py` | words, guide, team roles, compliance with step-up, checks and oversight over HTTP |
+| Command line, guidance | `tests/integration/test_cli_guidance.py` | status, roles, compliance and checks as real invocations |
 
 Set `ELI_V3_ROOT` to a real ELI v3 checkout to add a contract check against its own loader.

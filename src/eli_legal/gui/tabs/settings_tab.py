@@ -5,6 +5,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QCheckBox,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
@@ -16,15 +17,18 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QTabWidget,
+    QTextBrowser,
     QVBoxLayout,
     QWidget,
 )
 
 from eli_legal import __version__
+from eli_legal.domain import plain
 from eli_legal.gui import theme
 from eli_legal.gui.model_picker import ModelPicker
 from eli_legal.gui.tabs.base import Tab
 from eli_legal.gui.widgets import button, card, fill, fit, label, row, selected_id, table
+from eli_legal.security import access
 from eli_legal.security.rbac import DEFAULT_ROLE_ACTIONS
 from eli_legal.settings import ENV_FILE
 
@@ -55,14 +59,15 @@ class _UserDialog(QDialog):
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("User and roles")
-        self.setMinimumWidth(460)
+        self.setMinimumWidth(620)
         form = QFormLayout(self)
         self.user_id = QLineEdit(user_id)
         self.user_id.setReadOnly(bool(user_id))
         self.name = QLineEdit(name)
         self.roles = QListWidget()
-        for role in sorted(DEFAULT_ROLE_ACTIONS):
-            item = QListWidgetItem(role.replace("_", " "))
+        self.roles.setWordWrap(True)
+        for role in sorted(DEFAULT_ROLE_ACTIONS, key=plain.role):
+            item = QListWidgetItem(f"{plain.role(role)} — {plain.role_summary(role)}")
             item.setData(Qt.ItemDataRole.UserRole, role)
             item.setCheckState(
                 Qt.CheckState.Checked if roles and role in roles else Qt.CheckState.Unchecked
@@ -73,7 +78,7 @@ class _UserDialog(QDialog):
         form.addRow("Roles", self.roles)
         form.addRow(
             label(
-                "A role says what someone may do. It never gives access to a matter: that is granted matter by matter.",
+                "A role says what someone may do. It never gives access to a matter: that is granted matter by matter, with a role on that matter that can only narrow it.",
                 "muted",
                 wrap=True,
             )
@@ -137,6 +142,43 @@ class SettingsTab(Tab):
         )
         self.inner.addTab(page, "Users and roles")
 
+        # what every role may do, for anyone deciding who gets which
+        self.matrix = QTextBrowser()
+        self.matrix.setOpenLinks(False)
+        cell = "padding:4px 10px 4px 0; vertical-align:top; border-bottom:1px solid #2b3647"
+        account = "".join(
+            f"<tr><td style='{cell}'><b>{plain.role(code)}</b></td>"
+            f"<td style='{cell}'>{plain.role_summary(code)}</td>"
+            f"<td style='{cell}; color:{theme.MUTED}'>"
+            + "; ".join(sorted(plain.action(a) for a in DEFAULT_ROLE_ACTIONS[code]))
+            + "</td></tr>"
+            for code in sorted(DEFAULT_ROLE_ACTIONS, key=plain.role)
+        )
+        on_matter = "".join(
+            f"<tr><td style='{cell}'><b>{r.label}</b></td><td style='{cell}'>{r.summary}</td>"
+            f"<td style='{cell}'>"
+            + (
+                "Everything"
+                if r.clearance == access.ALL_SCOPES
+                else ", ".join(plain.scope(c) for c in sorted(r.clearance)) or "Nothing"
+            )
+            + "</td></tr>"
+            for r in access.MATTER_ROLES.values()
+        )
+        self.matrix.setHtml(
+            "<p>Three things decide what a person may do on a matter, and all three must agree: "
+            "their <b>account role</b>, their <b>role on that matter</b>, and the material they "
+            "are <b>cleared to read</b>. A role on a matter narrows the account role; it never "
+            "adds to it.</p>"
+            "<h3>Roles on a matter</h3><table width='100%' cellspacing='0'>"
+            "<tr><th align='left'>Role</th><th align='left'>What it is for</th>"
+            f"<th align='left'>Reads</th></tr>{on_matter}</table>"
+            "<h3>Account roles</h3><table width='100%' cellspacing='0'>"
+            "<tr><th align='left'>Role</th><th align='left'>What it is for</th>"
+            f"<th align='left'>What it may do</th></tr>{account}</table>"
+        )
+        self.inner.addTab(self.matrix, "What each role can do")
+
         self.picker = ModelPicker(self.sv)
         self.model_state = label("", wrap=True)
         holder = self.picker
@@ -175,10 +217,30 @@ class SettingsTab(Tab):
         self.inner.addTab(self.policy, "Policy")
 
         self.system = label("", wrap=True, selectable=True)
-        self.blocked = table(["Blocked connection attempts (this session)"])
+        self.blocked = table(["Blocked connection attempts (this session)", "Outcome"], stretch=0)
+        self.offline_state = label("", wrap=True)
+        self.offline_now = button("Go hard offline now…", self._go_offline, kind="danger")
+        self.at_start = QCheckBox("Start hard offline every time")
+        self.at_start.clicked.connect(self._at_start)
         page = QWidget()
         box = QVBoxLayout(page)
         box.addWidget(card("This installation", self.system))
+        box.addWidget(
+            card(
+                "Hard offline",
+                label(
+                    "Hard offline makes the computer's own kernel refuse every network "
+                    "connection from ELI Legal: Python code, native code such as llama.cpp, and "
+                    "any program ELI Legal starts. Unlike a switch inside the program, nothing "
+                    "running in it can undo it: it lasts until ELI Legal is closed. Local models "
+                    "(GGUF files) keep working; live legal sources and a model server do not.",
+                    "muted",
+                    wrap=True,
+                ),
+                self.offline_state,
+                row(self.offline_now, self.at_start, None),
+            )
+        )
         box.addWidget(card("Network", self.blocked), 1)
         self.inner.addTab(page, "System")
 
@@ -187,7 +249,7 @@ class SettingsTab(Tab):
         user = self.session.user
         if user is not None:
             self.me.setText(
-                f"<b>{user.display_name}</b> ({user.user_id})<br>Roles: {', '.join(sorted(r.replace('_', ' ') for r in user.roles)) or 'none'}<br>Second factor: {'set up' if self.sv.users.has_second_factor(user.user_id) else 'not set up'}<br><span style='color:{theme.MUTED}'>Decisions you record ask for your passphrase again and are logged under your name.</span>"
+                f"<b>{user.display_name}</b> ({user.user_id})<br>Roles: {plain.roles(user.roles)}<br>Second factor: {'set up' if self.sv.users.has_second_factor(user.user_id) else 'not set up'}<br><span style='color:{theme.MUTED}'>Decisions you record ask for your passphrase again and are logged under your name.</span>"
             )
         users = self.sv.users.directory(self.actor) if self.actor else []
         fill(
@@ -196,7 +258,7 @@ class SettingsTab(Tab):
                 [
                     u.user_id,
                     u.display_name,
-                    ", ".join(sorted(r.replace("_", " ") for r in u.roles)),
+                    plain.roles(u.roles),
                     "active" if u.active else "inactive",
                     "set" if u.passphrase_hash else "NOT SET — cannot sign in",
                 ]
@@ -249,7 +311,53 @@ class SettingsTab(Tab):
             f"Audit key: {s.audit_key_file} (id {ctx.audit.key_id})<br>Evidence vault: {s.data_dir}<br>Reports and evidence packs: {s.artifacts_dir}<br>"
             f"Network: denied by default; guard installed: {ctx.guard.installed}; approved hosts: {', '.join(sorted(ctx.guard.approved_hosts())) or 'none'}"
         )
-        fill(self.blocked, [[a["host"]] for a in ctx.guard.blocked_attempts()] or [["none"]])
+        fill(
+            self.blocked,
+            [[a["host"], a.get("outcome", "blocked")] for a in ctx.guard.blocked_attempts()]
+            or [["none", ""]],
+        )
+        status = self.sv.network.status()
+        self.offline_state.setText(
+            f"<b style='color:{theme.GOOD}'>ON</b>, enforced by {status['enforced_by']}. "
+            f"{status['detail']}"
+            + (" Checked: a native connection attempt was refused." if status["verified"] else "")
+            if status["hard_offline"]
+            else "<b>Off.</b> The network guard denies connections by default and opens one "
+            "approved host at a time for an approved legal source."
+        )
+        self.offline_now.setEnabled(not status["hard_offline"])
+        self.at_start.blockSignals(True)
+        self.at_start.setChecked(status["at_every_start"])
+        self.at_start.blockSignals(False)
+        self.at_start.setEnabled(self.session.may("config.manage"))
+
+    # ── hard offline ─────────────────────────────────────────────────────────
+    def _go_offline(self) -> None:
+        answer = QMessageBox.question(
+            self,
+            "Go hard offline",
+            "From now until ELI Legal is closed, the kernel will refuse every network connection "
+            "it makes. This cannot be undone while ELI Legal is running. Live legal sources and "
+            "a model server will stop working; local GGUF models will not.\n\nGo hard offline?",
+        )
+        if answer == QMessageBox.StandardButton.Yes:
+            self.session.attempt(self, lambda: self.sv.network.go_offline(actor_id=self.actor))
+
+    def _at_start(self, on: bool) -> None:
+        what = (
+            "start ELI Legal hard offline every time"
+            if on
+            else "stop starting ELI Legal hard offline (from the next start)"
+        )
+        done = self.session.decide(
+            self,
+            what,
+            lambda: self.sv.network.set_at_every_start(
+                actor_id=self.actor, on=on, persist_to=ENV_FILE
+            ),
+        )
+        if done is None:
+            self.refresh()
 
     # ── you ──────────────────────────────────────────────────────────────────
     def _my_passphrase(self) -> None:

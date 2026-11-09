@@ -1,11 +1,96 @@
+"""Governance: where every legal requirement stands, the organisation's own compliance work,
+the routine checks, oversight of every matter, monitoring and incidents.
+
+A requirement reads as met by the software, met, waiting for the organisation or due for
+review. What the organisation must do is a list of actions, each recorded here in a named
+person's name (with their passphrase again) and reviewed on time.
+"""
+
 from __future__ import annotations
 
-from PySide6.QtWidgets import QComboBox, QLineEdit, QMessageBox, QTabWidget, QVBoxLayout, QWidget
+from datetime import date, datetime, timezone
 
+from PySide6.QtCore import QDate, Qt
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QDateEdit,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QLineEdit,
+    QMessageBox,
+    QPlainTextEdit,
+    QScrollArea,
+    QSpinBox,
+    QSplitter,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+)
+
+from eli_legal.application.incident_service import REPORTING_DAYS, reporting_deadline
+from eli_legal.domain import plain
 from eli_legal.domain.enums import IncidentSeverity
+from eli_legal.governance.compliance import (
+    MIN_AUDIT_RETENTION_DAYS,
+    OrganisationAction,
+    template_title,
+)
 from eli_legal.governance.registers import check_registers, load_register
+from eli_legal.gui import theme
 from eli_legal.gui.tabs.base import Tab
-from eli_legal.gui.widgets import ReasonDialog, button, fill, fit, label, row, selected_id, table
+from eli_legal.gui.widgets import (
+    ReasonDialog,
+    button,
+    card,
+    fill,
+    fit,
+    label,
+    row,
+    selected_id,
+    table,
+)
+from eli_legal.security import authn
+
+_WHO = {"provider": "Provider", "deployer": "Deployer", "both": "Both"}
+_ACTION_STATE = {
+    "done": "Done",
+    "waiting": plain.state("to_do"),
+    "review_due": "Review due",
+    "not_applicable": "Does not apply",
+}
+
+
+def _pydate(widget: QDateEdit) -> date:
+    d = widget.date()
+    return date(d.year(), d.month(), d.day())
+
+
+class _Dialog(QDialog):
+    """A form with OK and Cancel, scrolling when it is long."""
+
+    def __init__(self, parent: QWidget, title: str, intro: str) -> None:
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.setMinimumWidth(640)
+        outer = QVBoxLayout(self)
+        outer.addWidget(label(intro, wrap=True))
+        inner = QWidget()
+        self.form = QFormLayout(inner)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(inner)
+        outer.addWidget(scroll, 1)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        outer.addWidget(buttons)
+
+    def ok(self) -> bool:
+        return self.exec() == QDialog.DialogCode.Accepted
 
 
 class GovernanceTab(Tab):
@@ -14,27 +99,99 @@ class GovernanceTab(Tab):
     def __init__(self, session) -> None:  # type: ignore[no-untyped-def]
         super().__init__(session)
         self.inner = QTabWidget()
+        self.headline = label("", wrap=True)
+        self.root.addWidget(self.headline)
         self.root.addWidget(
             label(
-                "How each legal and standards requirement is met, by which control, and what remains for the organisation. These are working aids to check against the official texts — not legal advice, and not a conformity assessment.",
+                "Working aids to check against the official texts: not legal advice, and not a "
+                "conformity assessment.",
                 "muted",
                 wrap=True,
             )
         )
         self.root.addWidget(self.inner, 1)
+        self._actions: dict[str, OrganisationAction] = {}
+        self._last_document: dict[str, str] = {}
 
+        # requirements, with where each stands now
         self.requirements = table(
             [
                 "Ref",
                 "Instrument",
                 "Provision",
-                "For",
                 "Requirement, in plain words",
-                "Controls",
+                "Who does it",
                 "Status",
                 "How it is met, and what remains",
-            ]
+            ]  # fmt: skip
         )
+        self.requirements.itemSelectionChanged.connect(self._requirement_chosen)
+        self.requirement_detail = label("", wrap=True, selectable=True)
+        split = QSplitter(Qt.Orientation.Vertical)
+        split.addWidget(self.requirements)
+        split.addWidget(card("What this requirement needs", self.requirement_detail))
+        split.setSizes([520, 160])
+        self.inner.addTab(split, "Requirements")
+
+        # the organisation's actions
+        self.org_actions = table(
+            ["Action", "What to do", "Covers", "For", "Status", "Where it stands"], stretch=1
+        )
+        page = QWidget()
+        box = QVBoxLayout(page)
+        box.addWidget(
+            label(
+                "What the software cannot do for you. Record each one when it is done, or why "
+                "it does not apply; each is reviewed again when its date comes.",
+                "muted",
+                wrap=True,
+            )
+        )
+        box.addWidget(self.org_actions, 1)
+        box.addWidget(
+            row(
+                button("Record it…", self._record, kind="primary"),
+                button("It does not apply…", self._not_applicable),
+                button("Record training…", self._training),
+                button("Run the evaluation", self._evaluate),
+                button("Draft the document…", self._generate),
+                None,
+            )
+        )
+        self._actions_page = page
+        self.inner.addTab(page, "Organisation actions")
+
+        # routine checks
+        self.check_state = label("", wrap=True)
+        self.check_results = table(["Check", "State", "What it found"], stretch=2)
+        self.check_results.itemSelectionChanged.connect(self._check_chosen)
+        self.check_detail = label("", wrap=True, selectable=True)
+        page = QWidget()
+        box = QVBoxLayout(page)
+        box.addWidget(self.check_state)
+        box.addWidget(self.check_results, 1)
+        box.addWidget(card("Details", self.check_detail))
+        box.addWidget(row(button("Run the checks now", self._run_checks, kind="primary"), None))
+        self.inner.addTab(page, "Routine checks")
+
+        # every matter, for oversight
+        self.register = table(
+            ["Matter", "For", "Legal system", "State", "People", "Last run", "Open holds"],
+            stretch=0,
+        )
+        page = QWidget()
+        box = QVBoxLayout(page)
+        box.addWidget(
+            label(
+                "Every matter on this system, for those who oversee it. A matter you are not on "
+                "shows no name, party or content.",
+                "muted",
+                wrap=True,
+            )
+        )
+        box.addWidget(self.register, 1)
+        self.inner.addTab(page, "All matters")
+
         self.controls = table(
             ["Control", "What it does", "Type", "Code", "Tests", "Evidence it produces", "Owner"]
         )
@@ -48,13 +205,12 @@ class GovernanceTab(Tab):
                 "What remains",
                 "Owner",
                 "Status",
-            ]
+            ]  # fmt: skip
         )
         self.matrix = table(
             ["Responsibility", "Provider", "Deployer", "Technical / security owner"], stretch=0
         )
         for widget, name in (
-            (self.requirements, "Requirements"),
             (self.controls, "Controls"),
             (self.risks, "Risks"),
             (self.matrix, "Who is responsible"),
@@ -67,7 +223,8 @@ class GovernanceTab(Tab):
         box = QVBoxLayout(page)
         box.addWidget(
             label(
-                "Computed from control evidence across every matter: failed checks, overrides, unchallenged approvals, open incidents, version changes.",
+                "Computed from control evidence across every matter: failed checks, overrides, "
+                "unchallenged approvals, open incidents, version changes.",
                 "muted",
                 wrap=True,
             )
@@ -84,130 +241,554 @@ class GovernanceTab(Tab):
         self.inner.addTab(page, "Monitoring")
 
         self.incidents = table(
-            ["Incident", "State", "Severity", "Category", "Detail", "Containment"], stretch=4
+            ["Incident", "State", "Severity", "Category", "Detail", "Reporting (Art. 73)"],
+            stretch=4,
         )
         page = QWidget()
         box = QVBoxLayout(page)
         box.addWidget(
             label(
-                "The system opens an incident itself for a flagged file, an audit gap or an audit integrity failure.",
+                "The system opens an incident itself for a flagged file, an audit failure, an "
+                "altered original, or an authority that stopped being good law after approval. "
+                "A serious incident shows its reporting deadline until a person decides.",
                 "muted",
+                wrap=True,
             )
         )
         box.addWidget(self.incidents, 1)
         box.addWidget(
             row(
                 button("Open an incident…", self._open_incident),
+                button("Decide on reporting…", self._decide_reporting),
                 button("Close the selected incident…", self._close_incident),
                 None,
             )
         )
+        self._incidents_page = page
         self.inner.addTab(page, "Incidents")
-        self._loaded = False
+        self._registers_loaded = False
 
+    # ── filling ──────────────────────────────────────────────────────────────
     def refresh(self) -> None:
-        if not self._loaded:
-            self._loaded = True
-            requirements = load_register("requirements")
-            fill(
-                self.requirements,
+        if not self.actor:
+            return
+        if not self._registers_loaded:
+            self._registers_loaded = True
+            self._fill_registers()
+        self._fill_compliance()
+        self._fill_checks()
+        self._fill_register_of_matters()
+        self._fill_incidents()
+
+    def _fill_registers(self) -> None:
+        controls = load_register("controls")
+        fill(
+            self.controls,
+            [
                 [
-                    [
-                        r["requirement_id"],
-                        r["instrument"].split(" (")[0],
-                        r["reference"],
-                        r["addressed_to"],
-                        r["requirement_in_plain_words"],
-                        r["control_ids"].replace(";", ", "),
-                        r["status"],
-                        r["how_met_and_what_remains"],
-                    ]
-                    for r in requirements
-                ],
-                state_columns=[6],
-            )
-            fit(self.requirements, [80, 110, 170, 80, 380, 150, 110, 0])
-            controls = load_register("controls")
-            fill(
-                self.controls,
+                    c["control_id"],
+                    c["control"],
+                    c["type"],
+                    c["implementation"].replace(";", ", "),
+                    str(len(c["tests"].split(";"))) + " test(s)",
+                    c["evidence"],
+                    c["owner_role"].replace("_", " "),
+                ]
+                for c in controls
+            ],
+        )
+        fit(self.controls, [60, 520, 70, 300, 70, 300, 0])
+        risks = load_register("risks")
+        fill(
+            self.risks,
+            [
                 [
-                    [
-                        c["control_id"],
-                        c["control"],
-                        c["type"],
-                        c["implementation"].replace(";", ", "),
-                        str(len(c["tests"].split(";"))) + " test(s)",
-                        c["evidence"],
-                        c["owner_role"].replace("_", " "),
-                    ]
-                    for c in controls
-                ],
-            )
-            fit(self.controls, [60, 520, 70, 300, 70, 300, 0])
-            risks = load_register("risks")
-            fill(
-                self.risks,
+                    r["risk_id"],
+                    r["risk"],
+                    r["cause"],
+                    r["impact"],
+                    r["control_ids"].replace(";", ", "),
+                    r["residual_risk_and_limits"],
+                    r["owner_role"].replace("_", " "),
+                    r["status"],
+                ]
+                for r in risks
+            ],
+            state_columns=[7],
+        )
+        fit(self.risks, [50, 320, 240, 240, 150, 420, 150, 0])
+        fill(
+            self.matrix,
+            [
+                [m["responsibility"], m["provider"], m["deployer"], m["technical_security_owner"]]
+                for m in load_register("responsibilities")
+            ],
+        )
+        self.inner.setTabText(self.inner.indexOf(self.controls), f"Controls ({len(controls)})")
+        self.inner.setTabText(self.inner.indexOf(self.risks), f"Risks ({len(risks)})")
+
+    def _fill_compliance(self) -> None:
+        overview = self.session.attempt(
+            self, lambda: self.sv.compliance.overview(actor_id=self.actor), quiet=True
+        )
+        if overview is None:
+            return
+        self._overview = overview
+        self.headline.setText(f"<b>{overview.headline}</b>")
+        fill(
+            self.requirements,
+            [
                 [
-                    [
-                        r["risk_id"],
-                        r["risk"],
-                        r["cause"],
-                        r["impact"],
-                        r["control_ids"].replace(";", ", "),
-                        r["residual_risk_and_limits"],
-                        r["owner_role"].replace("_", " "),
-                        r["status"],
-                    ]
-                    for r in risks
-                ],
-                state_columns=[7],
-            )
-            fit(self.risks, [50, 320, 240, 240, 150, 420, 150, 0])
-            matrix = load_register("responsibilities")
-            fill(
-                self.matrix,
+                    r.requirement_id,
+                    r.instrument,
+                    r.reference,
+                    r.requirement,
+                    r.who,
+                    plain.state(r.state),
+                    r.how_met,
+                ]
+                for r in overview.requirements
+            ],
+            ids=[r.requirement_id for r in overview.requirements],
+            state_columns=[5],
+        )
+        fit(self.requirements, [72, 90, 150, 340, 230, 215, 0])
+        self._actions = {a.action.action_id: a.action for a in overview.actions}
+        fill(
+            self.org_actions,
+            [
                 [
-                    [
-                        m["responsibility"],
-                        m["provider"],
-                        m["deployer"],
-                        m["technical_security_owner"],
-                    ]
-                    for m in matrix
-                ],
+                    f"{a.action.action_id} {a.action.title}",
+                    a.action.what_to_do,
+                    ", ".join(a.action.requirement_ids),
+                    _WHO.get(a.action.owner, a.action.owner),
+                    _ACTION_STATE.get(a.state, plain.state(a.state)),
+                    a.detail,
+                ]
+                for a in overview.actions
+            ],
+            ids=[a.action.action_id for a in overview.actions],
+            state_columns=[4],
+        )
+        fit(self.org_actions, [300, 360, 150, 75, 95, 0])
+        waiting = sum(1 for a in overview.actions if a.state in ("waiting", "review_due"))
+        self.inner.setTabText(
+            self.inner.indexOf(self._actions_page),
+            f"Organisation actions ({waiting} to do)",
+        )
+        self.inner.setTabText(
+            0,
+            f"Requirements ({overview.count('met') + overview.count('software')} of "
+            f"{len(overview.requirements)} met)",
+        )
+
+    def _requirement_chosen(self) -> None:
+        rid = selected_id(self.requirements)
+        overview = getattr(self, "_overview", None)
+        found = next(
+            (r for r in (overview.requirements if overview else []) if r.requirement_id == rid),
+            None,
+        )
+        if found is None:
+            self.requirement_detail.setText(
+                "Select a requirement to see what the software does about it and what your "
+                "organisation still has to record."
             )
-            done = sum(1 for r in requirements if r["status"] == "implemented")
-            part = sum(1 for r in requirements if r["status"] == "partial")
-            self.inner.setTabText(
-                0,
-                f"Requirements ({done} met, {part} partly, {len(requirements) - done - part} for the organisation)",
+            return
+        controls = ", ".join(found.controls) or "none"
+        actions = "".join(
+            f"<li><b>{a.action.action_id} {a.action.title}</b>: {a.detail}</li>"
+            for a in found.actions
+        )
+        self.requirement_detail.setText(
+            f"<b>{found.requirement_id}</b> ({found.reference}): {found.requirement}<br>"
+            f"<b>The software:</b> controls {controls}. {found.how_met}"
+            + (f"<br><b>Your organisation:</b><ul>{actions}</ul>" if actions else "")
+        )
+
+    def _fill_checks(self) -> None:
+        latest = self.sv.checks.latest()
+        if latest is None:
+            self.check_state.setText("The routine checks have not run yet.")
+            fill(self.check_results, [])
+            self._results = []
+            return
+        results = (
+            self.session.attempt(
+                self, lambda: self.sv.checks.for_viewer(latest, actor_id=self.actor), quiet=True
             )
-            self.inner.setTabText(1, f"Controls ({len(controls)})")
-            self.inner.setTabText(2, f"Risks ({len(risks)})")
+            or []
+        )
+        self._results = results
+        when = latest.finished_at or latest.started_at
+        self.check_state.setText(
+            f"<b style='color:{theme.colour_for(latest.state)}'>{latest.headline}</b> "
+            f"<span style='color:{theme.MUTED}'>Last run {when:%d %b %Y %H:%M} UTC by "
+            f"{latest.actor_id}.</span>"
+        )
+        fill(
+            self.check_results,
+            [[r.title, plain.check_state(r.state), r.summary] for r in results],
+            ids=[r.check_id for r in results],
+            state_columns=[1],
+        )
+        fit(self.check_results, [240, 140, 0])
+
+    def _check_chosen(self) -> None:
+        chosen = selected_id(self.check_results)
+        result = next((r for r in getattr(self, "_results", []) if r.check_id == chosen), None)
+        if result is None:
+            self.check_detail.setText("")
+            return
+        items = "".join(f"<li>{i.text}</li>" for i in result.items[:40])
+        acted = "".join(f"<li>{a}</li>" for a in result.acted)
+        self.check_detail.setText(
+            f"{result.summary}"
+            + (f"<br><b>What to do:</b> {result.what_to_do}" if result.what_to_do else "")
+            + (f"<ul>{items}</ul>" if items else "")
+            + (f"<b>What the check did:</b><ul>{acted}</ul>" if acted else "")
+        )
+
+    def _fill_register_of_matters(self) -> None:
+        if not self.sv.ctx.authorizer().bindings.can(self.actor, "audit.read"):
+            fill(self.register, [["Overseeing every matter needs the auditor, governance or "
+                                  "legal administrator role.", "", "", "", "", "", ""]])  # fmt: skip
+            return
+        rows = (
+            self.session.attempt(self, lambda: self.sv.matters.register(self.actor), quiet=True)
+            or []
+        )
+        fill(
+            self.register,
+            [
+                [
+                    r["name"],
+                    str(r["profile"]).replace("_", " "),
+                    r["jurisdiction"],
+                    plain.state(str(r["status"])),
+                    r["people"],
+                    plain.state(str(r["last_run"])) if r["last_run"] else "none",
+                    r["open_holds"],
+                ]
+                for r in rows
+            ],
+            state_columns=[3, 5],
+        )
+        fit(self.register, [0, 160, 100, 90, 70, 170, 90])
+
+    def _fill_incidents(self) -> None:
         incidents = (
-            self.sv.incidents.list(self.mid, actor_id=self.actor)
+            self.session.attempt(
+                self,
+                lambda: self.sv.incidents.list(self.mid, actor_id=self.actor),
+                quiet=True,
+            )
             if self.mid and self.session.may("matter.read")
             else []
-        )
+        ) or []
+        now = datetime.now(timezone.utc)
+
+        def reporting(i) -> str:  # type: ignore[no-untyped-def]
+            if i.reported_at:
+                return f"reported {i.reported_at:%Y-%m-%d} ({i.report_reference})"
+            if i.reportable is False:
+                return f"not reportable ({i.report_decided_by})"
+            deadline = reporting_deadline(i)
+            if deadline is None:
+                return "—"
+            days = (deadline - now).days
+            return (
+                f"OVERDUE since {deadline:%Y-%m-%d}"
+                if days < 0
+                else f"decide by {deadline:%Y-%m-%d} ({days} days)"
+            )
+
         fill(
             self.incidents,
             [
                 [
-                    i.incident_id[-8:],
-                    i.status,
+                    plain.short_id(i.incident_id),
+                    plain.state(i.status),
                     i.severity.value,
                     i.category.replace("_", " "),
                     i.detail,
-                    i.containment,
+                    reporting(i),
                 ]
                 for i in incidents
             ],
             ids=[i.incident_id for i in incidents],
             state_columns=[1, 2],
         )
-        fit(self.incidents, [90, 70, 80, 220, 0, 260])
+        fit(self.incidents, [80, 70, 80, 220, 0, 230])
         self.inner.setTabText(
-            5, f"Incidents ({sum(1 for i in incidents if i.status == 'open')} open)"
+            self.inner.indexOf(self._incidents_page),
+            f"Incidents ({sum(1 for i in incidents if i.status == 'open')} open)",
+        )
+
+    # ── recording the organisation's work ────────────────────────────────────
+    def _chosen_action(self) -> OrganisationAction | None:
+        return self._actions.get(selected_id(self.org_actions))
+
+    def _record(self) -> None:
+        action = self._chosen_action()
+        if action is None:
+            QMessageBox.information(self, "Organisation actions", "Choose an action first.")
+            return
+        kind = action.evidence
+        if kind == "training":
+            self._training()
+        elif kind == "evaluation":
+            self._evaluate()
+        elif kind == "document":
+            self._sign_off(action)
+        elif kind == "retention":
+            self._retention()
+        elif kind == "form":
+            self._form(action)
+        elif kind == "attestation":
+            self._attest(action)
+        elif kind == "registration":
+            self._registration(action)
+
+    def _form(self, action: OrganisationAction) -> None:
+        dialog = _Dialog(
+            self,
+            template_title(action.template),
+            f"<b>{action.action_id} {action.title}</b><br>{action.what_to_do}<br>"
+            "Every question must be answered. Who recorded it and when is added for you.",
+        )
+        answers: dict[str, QPlainTextEdit] = {}
+        for field_ in action.form:
+            box = QPlainTextEdit()
+            box.setMaximumHeight(70)
+            answers[field_.key] = box
+            caption = label(field_.label, wrap=True)
+            caption.setMaximumWidth(260)
+            dialog.form.addRow(caption, box)
+        notes = QLineEdit()
+        notes.setPlaceholderText("Where the signed copy is kept, if anywhere else")
+        dialog.form.addRow("Reference", notes)
+        if dialog.ok():
+            self.session.decide(
+                self,
+                f"record '{action.title}'",
+                lambda: self.sv.compliance.record(
+                    action.action_id,
+                    actor_id=self.actor,
+                    answers={k: w.toPlainText() for k, w in answers.items()},
+                    reference=notes.text(),
+                ),
+            )
+
+    def _attest(self, action: OrganisationAction) -> None:
+        dialog = _Dialog(
+            self,
+            action.title,
+            f"<b>{action.action_id} {action.title}</b><br>{action.what_to_do}",
+        )
+        confirm = QCheckBox("I confirm this statement")
+        statement = label(f"“{action.statement}”", wrap=True)
+        notes = QPlainTextEdit()
+        notes.setMaximumHeight(90)
+        reference = QLineEdit()
+        dialog.form.addRow(statement)
+        dialog.form.addRow(confirm)
+        dialog.form.addRow("Notes", notes)
+        dialog.form.addRow("Reference", reference)
+        if dialog.ok():
+            self.session.decide(
+                self,
+                f"confirm '{action.title}'",
+                lambda: self.sv.compliance.record(
+                    action.action_id,
+                    actor_id=self.actor,
+                    confirmed=confirm.isChecked(),
+                    notes=notes.toPlainText(),
+                    reference=reference.text(),
+                ),
+            )
+
+    def _registration(self, action: OrganisationAction) -> None:
+        number = QLineEdit()
+        notes = ReasonDialog.ask(
+            self,
+            action.title,
+            f"{action.what_to_do} Give the registration number and when it was registered.",
+            extra=[("Registration number", number)],
+            minimum=0,
+            placeholder="Notes (optional)",
+        )
+        if notes is not None:
+            self.session.decide(
+                self,
+                "record the registration",
+                lambda: self.sv.compliance.record(
+                    action.action_id, actor_id=self.actor, reference=number.text(), notes=notes
+                ),
+            )
+
+    def _not_applicable(self) -> None:
+        action = self._chosen_action()
+        if action is None:
+            return
+        reason = ReasonDialog.ask(
+            self,
+            "It does not apply",
+            f"Why does “{action.title}” not apply to this deployment? This is recorded in your "
+            "name and reviewed again when its date comes.",
+        )
+        if reason:
+            self.session.decide(
+                self,
+                f"record that '{action.title}' does not apply",
+                lambda: self.sv.compliance.record(
+                    action.action_id, actor_id=self.actor, not_applicable=True, notes=reason
+                ),
+            )
+
+    def _training(self) -> None:
+        people = QComboBox()
+        for user in self.sv.users.directory(self.actor):
+            if user.active:
+                people.addItem(f"{user.display_name} ({user.user_id})", user.user_id)
+        course = QLineEdit("AI literacy and the instructions for use")
+        done = QDateEdit(QDate.currentDate())
+        done.setCalendarPopup(True)
+        expires = QDateEdit(QDate.currentDate().addYears(1))
+        expires.setCalendarPopup(True)
+        dialog = _Dialog(
+            self,
+            "Record training",
+            "Record training a person has completed. Someone who works on matters without a "
+            "current record is reported by the routine checks.",
+        )
+        for caption, widget in (
+            ("Person", people),
+            ("Training", course),
+            ("Completed on", done),
+            ("Valid until", expires),
+        ):
+            dialog.form.addRow(caption, widget)
+        if dialog.ok():
+            self.session.decide(
+                self,
+                "record this training",
+                lambda: self.sv.compliance.record_training(
+                    actor_id=self.actor,
+                    user_id=str(people.currentData()),
+                    course=course.text(),
+                    completed_on=_pydate(done),
+                    expires_on=_pydate(expires),
+                ),
+            )
+
+    def _retention(self) -> None:
+        current = self.sv.compliance.retention()
+        audit = QSpinBox()
+        audit.setRange(MIN_AUDIT_RETENTION_DAYS, 36500)
+        audit.setValue(current.audit_days if current else 3653)
+        closed = QSpinBox()
+        closed.setRange(0, 36500)
+        closed.setValue(current.closed_matter_days if current else 365)
+        dialog = _Dialog(
+            self,
+            "Retention",
+            "How long records are kept. The audit trail is kept at least six months and is "
+            "never shortened. A closed matter's documents, text and indexes are deleted by the "
+            "routine checks when their period ends; its decision record is kept.",
+        )
+        dialog.form.addRow("Keep the audit trail (days)", audit)
+        dialog.form.addRow("Keep a closed matter's documents (days)", closed)
+        if dialog.ok():
+            self.session.decide(
+                self,
+                "set the retention periods",
+                lambda: self.sv.compliance.set_retention(
+                    actor_id=self.actor,
+                    audit_days=audit.value(),
+                    closed_matter_days=closed.value(),
+                ),
+            )
+
+    def _evaluate(self) -> None:
+        phrase = self.session.ask_passphrase(self, "run the accuracy evaluation in your name")
+        if phrase is None:
+            return
+
+        def work() -> object:
+            self.sv.users.confirm(self.actor, phrase)
+            with authn.stepped_up():
+                return self.sv.compliance.run_evaluation(actor_id=self.actor)
+
+        self.session.background(
+            "Running the accuracy evaluation…",
+            work,
+            self._evaluated,
+            self._failed,
+        )
+
+    def _failed(self, exc: Exception) -> None:
+        QMessageBox.warning(self, "Could not complete", str(exc))
+
+    def _evaluated(self, record: object) -> None:
+        QMessageBox.information(self, "Evaluation", str(getattr(record, "summary", record)))
+        self.session.notify()
+
+    def _generate(self) -> None:
+        kind = QComboBox()
+        kind.addItem("Technical documentation (Annex IV)", "annex_iv")
+        kind.addItem("EU declaration of conformity", "declaration")
+        dialog = _Dialog(
+            self,
+            "Draft a document",
+            "The system drafts it from its own records and marks what only the provider can "
+            "state. Complete it, then sign it off by its fingerprint with “Record it…”.",
+        )
+        dialog.form.addRow("Document", kind)
+        if not dialog.ok():
+            return
+        made = self.session.attempt(
+            self,
+            lambda: self.sv.compliance.generate(kind.currentData(), actor_id=self.actor),
+            quiet=True,
+        )
+        if made:
+            path, digest = made
+            self._last_document["OA-05" if kind.currentData() == "annex_iv" else "OA-12"] = digest
+            QMessageBox.information(
+                self,
+                "Drafted",
+                f"Saved to:\n{path}\n\nSHA-256 fingerprint:\n{digest}",
+            )
+
+    def _sign_off(self, action: OrganisationAction) -> None:
+        digest = QLineEdit(self._last_document.get(action.action_id, ""))
+        digest.setPlaceholderText("The SHA-256 fingerprint of the completed document")
+        notes = ReasonDialog.ask(
+            self,
+            f"Sign off: {action.title}",
+            f"“{action.statement}” Give the fingerprint of the document you are signing off "
+            "(draft it first with “Draft the document…”).",
+            extra=[("SHA-256", digest)],
+            minimum=0,
+            placeholder="Notes (optional)",
+        )
+        if notes is not None:
+            self.session.decide(
+                self,
+                f"sign off '{action.title}'",
+                lambda: self.sv.compliance.sign_off(
+                    action.action_id, actor_id=self.actor, sha256=digest.text(), notes=notes
+                ),
+            )
+
+    # ── checks, monitoring, incidents ────────────────────────────────────────
+    def _run_checks(self) -> None:
+        self.session.background(
+            "Running the routine checks…",
+            lambda: self.sv.checks.run(actor_id=self.actor),
+            lambda _run: self.session.notify(),
+            self._failed,
         )
 
     def _monitor(self) -> None:
@@ -226,17 +807,21 @@ class GovernanceTab(Tab):
             ["Open incidents", snapshot.open_incidents],
         ]
         rows += [
-            [f"Runs — {k.replace('_', ' ')}", v] for k, v in sorted(snapshot.runs_by_status.items())
+            [f"Runs — {plain.state(k).lower()}", v]
+            for k, v in sorted(snapshot.runs_by_status.items())
         ]
         rows += [
-            [f"Reviews — {k.replace('_', ' ')}", v] for k, v in sorted(snapshot.reviews.items())
+            [f"Reviews — {plain.state(k).lower()}", v] for k, v in sorted(snapshot.reviews.items())
         ]
         rows += [
-            [f"Holds raised — {k.replace('_', ' ')}", v]
+            [f"Holds raised — {plain.hold_reason(k).lower()}", v]
             for k, v in sorted(snapshot.holds_by_reason.items())
         ]
         rows += [
-            [f"Checks — {k.replace(':', ' → ').replace('_', ' ')}", v]
+            [
+                f"Checks — {plain.check_name(k.split(':')[0])} → {plain.state(k.split(':')[-1]).lower()}",
+                v,
+            ]
             for k, v in sorted(snapshot.checks.items())
         ]
         fill(self.metrics, rows)
@@ -276,6 +861,60 @@ class GovernanceTab(Tab):
                     detail=detail,
                     severity=IncidentSeverity(severity.currentData()),
                     run_id=self.rid or None,
+                ),
+            )
+
+    def _decide_reporting(self) -> None:
+        incident_id = selected_id(self.incidents)
+        if not incident_id:
+            return
+        reportable = QComboBox()
+        reportable.addItem("Reportable to the market surveillance authority", True)
+        reportable.addItem("Not reportable", False)
+        kind = QComboBox()
+        for code, days in REPORTING_DAYS.items():
+            kind.addItem(
+                {
+                    "general": "A serious incident",
+                    "death": "A person's death",
+                    "widespread": "A widespread infringement or critical-infrastructure disruption",
+                }[code]
+                + f" ({days} days)",
+                code,
+            )
+        reported = QCheckBox("It has been reported")
+        when = QDateEdit(QDate.currentDate())
+        when.setCalendarPopup(True)
+        reference = QLineEdit()
+        reason = ReasonDialog.ask(
+            self,
+            "Decide on reporting (EU AI Act Art. 73)",
+            "Is this a serious incident that must be reported? Your decision and reasons are "
+            "recorded in your name.",
+            extra=[
+                ("Decision", reportable),
+                ("Kind", kind),
+                ("", reported),
+                ("Reported on", when),
+                ("Authority's reference", reference),
+            ],
+        )
+        if reason:
+            on = _pydate(when)
+            self.session.decide(
+                self,
+                "record the reporting decision",
+                lambda: self.sv.incidents.decide_reporting(
+                    self.mid,
+                    incident_id,
+                    actor_id=self.actor,
+                    reportable=bool(reportable.currentData()),
+                    reason=reason,
+                    serious_kind=str(kind.currentData()),
+                    reported_on=datetime(on.year, on.month, on.day, tzinfo=timezone.utc)
+                    if reported.isChecked()
+                    else None,
+                    reference=reference.text(),
                 ),
             )
 

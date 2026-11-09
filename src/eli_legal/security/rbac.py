@@ -100,7 +100,14 @@ DEFAULT_ROLE_ACTIONS: dict[str, set[str]] = {
     ROLE_REVIEWER: _READ | _VERIFY | _REVIEW,
     ROLE_LEGAL_ADMIN: _DECISION_MAKER
     | _AUDIT
-    | {"user.manage", "source.manage", "config.manage", "framework.manage"},
+    | {
+        "user.manage",
+        "source.manage",
+        "config.manage",
+        "framework.manage",
+        "compliance.manage",
+        "checks.run",
+    },
     ROLE_GOVERNANCE: {
         "matter.read",
         "workflow.hold",
@@ -111,11 +118,13 @@ DEFAULT_ROLE_ACTIONS: dict[str, set[str]] = {
         "source.manage",
         "config.manage",
         "framework.manage",
+        "compliance.manage",
+        "checks.run",
     }
     | _AUDIT,
     ROLE_AUDITOR: set(_AUDIT),
     # Technical administration is deliberately not equivalent to legal-matter access.
-    ROLE_SYSTEM_ADMIN: {"audit.verify", "user.manage", "config.manage"},
+    ROLE_SYSTEM_ADMIN: {"audit.verify", "user.manage", "config.manage", "checks.run"},
     ROLE_READ_ONLY: set(_READ),
 }
 

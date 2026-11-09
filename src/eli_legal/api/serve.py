@@ -167,5 +167,17 @@ def run(args: argparse.Namespace, services: Services | None = None) -> int:
         print("refused: no users exist yet; run: eli-legal init --admin <id>", file=sys.stderr)
         return 2
     print(banner(config, cert), flush=True)
-    uvicorn.Server(hardened(create_app(sv, config), config, cert, key)).run()
+    server_config = hardened(create_app(sv, config), config, cert, key)
+    sockets = None
+    if settings.hard_offline:
+        # Listen first, then lock down: the server keeps answering on its own port, while the
+        # kernel refuses every connection it might try to open.
+        sockets = [server_config.bind_socket()]
+        state = sv.network.go_offline(actor_id="system")
+        print(f"  hard offline: enforced by {state['enforced_by']}", flush=True)
+    stop = sv.checks.start_schedule()  # the routine checks, whenever they fall due
+    try:
+        uvicorn.Server(server_config).run(sockets=sockets)
+    finally:
+        stop.set()
     return 0

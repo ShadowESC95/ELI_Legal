@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from eli_legal.adapters.local.hmac_audit import Checkpoint
+from eli_legal.domain import plain
 from eli_legal.gui import theme
 from eli_legal.gui.tabs.base import Tab
 from eli_legal.gui.widgets import (
@@ -52,9 +53,9 @@ class AuditTab(Tab):
             [
                 "#",
                 "When (UTC)",
-                "Event",
+                "What happened",
                 "Who",
-                "How identity was proved",
+                "How they proved who they were",
                 "Action",
                 "Outcome",
                 "Subject",
@@ -121,7 +122,7 @@ class AuditTab(Tab):
         self.kind.clear()
         self.kind.addItem(f"Every event ({len(events)})", "")
         for name in sorted({e["event_type"] for e in events}):
-            self.kind.addItem(name.replace("_", " "), name)
+            self.kind.addItem(plain.event(name, ""), name)
         self.kind.setCurrentIndex(max(0, self.kind.findData(current)))
         self.kind.blockSignals(False)
         report = self.sv.ctx.audit.report()
@@ -149,9 +150,9 @@ class AuditTab(Tab):
                 [
                     e["seq"],
                     e["created_at"][:19].replace("T", " "),
-                    e["event_type"].replace("_", " "),
+                    plain.event(e["event_type"], e["outcome"]),
                     e["actor_id"],
-                    e["payload"].get("auth", ""),
+                    _proof(e["payload"].get("auth", "")),
                     e["action"],
                     e["outcome"],
                     e["subject_id"],
@@ -161,7 +162,7 @@ class AuditTab(Tab):
             ids=[str(e["seq"]) for e in shown],
             state_columns=[6],
         )
-        fit(self.events, [56, 150, 170, 120, 190, 190, 150, 0])
+        fit(self.events, [56, 150, 240, 110, 300, 150, 130, 0])
 
     def _show(self) -> None:
         wanted = selected_id(self.events)
@@ -258,3 +259,8 @@ class AuditTab(Tab):
             )
             if path is not None:
                 QMessageBox.information(self, "Evidence pack", f"Written to:\n{path}")
+
+
+def _proof(method: str) -> str:
+    """How identity was established, in words, with the exact method an auditor checks."""
+    return f"{plain.identity(method)} · {method}" if method else ""

@@ -119,6 +119,54 @@ class StepContext:
 StepHandler = Callable[[StepContext], Mapping[str, Any] | None]
 
 
+def audit_step(audit: AuditPort, record: RunStep, actor_id: str) -> None:
+    """The ledger event for a step's outcome: one form for automated steps and people's."""
+    audit.append(
+        AuditEvent(
+            event_type="step_completed",
+            actor_id=actor_id,
+            matter_id=record.matter_id,
+            run_id=record.run_id,
+            action=f"workflow.step.{record.step_id}",
+            subject_id=record.record_id,
+            outcome=record.status.value,
+            object_type="run_step",
+            output_hash=outputs_hash(record.outputs),
+            payload={"attempt": record.attempt},
+        )
+    )
+
+
+def record_person_step(
+    store: Store,
+    audit: AuditPort,
+    *,
+    matter_id: str,
+    run_id: str,
+    step_id: str,
+    status: StepStatus,
+    actor_id: str,
+    detail: str,
+    outputs: Mapping[str, Any] | None = None,
+) -> RunStep:
+    """Record what a person did at one of the workflow's person steps (review, release
+    preparation, recipient approval, delivery), so the graph and the run record show it. A step
+    put back to pending (a restart) is stored without an event: nothing was done."""
+    existing = store.get(RunStep, matter_id, f"{run_id}:{step_id}")
+    record = existing or RunStep(matter_id=matter_id, run_id=run_id, step_id=step_id)
+    record.status = status
+    record.detail = detail[:280]
+    record.outputs = dict(outputs or {})
+    record.attempt += 1
+    now = utcnow()
+    record.started_at = record.started_at or now
+    record.finished_at = None if status is StepStatus.PENDING else now
+    store.put(record)
+    if status is not StepStatus.PENDING:
+        audit_step(audit, record, actor_id)
+    return record
+
+
 def outputs_hash(outputs: Mapping[str, Any]) -> str:
     return hashlib.sha256(
         json.dumps(outputs, sort_keys=True, default=str).encode("utf-8")
@@ -236,17 +284,4 @@ class WorkflowRunner:
         record.finished_at = utcnow()
 
     def _audit_step(self, record: RunStep, actor_id: str) -> None:
-        self.audit.append(
-            AuditEvent(
-                event_type="step_completed",
-                actor_id=actor_id,
-                matter_id=record.matter_id,
-                run_id=record.run_id,
-                action=f"workflow.step.{record.step_id}",
-                subject_id=record.record_id,
-                outcome=record.status.value,
-                object_type="run_step",
-                output_hash=outputs_hash(record.outputs),
-                payload={"attempt": record.attempt},
-            )
-        )
+        audit_step(self.audit, record, actor_id)

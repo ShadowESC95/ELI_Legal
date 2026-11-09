@@ -16,8 +16,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from eli_legal.domain import plain
+from eli_legal.domain.enums import RunStatus
 from eli_legal.domain.models import RunStep
 from eli_legal.gui import theme
+from eli_legal.gui.run_controls import hold_run, lift_hold, person_hold
 from eli_legal.gui.tabs.base import Tab
 from eli_legal.gui.widgets import ReasonDialog, button, card, chip, label, row, set_chip
 from eli_legal.workflows.agents import HUMAN, MODEL_ASSISTED, agent_for, layers
@@ -206,10 +209,26 @@ class WorkflowTab(Tab):
             "A step that does not finish cleanly stops everything after it.",
             "muted",
         )
+        # A person's step: what it waits for, and what can be done about it from here.
+        self.person_text = label("", wrap=True)
+        self.to_decision = button(
+            "Open the decision…", lambda: self._open_review(3), kind="primary"
+        )
+        self.to_release = button("Open the release…", lambda: self._open_review(4), kind="primary")
+        self.hold_button = button("Put on hold…", lambda: hold_run(self))
+        self.lift_button = button("Lift the hold…", lambda: lift_hold(self))
+        self.person_box = card(
+            "What this step needs",
+            self.person_text,
+            row(self.to_decision, self.to_release, None),
+            row(self.hold_button, self.lift_button, None),
+        )
+        self.person_box.hide()
         side = card(
             "Step",
             self.step_title,
             self.step_text,
+            self.person_box,
             label("What it recorded", "muted"),
             self.outputs,
         )
@@ -261,8 +280,8 @@ class WorkflowTab(Tab):
             set_chip(self.state, "no run yet", theme.IDLE)
         else:
             holds = len(self.sv.ctx.holds.open_holds(self.mid, self.rid))
-            text = run.status.value.replace("_", " ") + (
-                f" · {holds} hold(s) open" if holds else ""
+            text = plain.state(run.status) + (
+                f" · {plain.count(holds, 'hold')} open" if holds else ""
             )
             set_chip(self.state, text, theme.colour_for(run.status.value))
         if self._picked:
@@ -278,18 +297,87 @@ class WorkflowTab(Tab):
         self.step_title.setText(agent.name)
         status = record.status.value if record else "pending"
         colour = theme.colour_for(status)
+        self._person(step_id, definition.manual, record)
         after = (
             ", ".join(agent_for(d).name for d in definition.depends_on) or "nothing — it is first"
         )
         detail = f"<br><b>Why:</b> {record.detail}" if record and record.detail else ""
         self.step_text.setText(
-            f"{definition.description}<br><br><b>Status:</b> <span style='color:{colour}'>{status}</span>"
+            f"{definition.description}<br><br><b>Status:</b> <span style='color:{colour}'>{plain.state(status)}</span>"
             f"{detail}<br><b>Runs after:</b> {after}"
             f"<br><b>Attempts:</b> {record.attempt if record else 0}"
         )
         self.outputs.setPlainText(
             json.dumps(record.outputs, indent=2, default=str) if record and record.outputs else ""
         )
+
+    def _person(self, step_id: str, manual: bool, record: RunStep | None) -> None:
+        """For a person's step: say what it waits for, and offer what can be done now."""
+        run = self.session.run
+        self.person_box.setVisible(manual and run is not None)
+        if not manual or run is None:
+            return
+        status = run.status
+        held = person_hold(self)
+        matter = self.session.matter
+        reviewers = ", ".join(sorted(matter.reviewer_user_ids)) if matter else ""
+        done = record is not None and record.status.value == "ok"
+        if held is not None:
+            why = held.detail.split(";", 1)[-1].strip()
+            said = (
+                f"<b>On hold</b>, put there by {self._raised_by(held)}: “{why}”. Nothing goes "
+                "further until a decision-maker lifts the hold, or the run is stopped."
+            )
+        elif done:
+            said = f"<b>Done.</b> {record.detail if record else ''}"
+        elif step_id == "human_review" and status is RunStatus.AWAITING_HUMAN_REVIEW:
+            said = (
+                f"<b>Waiting for a named reviewer</b> ({reviewers}) to read the report, "
+                "acknowledge each stated limit and approve it, return it for correction or "
+                "reject it. Anyone working on the matter can put it on hold first."
+            )
+        elif step_id != "human_review" and status is RunStatus.APPROVED_FOR_RELIANCE:
+            said = (
+                "<b>Waiting for a person</b> to prepare the release, confirm each recipient "
+                "and stage it in the outbox. The approved report can still be put on hold, "
+                "which suspends reliance on it."
+            )
+        elif status is RunStatus.HELD:
+            said = (
+                "Not reached yet: the run is on hold until its holds are dealt with, on the "
+                "Review page."
+            )
+        else:
+            said = f"Not reached yet: the run is {plain.state(status).lower()}."
+        self.person_text.setText(said)
+        reviewing = step_id == "human_review"
+        self.to_decision.setVisible(reviewing)
+        self.to_release.setVisible(not reviewing)
+        self.to_decision.setEnabled(status is RunStatus.AWAITING_HUMAN_REVIEW and held is None)
+        self.to_release.setEnabled(status is RunStatus.APPROVED_FOR_RELIANCE and held is None)
+        self.hold_button.setEnabled(
+            held is None
+            and status in (RunStatus.AWAITING_HUMAN_REVIEW, RunStatus.APPROVED_FOR_RELIANCE)
+            and self.session.may("workflow.hold")
+        )
+        self.lift_button.setEnabled(held is not None and self.session.may("hold.resolve"))
+
+    def _raised_by(self, hold) -> str:  # type: ignore[no-untyped-def]
+        for event in self.sv.ctx.audit.events(matter_id=self.mid, run_id=self.rid):
+            if event["event_type"] == "hold_raised" and event["subject_id"] == hold.hold_id:
+                return str(event["actor_id"])
+        return "a person"
+
+    def _open_review(self, page: int) -> None:
+        window = self.window()
+        go = getattr(window, "go", None)
+        if go is None:
+            return
+        go("review")
+        review = getattr(window, "tabs", None)
+        inner = getattr(review.currentWidget(), "inner", None) if review is not None else None
+        if inner is not None:
+            inner.setCurrentIndex(page)
 
     def _run_chosen(self) -> None:
         run_id = self.runs.currentData()

@@ -41,9 +41,36 @@ Deactivating a user stops their sessions and tokens; their past actions stay in 
 | Oversight | `legal_admin`, `governance_officer`, `auditor`, `reviewer`, `read_only` | Any matter they are added to, within their role |
 | System | `system_admin` | No matter. Users, configuration, audit verification |
 
-A role alone gives nothing on a matter: the person must also be added to it by someone on it,
-and their role must fit the matter's profile. A party's lawyer cannot be added to a tribunal's
-matter. `eli-legal show-policy` and Settings show exactly what each role may do.
+A role alone gives nothing on a matter: the person must also be added to it by its lead, and
+their role must fit the matter's profile. A party's lawyer cannot be added to a tribunal's matter.
+Settings, "What each role can do" shows exactly what each role may do, in plain words.
+
+### Roles on a matter, and what each person may read
+
+Three things decide what someone may do on a matter, and all three must agree:
+
+1. their **account role** (above): what they may do anywhere;
+2. their **role on the matter**, chosen when they are added: it can only narrow the account role;
+3. their **clearance**: which of the matter's material they may read.
+
+| Role on a matter | Does | Reads |
+|---|---|---|
+| Lead | Everything, including choosing the team, sources and laws. The person who opened the matter always leads it. | Everything |
+| Decision-maker | Resolves holds, reviews, approves, releases, stops the work | Everything |
+| Case worker | Adds documents, runs the analysis, records checks; approves nothing | All but the neutral's own notes |
+| Assistant | Adds documents, starts the analysis | Material before all parties, and privileged work |
+| Observer | Reads | Material before all parties, with contact, bank, card and identity numbers masked |
+| Auditor | Reads and verifies the matter's audit trail; exports its evidence pack | No document content or findings |
+
+Someone who **acts for a party** never sees what another party gave in confidence. The lead may
+widen or narrow anyone's clearance (`eli-legal matter role M USER --reads …`, or the Matter page).
+Whatever a person is not cleared for is withheld everywhere it could appear (lists, passages,
+findings, chat, the report, warnings, the evidence pack), with the reason, never the content, and
+every attempt to read it is recorded. A named reviewer must hold a role on the matter that can
+approve. People added before roles on a matter existed keep exactly what their account allowed.
+
+Oversight roles (legal administrator, governance officer, auditor) see a list of every matter in
+Governance, "All matters"; a matter they are not on shows no name, party or content.
 
 ## 3. Legal sources
 
@@ -108,6 +135,29 @@ Settings are environment variables beginning `ELI_LEGAL_`, or lines in `.env` in
 A policy file can tighten what roles may do. It cannot switch off human release, the fail-closed
 audit or matter isolation: the program refuses to start with such a file.
 
+## 6a. Hard offline
+
+Hard offline makes the computer's kernel refuse every network connection ELI Legal makes: from
+Python code, from native code such as llama.cpp, through io_uring, and from any program it
+starts. It is stronger than the network guard, which only intercepts Python's own sockets, and
+than a switch inside the program: nothing running in ELI Legal can undo it.
+
+| Do this | Desktop or browser | Command line |
+|---|---|---|
+| Go hard offline now, until ELI Legal closes | Settings, System, "Go hard offline now" (anyone signed in) | `eli-legal network offline` |
+| Start hard offline every time | Settings, System, "Start hard offline every time" (needs the right to manage the configuration and your passphrase) | `eli-legal network at-start on` |
+| See what enforces it | The header, and Settings, System | `eli-legal network status` |
+
+| System | Enforced by | Notes |
+|---|---|---|
+| Linux (x86-64, ARM64) | A seccomp filter on every thread | Applied at once; lasts until the program exits; every child process inherits it |
+| macOS | The kernel sandbox | Applied when the program starts: switched on mid-session it is the program's own guard until the next start, and the header says so |
+| Windows | An outbound Windows Defender Firewall rule for the program | Needs an administrator once; removed when it is switched off |
+
+While it is on: local GGUF models keep working; live legal sources and a model server (even
+one on this machine) do not. The server binds its port first, so it keeps answering on it.
+Switching "every time" off takes effect at the next start.
+
 ## 7. Backups
 
 Back up, together and while the program is stopped or idle:
@@ -130,20 +180,65 @@ your latest checkpoint. If it does not verify, treat it as an incident.
 
 ## 8. Routine checks
 
-| How often | Check |
+The system checks itself every day (the setting `ELI_LEGAL_CHECKS_EVERY_HOURS`, default 24; 0
+switches the schedule off). The desktop application runs them soon after sign-in when they are
+due; the server runs them on a thread of its own while it is up. Where neither is running all
+day, run them from cron or a systemd timer as the account that owns the data:
+
+```bash
+eli-legal checks run --as-system      # exit status 1 when anything needs attention
+```
+
+| Check | What it looks at | What it does on its own |
+|---|---|---|
+| Audit trail intact | Every signature and link of the ledger | — |
+| Governance registers consistent | Controls, tests, risks, requirements and organisation actions link up | — |
+| Authorities still good law | Every authority relied on in each open matter's latest run, judged exactly as a run would judge it today; a person's recent confirmation stands | For an **approved** report, opens one incident per authority |
+| Law and standards up to date | When each package in use was last checked against its official text (180 days by default, `ELI_LEGAL_LAW_REVIEW_DAYS`), and dates in the law calendar coming into application | — |
+| Legal sources current | How old each source's status information is | — |
+| Stored documents unaltered | Every stored original against the hash it was filed with | Opens a **serious** incident |
+| Organisation's compliance work | Organisation actions not recorded or due for review | — |
+| People and sign-in | Missing passphrases, locked accounts, reviewers without training or a second factor | — |
+| Retention | Closed matters past their retention period | **Deletes** their documents, text and indexes, once, keeping the record |
+| Holds and incidents | Holds open more than 14 days; serious incidents and their Art. 73 deadline | — |
+
+Results are on the Home page and in Governance, "Routine checks"; `eli-legal checks show` prints
+them. Someone not on a matter is told only that a matter they are not on needs attention.
+
+Still for a person:
+
+| How often | Do |
 |---|---|
-| Daily, on a busy system | Governance, Monitoring: any alert |
-| Weekly | Verify the audit chain; take a checkpoint; confirm the backup restored somewhere |
-| Monthly | Refresh legal-source status; review users and remove leavers; review who is on which matter |
-| On any change of model, version or policy | Change assessment; re-run the evaluation |
+| Weekly | Take an audit checkpoint and keep it off this machine; confirm the backup restores |
+| When the checks say a law package is due | Check it against the official text and record it (Laws & Standards, "Confirm checked against the official text", or `eli-legal framework current`) |
+| Monthly | Import a current copy of each legal source; remove leavers; review who is on which matter |
+| On any change of model, version or policy | The change assessment (organisation action OA-22); run the evaluation (OA-07) |
 | On upgrade | Back up first; `eli-legal doctor` and `eli-legal governance` afterwards |
 
 ## 9. Closing matters and retention
 
 Closing a matter ends access to it. With "also delete the documents", the documents, extracted
-text and search indexes are removed; the decision record and the ledger are kept. Set a retention
-period for closed matters and apply it. The ledger is permanent by design and holds identifiers,
-hashes and user identities, not document text.
+text and search indexes are removed at once; the decision record and the ledger are kept.
+
+Set the retention periods in Governance, "Organisation actions", OA-09 (or `eli-legal compliance
+retention --audit-days N --closed-days N`). The audit trail must be kept at least six months
+(EU AI Act Art. 19(1) and 26(6)) and is never shortened by the software: the ledger is permanent
+by design and holds identifiers, hashes and user identities, not document text. A closed matter's
+documents are deleted by the routine checks when its period ends.
+
+## 9a. The organisation's compliance work
+
+Governance, "Requirements" shows every requirement of the instruments that apply and where it
+stands: **met by the software**, **met** (the software's part and your organisation's recorded
+part), **waiting for your organisation**, or **review due**. What the software cannot do is a list
+of **organisation actions** (Governance, "Organisation actions"; `eli-legal compliance actions`):
+classifying the deployment, the impact assessment, training, the risk review, the technical
+documentation (drafted for you from the system's records), the instructions for use, the accuracy
+evaluation (run for you on a matter with known defects), retention, oversight, the conformity
+assessment, the declaration (drafted for you), registration, and the rest. Each is recorded in a
+named person's name, with their passphrase, and falls due for review on its own date. Recording
+needs the governance officer or legal administrator role. See
+[Compliance and routine checks](13_compliance_and_routine_checks.md).
 
 ## 10. If something goes wrong
 

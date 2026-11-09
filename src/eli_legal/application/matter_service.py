@@ -9,7 +9,8 @@ from datetime import date, timedelta
 
 from eli_legal.application.container import AppContext
 from eli_legal.application.framework_service import default_frameworks
-from eli_legal.domain.enums import ActorType, MatterStatus, Profile
+from eli_legal.domain import plain
+from eli_legal.domain.enums import AccessScope, ActorType, MatterStatus, Profile
 from eli_legal.domain.errors import (
     AccountLocked,
     AuthenticationFailed,
@@ -18,9 +19,9 @@ from eli_legal.domain.errors import (
     PolicyDenied,
     SecondFactorRequired,
 )
-from eli_legal.domain.models import Chunk, Document, Matter, Party, User, utcnow
+from eli_legal.domain.models import Chunk, Document, Hold, Matter, Party, Run, User, utcnow
 from eli_legal.domain.profiles import OVERSIGHT_ROLES, profile_spec
-from eli_legal.security import authn, totp
+from eli_legal.security import access, authn, totp
 from eli_legal.security.rbac import DEFAULT_ROLE_ACTIONS
 
 _PBKDF2_ITERATIONS = 240_000
@@ -373,6 +374,28 @@ class UserService:
         return token
 
 
+@dataclass(frozen=True, slots=True)
+class TeamMember:
+    """Someone to put on a matter: who, in which role on it, and the party they act for."""
+
+    user_id: str
+    matter_role: str = ""  # empty: the narrowest role that keeps what their account allows
+    party: str | None = None  # a party's name or id
+
+
+@dataclass(frozen=True, slots=True)
+class MemberView:
+    user_id: str
+    name: str
+    account_roles: list[str]
+    matter_role: str
+    explicit: bool  # set by a person, rather than worked out from their account
+    party: str
+    reads: list[str]
+    reviewer: bool
+    owner: bool
+
+
 @dataclass(slots=True)
 class MatterService:
     ctx: AppContext
@@ -394,10 +417,17 @@ class MatterService:
         represented_party: str | None = None,
         frameworks: Sequence[str] | None = None,
         recommended_frameworks: bool = True,
+        team: Sequence[TeamMember] = (),
+        reviewers: Sequence[str] = (),
+        sources: Sequence[str] = (),
     ) -> Matter:
         """Open a matter. Its law and standards packages are the recommended ones for its kind
         and legal system, plus any named in ``frameworks``; or only those named, when
-        ``recommended_frameworks`` is false."""
+        ``recommended_frameworks`` is false.
+
+        ``team``, ``reviewers`` and ``sources`` set up the rest of the matter in the same step,
+        exactly as granting, naming reviewers and choosing sources afterwards would. Everything
+        is checked before anything is saved, so a refusal leaves no half-made matter."""
         spec = profile_spec(profile)
         authz = self.ctx.authorizer()
         authz.require_global(actor_id, "matter.create")
@@ -437,6 +467,11 @@ class MatterService:
         matter.framework_ids = default_frameworks(
             self.ctx, matter, frameworks, recommended=recommended_frameworks
         )
+        # Check the rest of the set-up before anything is saved.
+        for member in team:
+            self._check_member(matter, member)
+        for sid in sources:
+            self.ctx.sources.require_approved(sid)
         self.ctx.store.put_matter(matter)
         packs = self.ctx.jurisdictions.for_matter(matter)
         self.ctx.log(
@@ -456,6 +491,19 @@ class MatterService:
                 "parties": len(party_list),
             },
         )
+        mid = matter.matter_id
+        for member in team:
+            matter = self.grant(
+                mid,
+                actor_id=actor_id,
+                user_id=member.user_id,
+                matter_role=member.matter_role,
+                party=member.party,
+            )
+        if reviewers:
+            matter = self.set_reviewers(mid, actor_id=actor_id, reviewer_ids=reviewers)
+        if sources:
+            matter = self.set_sources(mid, actor_id=actor_id, source_ids=sources)
         return matter
 
     def get(self, matter_id: str, actor_id: str) -> Matter:
@@ -468,15 +516,113 @@ class MatterService:
             m for m in self.ctx.store.list_matters() if authz.can_matter(m, actor_id, "matter.read")
         ]
 
+    def visibility(self, matter_id: str, actor_id: str) -> access.Visibility:
+        """What this person may read of the matter, and their role on it."""
+        matter = self.ctx.matter_for(matter_id, actor_id, "matter.read")
+        return self.ctx.authorizer().visibility(matter, actor_id)
+
     def documents(self, matter_id: str, actor_id: str) -> list[Document]:
+        """The matter's documents. One the person is not cleared to read is listed, so that
+        nobody is misled about what the matter holds, with its name and origin withheld."""
         matter = self.ctx.matter_for(matter_id, actor_id, "document.read")
-        return self.ctx.store.list(Document, matter.matter_id)
+        seen = self.ctx.authorizer().visibility(matter, actor_id)
+        return [seen.document(d) for d in self.ctx.store.list(Document, matter.matter_id)]
 
     def passages(self, matter_id: str, document_id: str, actor_id: str) -> list[Chunk]:
-        """A document's text as located passages, for reading it in the application."""
+        """A document's text as located passages, for reading it in the application. A
+        document the person is not cleared to read gives one passage saying why, and the
+        attempt is recorded."""
         matter = self.ctx.matter_for(matter_id, actor_id, "document.read")
-        self.ctx.store.require(Document, matter.matter_id, document_id)
-        return self.ctx.store.chunks_for(matter.matter_id, document_id)
+        document = self.ctx.store.require(Document, matter.matter_id, document_id)
+        seen = self.ctx.authorizer().visibility(matter, actor_id)
+        if not seen.document_visible(document):
+            self.ctx.log(
+                "content_withheld",
+                actor_id=actor_id,
+                matter_id=matter.matter_id,
+                action="document.read",
+                subject_id=document_id,
+                outcome="withheld",
+                object_type="document",
+                payload={"scope": document.access_scope.value, "role": seen.role},
+            )
+            return [
+                Chunk(
+                    matter_id=matter.matter_id,
+                    document_id=document_id,
+                    ordinal=0,
+                    locator="—",
+                    text=seen.marker(document.access_scope, document.party_id),
+                    text_hash="",
+                )
+            ]
+        return [
+            seen.chunk(c, document)
+            for c in self.ctx.store.chunks_for(matter.matter_id, document_id)
+        ]
+
+    def members(self, matter_id: str, actor_id: str) -> list[MemberView]:
+        """Who is on the matter, their role on it, whom they act for and what they may read."""
+        matter = self.ctx.matter_for(matter_id, actor_id, "matter.read")
+        authz = self.ctx.authorizer()
+        users = {u.user_id: u for u in self.ctx.store.list_users()}
+        party = {p.party_id: p.name for p in matter.parties}
+        out = []
+        for uid in sorted({matter.owner_user_id, *matter.authorised_user_ids}):
+            user = users.get(uid)
+            seen = authz.visibility(matter, uid)
+            out.append(
+                MemberView(
+                    user_id=uid,
+                    name=user.display_name if user else "(unknown)",
+                    account_roles=sorted(user.roles) if user else [],
+                    matter_role=seen.role,
+                    explicit=uid == matter.owner_user_id or uid in matter.member_roles,
+                    party=party.get(seen.party_id or "", ""),
+                    reads=[s.value for s in AccessScope if s in seen.scopes],
+                    reviewer=uid in matter.reviewer_user_ids,
+                    owner=uid == matter.owner_user_id,
+                )
+            )
+        return out
+
+    def register(self, actor_id: str) -> list[dict[str, object]]:
+        """Every matter, for oversight by someone who audits the system: its kind, legal
+        system, state and open holds. A matter they are not on is shown with its name and
+        parties withheld, so oversight never becomes a way to read a case."""
+        self.ctx.authorizer().require_global(actor_id, "audit.read")
+        authz = self.ctx.authorizer()
+        out: list[dict[str, object]] = []
+        for matter in self.ctx.store.list_matters():
+            member = authz.can_matter(matter, actor_id, "matter.read")
+            runs = self.ctx.store.list(Run, matter.matter_id)
+            latest = runs[-1] if runs else None
+            holds = (
+                self.ctx.store.list(Hold, matter.matter_id, run_id=latest.run_id, status="open")
+                if latest
+                else []
+            )
+            out.append(
+                {
+                    "matter_id": matter.matter_id,
+                    "name": matter.name
+                    if member
+                    else f"{access.WITHHELD} matter {plain.short_id(matter.matter_id)}",
+                    "parties": ", ".join(p.name for p in matter.parties)
+                    if member
+                    else access.WITHHELD,
+                    "member": member,
+                    "profile": matter.profile.value,
+                    "jurisdiction": matter.jurisdiction,
+                    "status": matter.status.value,
+                    "people": len({matter.owner_user_id, *matter.authorised_user_ids}),
+                    "runs": len(runs),
+                    "last_run": latest.status.value if latest else "",
+                    "open_holds": len(holds),
+                    "created_at": matter.created_at.isoformat(timespec="seconds"),
+                }
+            )
+        return out
 
     def _save(self, matter: Matter, actor_id: str, change: str, **payload: object) -> Matter:
         self.ctx.store.put_matter(matter)
@@ -492,16 +638,106 @@ class MatterService:
         )
         return matter
 
-    def grant(self, matter_id: str, *, actor_id: str, user_id: str) -> Matter:
-        matter = self.ctx.matter_for(matter_id, actor_id, "matter.manage")
-        user = self.ctx.user(user_id)
+    def _party_id(self, matter: Matter, party: str | None) -> str | None:
+        if not party:
+            return None
+        found = next(
+            (p.party_id for p in matter.parties if party in (p.party_id, p.name)),
+            None,
+        ) or next((p.party_id for p in matter.parties if p.name.lower() == party.lower()), None)
+        if found is None:
+            raise InvalidInput(f"{party!r} is not a party to this matter")
+        return found
+
+    def _check_member(self, matter: Matter, member: TeamMember) -> User:
+        user = self.ctx.user(member.user_id)
         spec = profile_spec(matter.profile)
         if not any(spec.allows_role(r) for r in user.roles):
             raise PolicyDenied(
-                f"{user_id!r} holds no role that is valid on a {matter.profile.value} matter"
+                f"{member.user_id!r} holds no role that is valid on a {matter.profile.value} matter"
             )
+        if member.matter_role and member.matter_role not in access.MATTER_ROLES:
+            raise InvalidInput(
+                f"unknown role on a matter: {member.matter_role!r}; one of "
+                + ", ".join(access.MATTER_ROLES)
+            )
+        self._party_id(matter, member.party)
+        return user
+
+    def grant(
+        self,
+        matter_id: str,
+        *,
+        actor_id: str,
+        user_id: str,
+        matter_role: str | None = None,
+        party: str | None = None,
+    ) -> Matter:
+        """Add someone to the matter, in a role on it. Without a role, they get the narrowest
+        one that keeps what their account allows, and never the lead's."""
+        matter = self.ctx.matter_for(matter_id, actor_id, "matter.manage")
+        user = self._check_member(matter, TeamMember(user_id, matter_role or "", party))
+        if user_id == matter.owner_user_id:
+            return matter
+        code = matter_role or access.covering_role(user.roles, allow_lead=False)
         matter.authorised_user_ids.add(user_id)
-        return self._save(matter, actor_id, "access_granted", user=user_id)
+        matter.member_roles[user_id] = code
+        party_id = self._party_id(matter, party)
+        if party_id:
+            matter.member_parties[user_id] = party_id
+        else:
+            matter.member_parties.pop(user_id, None)
+        return self._save(
+            matter, actor_id, "access_granted", user=user_id, matter_role=code, party=party_id
+        )
+
+    def set_member(
+        self,
+        matter_id: str,
+        *,
+        actor_id: str,
+        user_id: str,
+        matter_role: str | None = None,
+        party: str | None = None,
+        clear_party: bool = False,
+        reads: Sequence[str] | None = None,
+    ) -> Matter:
+        """Change a member's role on the matter, the party they act for, or the material they
+        may read (``reads``: access scopes; an empty list withholds everything; ``None`` leaves
+        it). The person who opened the matter always leads it and reads all of it."""
+        matter = self.ctx.matter_for(matter_id, actor_id, "matter.manage")
+        if user_id == matter.owner_user_id:
+            raise InvalidState("the person who opened the matter always leads it")
+        if user_id not in matter.authorised_user_ids:
+            raise InvalidState(f"{user_id!r} is not on this matter; grant access first")
+        changed: dict[str, object] = {"user": user_id}
+        if matter_role is not None:
+            self._check_member(matter, TeamMember(user_id, matter_role, None))
+            if user_id in matter.reviewer_user_ids and "report.approve" not in (
+                access.MATTER_ROLES[matter_role].actions
+            ):
+                raise InvalidState(
+                    f"{user_id!r} is a named reviewer; a {access.MATTER_ROLES[matter_role].label}"
+                    " cannot approve. Remove them as reviewer first."
+                )
+            matter.member_roles[user_id] = matter_role
+            changed["matter_role"] = matter_role
+        if clear_party:
+            matter.member_parties.pop(user_id, None)
+            changed["party"] = None
+        elif party:
+            matter.member_parties[user_id] = self._party_id(matter, party) or ""
+            changed["party"] = matter.member_parties[user_id]
+        if reads is not None:
+            try:
+                scopes = sorted({AccessScope(r).value for r in reads})
+            except ValueError as exc:
+                raise InvalidInput(
+                    "reads must name access scopes: " + ", ".join(s.value for s in AccessScope)
+                ) from exc
+            matter.member_clearance[user_id] = scopes
+            changed["reads"] = scopes
+        return self._save(matter, actor_id, "member_role_set", **changed)
 
     def revoke(self, matter_id: str, *, actor_id: str, user_id: str) -> Matter:
         matter = self.ctx.matter_for(matter_id, actor_id, "matter.manage")
@@ -511,6 +747,8 @@ class MatterService:
             )
         matter.authorised_user_ids.discard(user_id)
         matter.reviewer_user_ids.discard(user_id)
+        for held in (matter.member_roles, matter.member_parties, matter.member_clearance):
+            held.pop(user_id, None)
         return self._save(matter, actor_id, "access_revoked", user=user_id)
 
     def set_reviewers(
@@ -530,6 +768,12 @@ class MatterService:
                 )
             if uid != matter.owner_user_id and uid not in matter.authorised_user_ids:
                 raise PolicyDenied(f"{uid!r} has not been granted access to this matter")
+            role = access.matter_role(matter, uid, user.roles)
+            if "report.approve" not in access.MATTER_ROLES[role].actions:
+                raise PolicyDenied(
+                    f"{uid!r} is on this matter as {access.MATTER_ROLES[role].label.lower()}, "
+                    "who cannot approve; make them decision-maker first"
+                )
         matter.reviewer_user_ids = chosen
         return self._save(matter, actor_id, "reviewers_set", reviewers=sorted(chosen))
 
@@ -590,6 +834,7 @@ class MatterService:
         revoked = len(matter.authorised_user_ids - {matter.owner_user_id})
         matter.authorised_user_ids = {matter.owner_user_id}
         matter.reviewer_user_ids = set()
+        matter.member_roles, matter.member_parties, matter.member_clearance = {}, {}, {}
         matter.status = MatterStatus.CLOSED
         matter.closed_at = utcnow()
         self.ctx.store.put_matter(matter)

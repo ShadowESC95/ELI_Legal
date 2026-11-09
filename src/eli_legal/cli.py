@@ -13,11 +13,12 @@ import sys
 import tempfile
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from eli_legal import __version__
+from eli_legal.domain import plain
 from eli_legal.domain.enums import (
     AccessScope,
     DocumentType,
@@ -27,6 +28,7 @@ from eli_legal.domain.enums import (
     VerificationStatus,
 )
 from eli_legal.domain.errors import EliLegalError
+from eli_legal.security import access
 from eli_legal.settings import Settings
 
 
@@ -345,6 +347,21 @@ def cmd_source(args: argparse.Namespace) -> int:
             actor_id=_actor(args),
         )
         print(f"registered {args.source_id} (not yet approved)")
+    elif args.source_cmd == "add-live":
+        from dataclasses import replace
+
+        from eli_legal.adapters.sources import live
+
+        source = replace(
+            live.preset(args.kind, args.source_id or args.kind),
+            terms_reviewed=args.terms_reviewed,
+        )
+        sv.sources.register(source, actor_id=_actor(args))
+        print(f"registered {source.source_id}: {source.name} (not yet approved)")
+        print(f"  licence: {source.licence}")
+        print(f"  may contact only: {', '.join(source.hosts)}")
+        if not args.terms_reviewed:
+            print("  read the terms, then register it again with --terms-reviewed to approve it")
     elif args.source_cmd == "approve":
         with _confirmed(args, f"approve the legal source {args.source_id}") as actor:
             sv.sources.approve(args.source_id, actor_id=actor)
@@ -381,6 +398,9 @@ def cmd_matter(args: argparse.Namespace) -> int:
             represented_party=args.represents,
             frameworks=args.framework,
             recommended_frameworks=not args.no_recommended_frameworks,
+            team=[_member(m) for m in args.member or []],
+            reviewers=args.reviewer or [],
+            sources=args.source or [],
         )
         print(matter.matter_id)
     elif c == "list":
@@ -409,7 +429,35 @@ def cmd_matter(args: argparse.Namespace) -> int:
             }
         )
     elif c == "grant":
-        sv.matters.grant(args.matter, actor_id=actor, user_id=args.user_id)
+        sv.matters.grant(
+            args.matter,
+            actor_id=actor,
+            user_id=args.user_id,
+            matter_role=args.role,
+            party=args.acts_for,
+        )
+    elif c == "people":
+        for m in sv.matters.members(args.matter, actor):
+            role = access.MATTER_ROLES[m.matter_role].label if m.matter_role else ""
+            reads = (
+                "everything"
+                if len(m.reads) == len(access.ALL_SCOPES)
+                else ", ".join(plain.scope(r).lower() for r in m.reads) or "nothing"
+            )
+            print(
+                f"{m.user_id:16s} {role:15s} {('acts for ' + m.party) if m.party else '':28s} "
+                f"reads: {reads}{'  · reviews' if m.reviewer else ''}"
+            )
+    elif c == "role":
+        sv.matters.set_member(
+            args.matter,
+            actor_id=actor,
+            user_id=args.user_id,
+            matter_role=args.role,
+            party=args.acts_for,
+            clear_party=args.no_party,
+            reads=args.reads,
+        )
     elif c == "revoke":
         sv.matters.revoke(args.matter, actor_id=actor, user_id=args.user_id)
     elif c == "reviewers":
@@ -437,6 +485,181 @@ def cmd_matter(args: argparse.Namespace) -> int:
                 args.matter, actor_id=actor, purge_content=args.purge, reason=args.reason
             )
         print(f"closed {args.matter}" + (f"; deleted {counts}" if args.purge else ""))
+    return 0
+
+
+def _member(text: str) -> Any:
+    from eli_legal.application.matter_service import TeamMember
+
+    parts = [p.strip() for p in text.split(":")]
+    if not parts[0]:
+        raise SystemExit(f"expected USER[:ROLE[:PARTY]], got {text!r}")
+    return TeamMember(
+        parts[0], parts[1] if len(parts) > 1 else "", parts[2] if len(parts) > 2 else None
+    )
+
+
+def cmd_status(args: argparse.Namespace) -> int:
+    """Where a matter stands and what to do next; or, with no matter, what is waiting for you
+    everywhere, and the latest routine checks."""
+    sv = _services(args)
+    actor = _actor(args)
+    if args.matter:
+        guide = sv.guidance.for_matter(args.matter, actor_id=actor)
+        print(guide.matter_name)
+        print(f"  {guide.headline}")
+        print(f"  You are {guide.role.lower()} on this matter. {guide.reads}")
+        print()
+        for n, stage in enumerate(guide.stages, start=1):
+            mark = {"done": "✓", "current": "▶"}.get(stage.state, " ")
+            print(f"  {mark} {n}. {stage.title:18s} {stage.detail}")
+        print()
+        print("What to do next:" if guide.steps else "Nothing is waiting on this matter.")
+        for step in guide.steps:
+            print(f"  • {step.title}")
+            print(f"      {step.why}")
+            if not step.can_do:
+                print(f"      You cannot do this. {step.who}")
+        return 0
+    work = sv.guidance.my_work(actor_id=actor)
+    print("Waiting for you:" if work else "Nothing is waiting for you.")
+    for w in work:
+        print(f"  • {w.matter_name}: {w.text}   ({w.matter_id})")
+    latest = sv.checks.latest()
+    print()
+    print(f"Routine checks: {latest.headline}" if latest else "Routine checks: not run yet.")
+    print(f"Compliance: {sv.compliance.overview(actor_id=actor).headline}")
+    return 0
+
+
+def cmd_compliance(args: argparse.Namespace) -> int:
+    sv = _services(args)
+    actor = _actor(args)
+    c = args.compliance_cmd
+    if c == "show":
+        overview = sv.compliance.overview(actor_id=actor)
+        print(overview.headline)
+        for r in overview.requirements:
+            if args.all or r.state != "software":
+                print(
+                    f"  {r.requirement_id:11s} {plain.state(r.state):30s} {r.reference:28s} {r.requirement[:70]}"
+                )
+    elif c == "actions":
+        for a in sv.compliance.overview(actor_id=actor).actions:
+            print(
+                f"  {a.action.action_id}  {plain.state(a.state) if a.state != 'done' else 'Done':30s} {a.action.title}"
+            )
+            if a.state in ("waiting", "review_due"):
+                print(f"         {a.detail}")
+    elif c == "form":
+        action = sv.compliance.action(args.action)
+        _out(
+            {f.key: f"({f.label})" for f in action.form}
+            if action.form
+            else {"statement": action.statement}
+        )
+    elif c == "record":
+        answers = json.loads(Path(args.answers).read_text(encoding="utf-8")) if args.answers else {}
+        with _confirmed(args, f"record {args.action}"):
+            record = sv.compliance.record(
+                args.action,
+                actor_id=actor,
+                answers=answers,
+                confirmed=args.confirm,
+                notes=args.notes or "",
+                reference=args.reference or "",
+                not_applicable=args.not_applicable,
+            )
+        print(
+            f"{record.record_id}: {record.summary}"
+            + (f" Review by {record.review_by}." if record.review_by else "")
+        )
+    elif c == "retention":
+        with _confirmed(args, "set the retention periods"):
+            record = sv.compliance.set_retention(
+                actor_id=actor, audit_days=args.audit_days, closed_matter_days=args.closed_days
+            )
+        print(record.summary)
+    elif c == "training":
+        if args.user_id:
+            with _confirmed(args, f"record training for {args.user_id}"):
+                sv.compliance.record_training(
+                    actor_id=actor,
+                    user_id=args.user_id,
+                    course=args.course,
+                    completed_on=date.fromisoformat(args.completed),
+                    expires_on=date.fromisoformat(args.expires) if args.expires else None,
+                )
+        for t in sv.compliance.training():
+            print(f"  {t.user_id:16s} {t.completed_on} → {t.expires_on}  {t.course}")
+        missing = sv.compliance.untrained()
+        print("No current record: " + (", ".join(missing) if missing else "nobody"))
+    elif c == "evaluate":
+        with _confirmed(args, "run the accuracy evaluation"):
+            record = sv.compliance.run_evaluation(actor_id=actor)
+        print(record.summary)
+        if record.answers.get("missed"):
+            print(f"Missed: {record.answers['missed']}")
+    elif c == "draft":
+        path, digest = sv.compliance.generate(args.kind, actor_id=actor)
+        print(path)
+        print(f"sha256 {digest}")
+    elif c == "sign-off":
+        with _confirmed(args, f"sign off {args.action}"):
+            record = sv.compliance.sign_off(args.action, actor_id=actor, sha256=args.sha256)
+        print(record.summary)
+    return 0
+
+
+def cmd_checks(args: argparse.Namespace) -> int:
+    """Run the routine checks (from cron or a timer, or by hand), or show the latest."""
+    sv = _services(args)
+    if args.checks_cmd == "run":
+        run = sv.checks.run(actor_id=_actor(args)) if not args.as_system else sv.checks.run()
+    else:
+        found = sv.checks.latest()
+        if found is None:
+            print("The routine checks have not run yet.")
+            return 0
+        run = found
+    actor = _actor(args) if not getattr(args, "as_system", False) else None
+    results = sv.checks.for_viewer(run, actor_id=actor) if actor else run.results
+    print(run.headline)
+    for r in results:
+        mark = {"ok": "✓", "attention": "!", "failed": "✗"}.get(r.state, "?")
+        print(f"  {mark} {r.title}: {r.summary}")
+        for item in r.items[:10]:
+            print(f"      - {item.text}")
+        for done in r.acted:
+            print(f"      did: {done}")
+        if r.state != "ok" and r.what_to_do:
+            print(f"      what to do: {r.what_to_do}")
+    return 0 if run.state == "ok" else 1
+
+
+def cmd_network(args: argparse.Namespace) -> int:
+    """Hard offline: show it, switch it on now, or set it for every start."""
+    sv = _services(args)
+    c = args.network_cmd
+    if c == "offline":
+        status = sv.network.go_offline(actor_id=_actor(args))
+    elif c == "at-start":
+        from eli_legal.settings import ENV_FILE
+
+        with _confirmed(args, "change whether ELI Legal starts hard offline") as actor:
+            status = sv.network.set_at_every_start(
+                actor_id=actor, on=args.state == "on", persist_to=ENV_FILE
+            )
+    else:
+        status = sv.network.status()
+    print(
+        "Hard offline: "
+        + (f"ON, enforced by {status['enforced_by']}" if status["hard_offline"] else "off")
+    )
+    if status["hard_offline"]:
+        print(f"  {status['detail']}")
+        print(f"  checked by a refused native connection: {'yes' if status['verified'] else 'no'}")
+    print(f"At every start: {'on' if status['at_every_start'] else 'off'}")
     return 0
 
 
@@ -480,19 +703,24 @@ def cmd_docs(args: argparse.Namespace) -> int:
 # ── runs, findings, holds, verification ──────────────────────────────────────
 def _print_summary(summary: dict[str, Any]) -> None:
     print(
-        f"run {summary['run_id']}: {summary['status'].upper()}  (started by {summary['started_by']})"
+        f"run {summary['run_id']}: {plain.state(summary['status'])}  "
+        f"(started by {summary['started_by']})"
     )
     for step in summary["steps"]:
-        kind = "manual" if step["manual"] else ""
-        print(f"  {step['step']:26s} {step['status']:8s} {kind:7s} {step['detail']}")
+        kind = "person" if step["manual"] else ""
+        print(f"  {step['step']:26s} {plain.state(step['status']):18s} {kind:7s} {step['detail']}")
     print("  findings: " + ", ".join(f"{k}={v}" for k, v in sorted(summary["findings"].items())))
     for hold in summary["open_holds"]:
-        print(f"  HOLD {hold['hold_id']} [{hold['scope']}] {hold['reason']}: {hold['detail']}")
+        print(
+            f"  HOLD {hold['hold_id']} [{hold['scope']}] {plain.hold_reason(hold['reason'])}: "
+            f"{hold['detail']}"
+        )
     print(f"  open verification tasks: {summary['open_tasks']}")
     if summary["report"]:
         r = summary["report"]
         print(
-            f"  report v{r['version']} {r['release_status']}  sha256 {r['sha256']}\n    {r['path']}"
+            f"  report v{r['version']} {plain.state(r['release_status']).lower()}  "
+            f"sha256 {r['sha256']}\n    {r['path']}"
         )
 
 
@@ -509,6 +737,13 @@ def cmd_run(args: argparse.Namespace) -> int:
             )
     elif c == "stop":
         run = sv.runs.stop(args.matter, args.run, actor_id=actor, reason=args.reason)
+    elif c == "hold":
+        with _confirmed(args, "put this run on hold"):
+            hold = sv.holds.place(args.matter, args.run, actor_id=actor, reason=args.reason)
+        print(
+            f"on hold: {hold.hold_id}  (lift with: eli-legal hold {args.matter} {hold.hold_id} --action lift --reason …)"
+        )
+        run = sv.runs.get(args.matter, args.run, actor_id=actor)
     elif c == "list":
         for r in sv.runs.list(args.matter, actor_id=actor):
             print(
@@ -541,7 +776,8 @@ def cmd_holds(args: argparse.Namespace) -> int:
     for h in sv.holds.list(args.matter, args.run, actor_id=_actor(args), open_only=not args.all):
         closed = f" -> {h.resolution.value} by {h.resolved_by}" if h.resolution else ""
         print(
-            f"{h.hold_id}  {h.status.value:8s} [{h.scope.value}] {h.reason_code}: {h.detail}  subject={h.subject_id}{closed}"
+            f"{h.hold_id}  {plain.state(h.status):8s} [{h.scope.value}] "
+            f"{plain.hold_reason(h.reason_code)}: {h.detail}  subject={h.subject_id}{closed}"
         )
     return 0
 
@@ -677,6 +913,31 @@ def cmd_incident(args: argparse.Namespace) -> int:
             run_id=args.run,
         )
         print(incident.incident_id)
+    elif args.incident_cmd == "report":
+        on = date.fromisoformat(args.reported_on) if args.reported_on else None
+        with _confirmed(args, "record the reporting decision"):
+            incident = sv.incidents.decide_reporting(
+                args.matter,
+                args.incident,
+                actor_id=actor,
+                reportable=args.reportable == "yes",
+                reason=args.reason,
+                serious_kind=args.kind,
+                reported_on=datetime(on.year, on.month, on.day, tzinfo=timezone.utc)
+                if on
+                else None,
+                reference=args.reference,
+            )
+        print(
+            f"{incident.incident_id}: "
+            + (
+                "reported"
+                if incident.reported_at
+                else "reportable"
+                if incident.reportable
+                else "not reportable"
+            )
+        )
     else:
         sv.incidents.close(
             args.matter,
@@ -853,6 +1114,15 @@ def cmd_framework(args: argparse.Namespace) -> int:
             print(
                 f"{p.pack_id:32} {p.scope:15} {','.join(p.jurisdictions):10} {p.short_title}  [{state.why}]"
             )
+    elif c == "current":
+        with _confirmed(args, f"confirm {args.pack_id} is current"):
+            sv.checks.confirm_law_current(
+                args.pack_id,
+                actor_id=actor,
+                checked_on=date.fromisoformat(args.checked_on),
+                note=args.note,
+            )
+        print(f"{args.pack_id}: checked against the official text on {args.checked_on}")
     elif c == "show":
         state = sv.frameworks.get(args.pack_id, actor_id=actor)
         _out({**state.as_dict(), "pack": pack_to_dict(state.pack)})
@@ -1073,6 +1343,14 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--inspection", default="")
     for name in ("approve", "revoke"):
         s.add_parser(name).add_argument("source_id")
+    a = s.add_parser("add-live", help="a live official database: eu_cellar or uk_open")
+    a.add_argument("kind", choices=["eu_cellar", "uk_open"])
+    a.add_argument("--id", dest="source_id", help="the source's identifier (default: the kind)")
+    a.add_argument(
+        "--terms-reviewed",
+        action="store_true",
+        help="you have read the database's licence and it permits this use",
+    )
     a = s.add_parser("import")
     a.add_argument("source_id")
     a.add_argument("directory")
@@ -1103,12 +1381,37 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="apply only the packages named, not the recommended ones as well",
     )
+    a.add_argument(
+        "--member",
+        action="append",
+        help="USER[:ROLE[:PARTY]] someone else on the matter, their role on it, whom they act for",
+    )
+    a.add_argument("--reviewer", action="append", help="a named reviewer (repeat)")
+    a.add_argument("--source", action="append", help="an approved legal source (repeat)")
     s.add_parser("list")
     s.add_parser("show").add_argument("matter")
     for name in ("grant", "revoke"):
         a = s.add_parser(name)
         a.add_argument("matter")
         a.add_argument("user_id")
+        if name == "grant":
+            a.add_argument("--role", choices=sorted(access.MATTER_ROLES), help="role on the matter")
+            a.add_argument("--acts-for", help="the party they act for")
+    s.add_parser("people", help="who is on the matter, in which role, reading what").add_argument(
+        "matter"
+    )
+    a = s.add_parser("role", help="change a person's role on the matter, party or clearance")
+    a.add_argument("matter")
+    a.add_argument("user_id")
+    a.add_argument("--role", choices=sorted(access.MATTER_ROLES))
+    a.add_argument("--acts-for")
+    a.add_argument("--no-party", action="store_true", help="no longer acting for a party")
+    a.add_argument(
+        "--reads",
+        nargs="*",
+        choices=[x.value for x in AccessScope],
+        help="the material they may read (none given: nothing)",
+    )
     a = s.add_parser("reviewers")
     a.add_argument("matter")
     a.add_argument("user_id", nargs="+")
@@ -1158,6 +1461,12 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("matter")
     a.add_argument("run")
     a.add_argument("--reason", required=True)
+    a = s.add_parser(
+        "hold", help="put a run on hold while it waits for review, or suspend an approved one"
+    )
+    a.add_argument("matter")
+    a.add_argument("run")
+    a.add_argument("--reason", required=True)
 
     p = add("claims", cmd_claims, "list a run's findings")
     p.add_argument("matter")
@@ -1171,7 +1480,12 @@ def build_parser() -> argparse.ArgumentParser:
     p = add("hold", cmd_hold, "resolve a hold by a named decision")
     p.add_argument("matter")
     p.add_argument("hold")
-    p.add_argument("--action", required=True, choices=["exclude", "waive"])
+    p.add_argument(
+        "--action",
+        required=True,
+        choices=["exclude", "waive", "lift"],
+        help="lift: release a run a person put on hold",
+    )
     p.add_argument("--reason", required=True)
     p = add("tasks", cmd_tasks, "checks waiting for a person")
     p.add_argument("matter")
@@ -1231,6 +1545,68 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--containment", required=True)
     a.add_argument("--reason", required=True)
 
+    a = s.add_parser("report", help="decide whether a serious incident is reportable (Art. 73)")
+    a.add_argument("matter")
+    a.add_argument("incident")
+    a.add_argument("--reportable", choices=["yes", "no"], required=True)
+    a.add_argument("--reason", required=True)
+    a.add_argument("--kind", default="general", choices=["general", "death", "widespread"])
+    a.add_argument("--reported-on", help="the date it was reported, if it was")
+    a.add_argument("--reference", default="")
+
+    p = add("network", cmd_network, "hard offline: the kernel refuses every network connection")
+    s = p.add_subparsers(dest="network_cmd", required=True)
+    s.add_parser("status")
+    s.add_parser("offline", help="switch hard offline on now, until the program exits")
+    s.add_parser("at-start", help="start hard offline every time (or not)").add_argument(
+        "state", choices=["on", "off"]
+    )
+
+    p = add("status", cmd_status, "where a matter stands and what to do next")
+    p.add_argument("matter", nargs="?")
+
+    p = add("compliance", cmd_compliance, "the organisation's compliance work")
+    s = p.add_subparsers(dest="compliance_cmd", required=True)
+    s.add_parser("show", help="where each requirement stands").add_argument(
+        "--all", action="store_true", help="include those met by the software alone"
+    )
+    s.add_parser("actions", help="what the organisation must do, and where each stands")
+    s.add_parser("form", help="the questions of an action, as JSON to fill in").add_argument(
+        "action"
+    )
+    a = s.add_parser("record", help="record an action as done, or as not applying")
+    a.add_argument("action")
+    a.add_argument("--answers", help="a JSON file of answers to the action's form")
+    a.add_argument("--confirm", action="store_true", help="confirm the action's statement")
+    a.add_argument("--notes")
+    a.add_argument("--reference", help="a registration number, or where a document is kept")
+    a.add_argument("--not-applicable", action="store_true")
+    a = s.add_parser("retention", help="how long the audit trail and closed matters are kept")
+    a.add_argument("--audit-days", type=int, required=True)
+    a.add_argument("--closed-days", type=int, required=True)
+    a = s.add_parser("training", help="list training records, or record one")
+    a.add_argument("user_id", nargs="?")
+    a.add_argument("--course", default="AI literacy and the instructions for use")
+    a.add_argument("--completed", default=date.today().isoformat())
+    a.add_argument("--expires")
+    s.add_parser("evaluate", help="run the accuracy evaluation on the planted-defect matter")
+    s.add_parser("draft", help="draft the Annex IV documentation or the declaration").add_argument(
+        "kind", choices=["annex_iv", "declaration"]
+    )
+    a = s.add_parser("sign-off", help="sign off a drafted document by its SHA-256")
+    a.add_argument("action", choices=["OA-05", "OA-12"])
+    a.add_argument("--sha256", required=True)
+
+    p = add("checks", cmd_checks, "run or show the routine checks")
+    s = p.add_subparsers(dest="checks_cmd", required=True)
+    a = s.add_parser("run")
+    a.add_argument(
+        "--as-system",
+        action="store_true",
+        help="run as the system's schedule does (for cron or a timer), without signing in",
+    )
+    s.add_parser("show")
+
     p = add("audit", cmd_audit, "verify or read the audit ledger")
     s = p.add_subparsers(dest="audit_cmd", required=True)
     s.add_parser("verify").add_argument("--against", help="a checkpoint file kept off this machine")
@@ -1284,6 +1660,10 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--issuer", default="")
     a.add_argument("--version", dest="pack_version", default="1")
     s.add_parser("approve").add_argument("pack_id")
+    a = s.add_parser("current", help="record that you checked a package against its official text")
+    a.add_argument("pack_id")
+    a.add_argument("--note", required=True, help="the text checked against")
+    a.add_argument("--checked-on", default=date.today().isoformat())
     a = s.add_parser("validate", help="record a qualified lawyer's validation of a package")
     a.add_argument("pack_id")
     a.add_argument("--by", required=True, help="the lawyer's name")
@@ -1361,6 +1741,10 @@ def main(argv: list[str] | None = None) -> int:
         if not licensing.allowed():
             print(licensing.explain(), file=sys.stderr)
             return 3
+    if args.command != "serve" and Settings().hard_offline:
+        from eli_legal.security import hard_offline
+
+        hard_offline.go_offline()
     try:
         return int(args.handler(args))
     except EliLegalError as exc:

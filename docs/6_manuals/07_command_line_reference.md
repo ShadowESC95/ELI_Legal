@@ -32,13 +32,16 @@ Generated from the program by `scripts/generate_reference_docs.py`. Do not edit 
 | `eli-legal source add <source_id> --name --jurisdiction --type --owner --licence --terms-reviewed --freshness --status-semantics --authoritative-for --inspection` |  |
 | `eli-legal source approve <source_id>` |  |
 | `eli-legal source revoke <source_id>` |  |
+| `eli-legal source add-live <kind> --id --terms-reviewed` | a live official database: eu_cellar or uk_open |
 | `eli-legal source import <source_id> <directory>` |  |
 | `eli-legal matter` | manage matters |
-| `eli-legal matter create --name --purpose --jurisdiction --profile --governing-law --forum --rules --relevant-date --party --issue --represents --framework --no-recommended-frameworks` |  |
+| `eli-legal matter create --name --purpose --jurisdiction --profile --governing-law --forum --rules --relevant-date --party --issue --represents --framework --no-recommended-frameworks --member --reviewer --source` |  |
 | `eli-legal matter list` |  |
 | `eli-legal matter show <matter>` |  |
-| `eli-legal matter grant <matter> <user_id>` |  |
+| `eli-legal matter grant <matter> <user_id> --role --acts-for` |  |
 | `eli-legal matter revoke <matter> <user_id>` |  |
+| `eli-legal matter people <matter>` | who is on the matter, in which role, reading what |
+| `eli-legal matter role <matter> <user_id> --role --acts-for --no-party --reads` | change a person's role on the matter, party or clearance |
 | `eli-legal matter reviewers <matter> <user_id>` |  |
 | `eli-legal matter sources <matter> <source_id>` |  |
 | `eli-legal matter frameworks <matter> <pack_id>` | show, or set, the law and standards packages applied |
@@ -52,6 +55,7 @@ Generated from the program by `scripts/generate_reference_docs.py`. Do not edit 
 | `eli-legal run status <matter> <run>` |  |
 | `eli-legal run resume <matter> <run> --reason --from` |  |
 | `eli-legal run stop <matter> <run> --reason` |  |
+| `eli-legal run hold <matter> <run> --reason` | put a run on hold while it waits for review, or suspend an approved one |
 | `eli-legal claims <matter> <run> --status --kind` | list a run's findings |
 | `eli-legal holds <matter> <run> --all` | list holds |
 | `eli-legal hold <matter> <hold> --action --reason` | resolve a hold by a named decision |
@@ -66,6 +70,25 @@ Generated from the program by `scripts/generate_reference_docs.py`. Do not edit 
 | `eli-legal incident list <matter>` |  |
 | `eli-legal incident open <matter> --category --detail --severity --run` |  |
 | `eli-legal incident close <matter> <incident> --containment --reason` |  |
+| `eli-legal incident report <matter> <incident> --reportable --reason --kind --reported-on --reference` | decide whether a serious incident is reportable (Art. 73) |
+| `eli-legal network` | hard offline: the kernel refuses every network connection |
+| `eli-legal network status` |  |
+| `eli-legal network offline` | switch hard offline on now, until the program exits |
+| `eli-legal network at-start <state>` | start hard offline every time (or not) |
+| `eli-legal status <matter>` | where a matter stands and what to do next |
+| `eli-legal compliance` | the organisation's compliance work |
+| `eli-legal compliance show --all` | where each requirement stands |
+| `eli-legal compliance actions` | what the organisation must do, and where each stands |
+| `eli-legal compliance form <action>` | the questions of an action, as JSON to fill in |
+| `eli-legal compliance record <action> --answers --confirm --notes --reference --not-applicable` | record an action as done, or as not applying |
+| `eli-legal compliance retention --audit-days --closed-days` | how long the audit trail and closed matters are kept |
+| `eli-legal compliance training <user_id> --course --completed --expires` | list training records, or record one |
+| `eli-legal compliance evaluate` | run the accuracy evaluation on the planted-defect matter |
+| `eli-legal compliance draft <kind>` | draft the Annex IV documentation or the declaration |
+| `eli-legal compliance sign-off <action> --sha256` | sign off a drafted document by its SHA-256 |
+| `eli-legal checks` | run or show the routine checks |
+| `eli-legal checks run --as-system` |  |
+| `eli-legal checks show` |  |
 | `eli-legal audit` | verify or read the audit ledger |
 | `eli-legal audit verify --against` |  |
 | `eli-legal audit checkpoint --out` |  |
@@ -83,6 +106,7 @@ Generated from the program by `scripts/generate_reference_docs.py`. Do not edit 
 | `eli-legal framework show <pack_id>` |  |
 | `eli-legal framework import <file> --title --id --issuer --version` | a JSON package, a CSV register, or a document of rules |
 | `eli-legal framework approve <pack_id>` |  |
+| `eli-legal framework current <pack_id> --note --checked-on` | record that you checked a package against its official text |
 | `eli-legal framework validate <pack_id> --by` | record a qualified lawyer's validation of a package |
 | `eli-legal framework withdraw <pack_id>` |  |
 | `eli-legal framework reinstate <pack_id>` |  |
@@ -93,6 +117,10 @@ Generated from the program by `scripts/generate_reference_docs.py`. Do not edit 
 | `eli-legal bundle show` |  |
 | `eli-legal bundle register --into` |  |
 | `eli-legal bundle unregister --into` |  |
+| `eli-legal licence` | this copy's licence: show it, activate a key, remove it |
+| `eli-legal licence status` |  |
+| `eli-legal licence activate <key>` |  |
+| `eli-legal licence remove` |  |
 | `eli-legal model` | show, find or choose the model |
 | `eli-legal model show` |  |
 | `eli-legal model list` | GGUF models found on this machine, and a model server's models |

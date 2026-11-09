@@ -60,6 +60,12 @@ class PartyIn(Strict):
     role: Name
 
 
+class TeamMemberIn(Strict):
+    user_id: Ident
+    matter_role: Annotated[str, StringConstraints(max_length=40)] = ""
+    party: Short | None = None
+
+
 class MatterCreate(Strict):
     name: Name
     purpose: Long
@@ -75,6 +81,10 @@ class MatterCreate(Strict):
     # Packages to apply. With recommended_frameworks, they are added to the recommended set.
     frameworks: list[Ident] = Field(default_factory=list, max_length=100)
     recommended_frameworks: bool = True
+    # The rest of the set-up, in the same step: who works on it, who reviews, which sources.
+    team: list[TeamMemberIn] = Field(default_factory=list, max_length=100)
+    reviewers: list[Ident] = Field(default_factory=list, max_length=50)
+    sources: list[Ident] = Field(default_factory=list, max_length=50)
 
 
 class MatterUpdate(Strict):
@@ -185,3 +195,59 @@ class ModelIn(Strict):
 
 class ValidationIn(Strict):
     lawyer: Annotated[str, StringConstraints(min_length=3, max_length=200)]
+
+
+class MemberIn(Strict):
+    """A person's place on a matter: their role on it, whom they act for, what they read."""
+
+    matter_role: Ident | None = None
+    party: Short | None = None
+    clear_party: bool = False
+    reads: list[Ident] | None = Field(default=None, max_length=8)
+
+
+class ComplianceIn(Strict):
+    answers: dict[Ident, Long] = Field(default_factory=dict, max_length=60)
+    confirmed: bool = False
+    notes: Long = ""
+    reference: Short = ""
+    not_applicable: bool = False
+
+
+class RetentionIn(Strict):
+    audit_days: int = Field(ge=0, le=36_500)
+    closed_matter_days: int = Field(ge=0, le=36_500)
+    notes: Long = ""
+
+
+class TrainingIn(Strict):
+    user_id: Ident
+    course: Name
+    completed_on: date
+    expires_on: date | None = None
+
+
+class EvaluationIn(Strict):
+    thresholds: dict[Ident, float] = Field(default_factory=dict, max_length=10)
+
+
+class SignOffIn(Strict):
+    sha256: Annotated[str, StringConstraints(min_length=64, max_length=64)]
+    notes: Long = ""
+
+
+class LawCurrentIn(Strict):
+    checked_on: date
+    note: Long
+
+
+class ReportingIn(Strict):
+    reportable: bool
+    reason: Long
+    serious_kind: Ident = "general"
+    reported_on: date | None = None
+    reference: Short = ""
+
+
+class OnOff(Strict):
+    on: bool

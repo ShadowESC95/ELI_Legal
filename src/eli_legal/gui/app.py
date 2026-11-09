@@ -29,6 +29,7 @@ from eli_legal.gui import theme
 from eli_legal.gui.main_window import MainWindow
 from eli_legal.gui.session import Session
 from eli_legal.gui.widgets import label
+from eli_legal.security import hard_offline
 from eli_legal.settings import ENV_FILE, Settings
 
 
@@ -241,6 +242,8 @@ def _licensed() -> bool:
 
 
 def main(argv: list[str] | None = None) -> int:
+    if Settings().hard_offline:
+        hard_offline.relaunch_sandboxed_if_needed()  # macOS only; returns elsewhere
     app = create_application(argv)
     if not _licensed():
         return 0
@@ -251,6 +254,8 @@ def main(argv: list[str] | None = None) -> int:
     except (EliLegalError, OSError) as exc:
         QMessageBox.critical(None, "ELI Legal cannot start", f"{type(exc).__name__}\n\n{exc}")
         return 2
+    if settings.hard_offline:
+        services.network.go_offline(actor_id="system")
     if not services.ctx.store.list_users():
         first = FirstRunDialog()
         if first.exec() != QDialog.DialogCode.Accepted:

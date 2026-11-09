@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 from fastapi import Depends, FastAPI, HTTPException
 
 from eli_legal.application.services import Services
+from eli_legal.domain import plain
 from eli_legal.domain.errors import EliLegalError, InvalidInput
 from eli_legal.governance.registers import REGISTER_FILES, load_register
 from eli_legal.legal.source_registry import RegisteredSource
@@ -29,7 +30,18 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
         """The ledger for a matter, or (with the right) the events that belong to none: sign-ins,
         users, sources, configuration. Identifiers and hashes only; never document text."""
         events = sv.audit_trail(actor_id=actor, matter_id=matter_id)
-        return js(events[-max(1, min(limit, 20_000)) :])
+        shown = events[-max(1, min(limit, 20_000)) :]
+        # Each event also in words, as every screen shows it; the record itself is unchanged.
+        return js(
+            [
+                e
+                | {
+                    "said": plain.event(e["event_type"], e["outcome"]),
+                    "proof": plain.identity((e.get("payload") or {}).get("auth", "")),
+                }
+                for e in shown
+            ]
+        )
 
     @app.get("/v1/audit/verify")
     def audit_verify(actor: Actor) -> Any:

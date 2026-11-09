@@ -4,13 +4,14 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from eli_legal.application.container import AppContext
-from eli_legal.domain.enums import ActorType
+from eli_legal.domain.enums import ActorType, StepStatus
 from eli_legal.domain.errors import NotFound
 from eli_legal.domain.models import Run
 from eli_legal.domain.release import DeliveryReceipt, ReleaseApproval, ReleasePackage
 from eli_legal.governance.release_gate import ReleaseGate
 from eli_legal.ports.delivery import DeliveryPort
 from eli_legal.security import authn
+from eli_legal.workflows.runner import record_person_step
 
 
 @dataclass(slots=True)
@@ -70,11 +71,16 @@ class DeliveryService:
                 "classification": package.classification,
             },
         )
+        self._step(run, "recipient_approval", StepStatus.OK, actor_id,
+                   f"{len(confirmed_recipient_ids)} recipient(s) confirmed by {actor_id}",
+                   {"release_id": package.release_id})  # fmt: skip
         try:
             receipts = self.delivery.send(package)
         except Exception as exc:
             package.status = "delivery_failed"
             ctx.store.put(package)
+            self._step(run, "controlled_delivery", StepStatus.FAILED, actor_id,
+                       f"staging failed: {type(exc).__name__}", {"release_id": package.release_id})  # fmt: skip
             ctx.log(
                 "delivery_failure",
                 actor_id=actor_id,
@@ -105,4 +111,15 @@ class DeliveryService:
                     "channel": receipt.channel,
                 },
             )
+        self._step(run, "controlled_delivery", StepStatus.OK, actor_id,
+                   "staged in the outbox; nothing was sent", {"release_id": package.release_id})  # fmt: skip
         return receipts
+
+    def _step(
+        self, run: Run, step_id: str, status: StepStatus, actor_id: str, detail: str,
+        outputs: dict[str, str],
+    ) -> None:  # fmt: skip
+        record_person_step(
+            self.ctx.store, self.ctx.audit, matter_id=run.matter_id, run_id=run.run_id,
+            step_id=step_id, status=status, actor_id=actor_id, detail=detail, outputs=outputs,
+        )  # fmt: skip

@@ -3,8 +3,9 @@ from __future__ import annotations
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QComboBox, QLineEdit, QPlainTextEdit, QSplitter
 
+from eli_legal.domain import plain
 from eli_legal.domain.enums import ClaimKind, ClaimStatus, VerificationStatus
-from eli_legal.domain.models import Claim, Document
+from eli_legal.domain.models import Claim
 from eli_legal.gui.tabs.base import Tab
 from eli_legal.gui.widgets import (
     ReasonDialog,
@@ -17,23 +18,7 @@ from eli_legal.gui.widgets import (
     selected_id,
     table,
 )
-
-_KIND = {
-    ClaimKind.FACT: "Fact",
-    ClaimKind.PROCEDURAL: "Procedural fact",
-    ClaimKind.PARTY_AUTHORITY: "Authority a party relies on",
-    ClaimKind.LEGAL_PROPOSITION: "Passage of an authority",
-    ClaimKind.APPLICATION: "Argument (model-drafted)",
-}
-_CHECKS = {
-    "provenance": "Source exists unchanged",
-    "evidence_support": "Words appear in the document",
-    "citation": "Authority exists",
-    "current_law": "Still good law",
-    "proposition": "Authority says this",
-    "dependency": "Rests only on verified findings",
-    "outcome_boundary": "States no outcome",
-}
+from eli_legal.security import access
 
 
 class FindingsTab(Tab):
@@ -43,12 +28,12 @@ class FindingsTab(Tab):
         super().__init__(session)
         self.kind = QComboBox()
         self.kind.addItem("Every kind", "")
-        for kind, text in _KIND.items():
-            self.kind.addItem(text, kind.value)
+        for kind in ClaimKind:
+            self.kind.addItem(plain.kind(kind), kind.value)
         self.status = QComboBox()
         self.status.addItem("Any status", "")
         for status in ClaimStatus:
-            self.status.addItem(status.value.capitalize(), status.value)
+            self.status.addItem(plain.state(status), status.value)
         self.search = QLineEdit()
         self.search.setPlaceholderText("Filter by words in the finding or its authority")
         for widget in (self.kind, self.status):
@@ -125,8 +110,8 @@ class FindingsTab(Tab):
             self.list,
             [
                 [
-                    _KIND[c.kind],
-                    c.status.value,
+                    plain.kind(c.kind),
+                    plain.state(c.status),
                     names.get(c.party_id or "", "—"),
                     c.event_date.isoformat() if c.event_date else "",
                     c.citation or "",
@@ -148,10 +133,25 @@ class FindingsTab(Tab):
             self.why.setText("")
             fill(self.checks, [])
             return
+        if access.is_withheld(claim.text):
+            self.source.setPlainText(
+                f"{claim.text}.\n\nYour role on this matter does not include the material this "
+                "finding rests on, so its words and source are withheld from you."
+            )
+            self.why.setText(f"<b>Status:</b> {plain.state(claim.status)}")
+            fill(self.checks, [])
+            return
+        documents = {
+            d.document_id: d
+            for d in self.session.attempt(
+                self, lambda: self.sv.matters.documents(self.mid, self.actor), quiet=True
+            )
+            or []
+        }
         parts = [f"“{claim.text}”", ""]
         for link in claim.evidence:
             if link.target_type == "document":
-                document = self.sv.ctx.store.get(Document, self.mid, link.target_id)
+                document = documents.get(link.target_id)
                 name = (document.title or document.filename) if document else link.target_id
                 parts.append(f"Document: {name} — {link.locator}")
             else:
@@ -166,7 +166,8 @@ class FindingsTab(Tab):
             for dependency in claim.depends_on:
                 other = self._claims.get(dependency)
                 parts.append(
-                    f"   [{other.status.value if other else 'missing'}] {other.text if other else dependency}"
+                    f"   [{plain.state(other.status) if other else 'missing'}] "
+                    f"{other.text if other else dependency}"
                 )
         parts.append("")
         parts.append(f"Produced by: {claim.origin}")
@@ -185,10 +186,11 @@ class FindingsTab(Tab):
             self.checks,
             [
                 [
-                    _CHECKS.get(r.verification_type, r.verification_type),
-                    r.status.value,
+                    plain.check_name(r.verification_type),
+                    plain.state(r.status),
                     r.verifier + (" (overrides the system)" if r.override else ""),
-                    r.detail + (f" — reason given: {r.reason}" if r.reason else ""),
+                    plain.check_result(r.verification_type, r.status, r.detail)
+                    + (f" Reason given: {r.reason}" if r.reason else ""),
                 ]
                 for r in sorted(results, key=lambda r: r.created_at)
             ],
@@ -197,7 +199,7 @@ class FindingsTab(Tab):
         )
         fit(self.checks, [190, 90, 170, 0])
         self.why.setText(
-            f"<b>Status:</b> {claim.status.value}"
+            f"<b>Status:</b> {plain.state(claim.status)}"
             + (f" — {claim.status_reason}" if claim.status_reason else "")
         )
 
@@ -207,7 +209,7 @@ class FindingsTab(Tab):
             return
         check = QComboBox()
         for key in ("citation", "current_law", "proposition", "evidence_support", "provenance"):
-            check.addItem(_CHECKS[key], key)
+            check.addItem(plain.check_name(key), key)
         result = QComboBox()
         result.addItem("Verified — I checked and it holds", VerificationStatus.VERIFIED.value)
         result.addItem("Failed — I checked and it does not hold", VerificationStatus.FAILED.value)
