@@ -318,12 +318,17 @@ NEW_CASE: tuple[Part, ...] = (
             ),
             (
                 "Reviews",
-                "Tick for the named person who reads and approves the report.",
+                "Tick for the named person who reads and approves the report. Only an account "
+                "that decides this kind of case can approve (for a court or tribunal: a judge, "
+                "tribunal member or arbitrator); the page says so where an account cannot.",
                 "The arbitrator",
             ),
         ),
         (
             "Only people whose account fits this kind of case are listed.",
+            "Someone missing, or whose account cannot approve? An administrator can press Add a "
+            "person… or Change their account… on this page, and Change my account… for their "
+            "own, without leaving it.",
             "You can change the team and the reviewers later on the Case details page.",
         ),
         "The person starting the case",

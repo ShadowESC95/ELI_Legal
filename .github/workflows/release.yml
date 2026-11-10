@@ -199,6 +199,12 @@ jobs:
             cat installers/SHA256SUMS
             echo '```'
           } > notes.md
-      - run: gh release create "$GITHUB_REF_NAME" installers/* --repo "$GITHUB_REPOSITORY" --draft --title "ELI Legal $GITHUB_REF_NAME" --notes-file notes.md
+      # A re-run (after one platform failed) replaces the draft an earlier run made, so there
+      # is one draft holding every installer. A published release is never touched.
+      - run: |
+          for id in $(gh api "repos/$GITHUB_REPOSITORY/releases" --jq ".[] | select(.draft and .tag_name == \"$GITHUB_REF_NAME\") | .id"); do
+            gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/$id"
+          done
+          gh release create "$GITHUB_REF_NAME" installers/* --repo "$GITHUB_REPOSITORY" --draft --title "ELI Legal $GITHUB_REF_NAME" --notes-file notes.md
         env:
           GH_TOKEN: ${{ github.token }}

@@ -3,17 +3,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
-    QDialogButtonBox,
     QFileDialog,
-    QFormLayout,
     QInputDialog,
     QLineEdit,
-    QListWidget,
-    QListWidgetItem,
     QMessageBox,
     QPlainTextEdit,
     QTabWidget,
@@ -26,76 +21,13 @@ from eli_legal import __version__
 from eli_legal.domain import plain
 from eli_legal.gui import theme
 from eli_legal.gui.model_picker import ModelPicker
+from eli_legal.gui.people import UserDialog as _UserDialog
+from eli_legal.gui.people import new_passphrase
 from eli_legal.gui.tabs.base import Tab
 from eli_legal.gui.widgets import button, card, fill, fit, label, row, selected_id, table
 from eli_legal.security import access
 from eli_legal.security.rbac import DEFAULT_ROLE_ACTIONS
 from eli_legal.settings import ENV_FILE
-
-
-def new_passphrase(parent: QWidget, who: str) -> str | None:
-    first, ok = QInputDialog.getText(
-        parent,
-        "New passphrase",
-        f"New passphrase for {who} (at least 10 characters):",
-        QLineEdit.EchoMode.Password,
-    )
-    if not ok:
-        return None
-    second, ok = QInputDialog.getText(
-        parent, "New passphrase", "Repeat it:", QLineEdit.EchoMode.Password
-    )
-    if not ok:
-        return None
-    if first != second:
-        QMessageBox.warning(parent, "Passphrase", "The two entries differ. Nothing was changed.")
-        return None
-    return first
-
-
-class _UserDialog(QDialog):
-    def __init__(
-        self, parent: QWidget, user_id: str = "", name: str = "", roles: set[str] | None = None
-    ) -> None:
-        super().__init__(parent)
-        self.setWindowTitle("User and roles")
-        self.setMinimumWidth(620)
-        form = QFormLayout(self)
-        self.user_id = QLineEdit(user_id)
-        self.user_id.setReadOnly(bool(user_id))
-        self.name = QLineEdit(name)
-        self.roles = QListWidget()
-        self.roles.setWordWrap(True)
-        for role in sorted(DEFAULT_ROLE_ACTIONS, key=plain.role):
-            item = QListWidgetItem(f"{plain.role(role)} — {plain.role_summary(role)}")
-            item.setData(Qt.ItemDataRole.UserRole, role)
-            item.setCheckState(
-                Qt.CheckState.Checked if roles and role in roles else Qt.CheckState.Unchecked
-            )
-            self.roles.addItem(item)
-        form.addRow("User id", self.user_id)
-        form.addRow("Name", self.name)
-        form.addRow("Roles", self.roles)
-        form.addRow(
-            label(
-                "A role says what someone may do. It never gives access to a matter: that is granted matter by matter, with a role on that matter that can only narrow it.",
-                "muted",
-                wrap=True,
-            )
-        )
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        form.addRow(buttons)
-
-    def chosen(self) -> list[str]:
-        return [
-            str(self.roles.item(i).data(Qt.ItemDataRole.UserRole))
-            for i in range(self.roles.count())
-            if self.roles.item(i).checkState() == Qt.CheckState.Checked
-        ]
 
 
 class SettingsTab(Tab):

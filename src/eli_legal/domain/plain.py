@@ -460,7 +460,7 @@ _ROLES: dict[str, tuple[str, str]] = {
     "barrister": ("Barrister", "Researches, drafts and checks; cannot run the system or approve."),
     "in_house_counsel": ("In-house counsel", "Leads the client's own legal work; approves it."),
     "paralegal": ("Paralegal", "Adds documents and runs the analysis; records no checks."),
-    "reviewer": ("Reviewer", "Checks and approves work on matters they are named on."),
+    "reviewer": ("Reviewer", "Checks findings and reads reports on the matters they are given. To approve a report the account also needs a role that decides that kind of matter, such as judge, arbitrator, mediator or solicitor."),
     "legal_admin": ("Legal administrator", "Manages people, sources, laws and matters; can "
                     "also act on matters they are on."),
     "governance_officer": ("Governance officer", "Oversees compliance: sources, laws, holds, "
@@ -479,6 +479,18 @@ def role(code: str) -> str:
 
 def role_summary(code: str) -> str:
     return _ROLES.get(code, ("", ""))[1]
+
+
+def either(names: list[str]) -> str:
+    """ "Judge, Tribunal member or Arbitrator" for any number of names."""
+    if not names:
+        return "nobody"
+    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " or " + names[-1]
+
+
+def approvers(codes: object) -> str:
+    """The account roles that may approve, in words: "Arbitrator, Judge or Tribunal member"."""
+    return either(sorted(role(c) for c in codes))  # type: ignore[attr-defined]
 
 
 def roles(codes: object) -> str:

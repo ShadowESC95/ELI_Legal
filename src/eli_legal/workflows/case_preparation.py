@@ -16,6 +16,7 @@ from typing import Any
 
 from eli_legal.application.container import AppContext
 from eli_legal.application.ingestion_service import IngestionService
+from eli_legal.domain import plain
 from eli_legal.domain.enums import (
     ActorType,
     ClaimKind,
@@ -253,7 +254,10 @@ class CasePreparation:
         if not reviewers:
             raise HoldRaised(
                 "missing_reviewer",
-                "no named human with a reviewing role for this profile is assigned to the matter",
+                f"nobody named on this matter may approve its report. A matter for "
+                f"{spec.label.lower()} needs one whose account is "
+                f"{plain.approvers(spec.reviewer_roles)}, on it as decision-maker and named "
+                "under Named reviewers on the Case page",
             )
         packs = ctx.jurisdictions.for_matter(matter)
         unvalidated = [p.code for p in packs if not p.validated]

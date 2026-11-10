@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
+    QMessageBox,
     QPlainTextEdit,
     QRadioButton,
     QTableWidget,
@@ -74,15 +75,16 @@ class MatterWizard(QWizard):
         sources: list[Any],
         frameworks: list[Any],
         recommend: Any,
+        people: Any = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Open a matter")
         self.setWizardStyle(QWizard.WizardStyle.ModernStyle)
         self.setMinimumSize(820, 620)
         self.actor_id = actor_id
-        me = next((u for u in users if u.user_id == actor_id), None)
-        self._my_roles: set[str] = set(me.roles) if me else set()
-        self._users = [u for u in users if u.active and u.user_id != actor_id]
+        # Adds people and changes accounts from the team page (gui/people.py), or None.
+        self._people = people
+        self._take(users)
         self._sources = sources
         self._frameworks = frameworks
         self._recommend = recommend
@@ -93,6 +95,11 @@ class MatterWizard(QWizard):
         self.addPage(self._law())
         self.addPage(self._check())
         self.currentIdChanged.connect(self._entered)
+
+    def _take(self, users: list[Any]) -> None:
+        self._me = next((u for u in users if u.user_id == self.actor_id), None)
+        self._my_roles: set[str] = set(self._me.roles) if self._me else set()
+        self._users = [u for u in users if u.active and u.user_id != self.actor_id]
 
     # ── 1. who it is for ─────────────────────────────────────────────────────
     def _who(self) -> QWizardPage:
@@ -261,9 +268,32 @@ class MatterWizard(QWizard):
             ["Person", "Account", "Role on this matter", "Acts for", "Reviews"]
         )
         self.team.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.team.horizontalHeader().setSectionResizeMode(
+            1, QHeaderView.ResizeMode.ResizeToContents
+        )
         self.team.verticalHeader().setVisible(False)
-        self.team.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.team.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.team.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         page.box.addWidget(self.team, 1)
+        self.add_person = button("Add a person…", self._add_person)
+        self.change_person = button("Change their account…", self._change_person)
+        self.change_me = button("Change my account…", self._change_me)
+        manage = self._people is not None and self._people.can_manage
+        for widget, what in (
+            (self.add_person, "Add someone and choose what their account may do"),
+            (self.change_person, "Change what the account of the person chosen above may do"),
+            (self.change_me, "Change what your own account may do"),
+        ):
+            widget.setEnabled(manage)
+            widget.setToolTip(
+                what
+                if manage
+                else "Only an account that manages users (a legal administrator) can do this. "
+                "Ask one, or have it done in Settings → Users."
+            )
+        page.box.addWidget(row(self.add_person, self.change_person, self.change_me, None))
+        self.review_note = label("", wrap=True)
+        page.box.addWidget(self.review_note)
         self.role_help = label(
             "<br>".join(
                 f"<b>{r.label}</b>: {r.summary}"
@@ -279,49 +309,167 @@ class MatterWizard(QWizard):
         page.box.addWidget(self.reviewer_self)
         return page
 
-    def _fill_team(self) -> None:
+    def _chosen_so_far(self) -> dict[str, tuple[bool, str, str, bool]]:
+        """For each person listed: ticked, role on the matter, party acted for, reviews."""
+        out: dict[str, tuple[bool, str, str, bool]] = {}
+        for r in range(self.team.rowCount()):
+            who = self.team.item(r, 0)
+            if who is None:
+                continue
+            roles, acts, reviews = (self.team.cellWidget(r, c) for c in (2, 3, 4))
+            out[str(who.data(ID))] = (
+                who.checkState() == Qt.CheckState.Checked,
+                str(roles.currentData()) if isinstance(roles, QComboBox) else "",
+                str(acts.currentData() or "") if isinstance(acts, QComboBox) else "",
+                isinstance(reviews, QCheckBox) and reviews.isChecked(),
+            )
+        return out
+
+    def _fill_team(self, tick: str = "") -> None:
         spec = profile_spec(self.profile)
+        before = self._chosen_so_far()
         eligible = [u for u in self._users if any(spec.allows_role(r) for r in u.roles)]
         parties = [name for name, _ in self.party_list()]
+        needs = plain.approvers(spec.reviewer_roles)
         self.team.setRowCount(0)
         for user in eligible:
+            was = before.get(user.user_id)
             r = self.team.rowCount()
             self.team.insertRow(r)
             who = QTableWidgetItem(f"{user.display_name} ({user.user_id})")
             who.setFlags(who.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-            who.setCheckState(Qt.CheckState.Unchecked)
+            ticked = (was is not None and was[0]) or user.user_id == tick
+            who.setCheckState(Qt.CheckState.Checked if ticked else Qt.CheckState.Unchecked)
             who.setData(ID, user.user_id)
             self.team.setItem(r, 0, who)
             self.team.setItem(r, 1, QTableWidgetItem(plain.roles(user.roles)))
             roles = QComboBox()
             for code, matter_role in access.MATTER_ROLES.items():
+                if code == "lead":
+                    continue
                 roles.addItem(matter_role.label, code)
                 roles.setItemData(
                     roles.count() - 1, matter_role.summary, Qt.ItemDataRole.ToolTipRole
                 )
-            roles.setCurrentIndex(
-                roles.findData(access.covering_role(user.roles, allow_lead=False))
-            )
+            default = access.covering_role(user.roles, allow_lead=False)
+            roles.setCurrentIndex(max(0, roles.findData(was[1] if was else default)))
             self.team.setCellWidget(r, 2, roles)
             acts = QComboBox()
             acts.addItem("(nobody in particular)", "")
             for name in parties:
                 acts.addItem(name, name)
+            if was and was[2]:
+                acts.setCurrentIndex(max(0, acts.findData(was[2])))
             self.team.setCellWidget(r, 3, acts)
-            reviews = QCheckBox()
-            reviews.setEnabled(bool(user.roles & spec.reviewer_roles))
-            reviews.setToolTip(
-                "Can approve the report"
-                if reviews.isEnabled()
-                else "Their account cannot approve on this kind of matter"
-            )
-            self.team.setCellWidget(r, 4, reviews)
+            if user.roles & spec.reviewer_roles:
+                reviews = QCheckBox()
+                reviews.setToolTip(
+                    "Name them a reviewer: they may approve the report. Ticking this puts them "
+                    "on the matter as decision-maker, which approving needs."
+                )
+                reviews.setChecked(bool(was and was[3]))
+                reviews.toggled.connect(
+                    lambda on, item=who, combo=roles: self._reviewer_ticked(on, item, combo)
+                )
+                roles.currentIndexChanged.connect(
+                    lambda _i, combo=roles, box=reviews: self._role_changed(combo, box)
+                )
+                self.team.setCellWidget(r, 4, reviews)
+            else:
+                cannot = label("cannot approve", "muted")
+                cannot.setToolTip(
+                    f"Their account ({plain.roles(user.roles)}) cannot approve on this kind of "
+                    f"matter: that needs {needs}. Choose them and press Change their account."
+                )
+                self.team.setCellWidget(r, 4, cannot)
+        self._fit_columns()
         can_review = bool(self._my_roles & spec.reviewer_roles)
         self.reviewer_self.setEnabled(can_review)
         self.reviewer_self.setChecked(can_review and self.reviewer_self.isChecked())
-        self.reviewer_self.setToolTip(
-            "" if can_review else "Your account cannot approve on this kind of matter"
+        self.reviewer_self.setText(
+            "I review and approve the report myself"
+            if can_review
+            else "I review and approve the report myself — your account "
+            f"({plain.roles(self._my_roles)}) cannot approve on this kind of matter"
         )
+        self.reviewer_self.setToolTip(
+            "" if can_review else f"Approving on this kind of matter needs {needs}."
+        )
+        anyone = can_review or any(u.roles & spec.reviewer_roles for u in eligible)
+        self.review_note.setText(
+            f"<b>Who can approve the report.</b> On a matter for {spec.label.lower()}, only "
+            f"an account that is {needs} can approve it, as decision-maker on the matter."
+            + (
+                ""
+                if anyone
+                else " <b>Nobody listed can yet, you included.</b> Give someone such an "
+                "account with <i>Change their account…</i> or <i>Change my account…</i>, or "
+                "add a person who has one."
+            )
+        )
+
+    def _fit_columns(self) -> None:
+        """Widen the columns that hold menus and boxes to what they show: Qt sizes a column to
+        its text, not to the widgets placed in it, and cut words help nobody."""
+        header = self.team.horizontalHeader()
+        for column in (2, 3, 4):
+            widgets = [self.team.cellWidget(r, column) for r in range(self.team.rowCount())]
+            wanted = max(
+                [header.sectionSizeHint(column)]
+                + [w.sizeHint().width() + 12 for w in widgets if w is not None]
+            )
+            header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
+            self.team.setColumnWidth(column, wanted)
+
+    def _reviewer_ticked(self, on: bool, who: QTableWidgetItem, roles: QComboBox) -> None:
+        if on:
+            who.setCheckState(Qt.CheckState.Checked)
+            roles.setCurrentIndex(roles.findData("decision_maker"))
+
+    @staticmethod
+    def _role_changed(roles: QComboBox, reviews: QCheckBox) -> None:
+        if roles.currentData() != "decision_maker" and reviews.isChecked():
+            reviews.setChecked(False)
+
+    # ── people and their accounts, without leaving the page ──────────────────
+    def _approving(self) -> dict[str, Any]:
+        spec = profile_spec(self.profile)
+        return {"approve": spec.reviewer_roles, "matter_label": spec.label}
+
+    def _reload_people(self, tick: str = "") -> None:
+        self._take(self._people.directory())
+        self._fill_team(tick=tick)
+
+    def _add_person(self) -> None:
+        uid = self._people.add(self, **self._approving())
+        if not uid:
+            return
+        self._reload_people(tick=uid)
+        if uid not in self._listed():
+            QMessageBox.information(
+                self,
+                "Added",
+                f"{uid} was added, but nothing their account may do fits this kind of matter, "
+                "so they are not listed. Change what their account may do in Settings → Users.",
+            )
+
+    def _listed(self) -> list[str]:
+        items = (self.team.item(r, 0) for r in range(self.team.rowCount()))
+        return [str(item.data(ID)) for item in items if item is not None]
+
+    def _change_person(self) -> None:
+        row_at = self.team.currentRow()
+        who = self.team.item(row_at, 0) if row_at >= 0 else None
+        user = next((u for u in self._users if who and u.user_id == who.data(ID)), None)
+        if user is None:
+            QMessageBox.information(self, "Change their account", "Choose a person above first.")
+            return
+        if self._people.change(self, user, **self._approving()):
+            self._reload_people()
+
+    def _change_me(self) -> None:
+        if self._me is not None and self._people.change(self, self._me, **self._approving()):
+            self._reload_people()
 
     def team_members(self) -> tuple[list[TeamMember], list[str]]:
         team: list[TeamMember] = []

@@ -98,3 +98,14 @@ def test_the_check_catches_a_register_that_drifts_from_the_code(tmp_path, monkey
     assert "OA-01 refers to unknown requirement Q-99" in problems
     assert "OA-01 needs the statement a person confirms" in problems
     assert "OA-02 names template 'no_such_template', which has no questions" in problems
+
+
+def test_the_product_liability_directive_is_dated_as_corrected_in_the_official_journal():
+    """Article 2(1) of Directive (EU) 2024/2853 was corrected on 7 May 2026 (OJ L 2026/90364):
+    it applies to products placed on the market or put into service after 8 December 2026, not
+    after 9 December, which had left products placed on 9 December under neither directive."""
+    [pld] = [r for r in load_register("requirements") if r["requirement_id"] == "PLD-01"]
+    assert "after 8 December 2026" in pld["reference"] and "2026/90364" in pld["reference"]
+    for path in (ROOT / "docs").rglob("*.md"):
+        text = " ".join(path.read_text(encoding="utf-8").split())
+        assert "after 9 December 2026" not in text, path.name

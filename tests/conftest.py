@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import secrets
+import tempfile
 from collections.abc import Iterator
 from dataclasses import replace
 from pathlib import Path
@@ -16,6 +17,13 @@ from eli_legal.application.services import Services, build_services
 from eli_legal.demo import build_demo_workspace
 from eli_legal.demo_run import ARBITRATOR, SECRETARY, demo_settings, run_demo, setup_demo
 from eli_legal.security import authn
+
+# The desktop application remembers the size a person chose to read at. The tests keep their own,
+# set before any test creates the application, so a test run never changes a real person's
+# choice and two runs never meet.
+os.environ["ELI_LEGAL_GUI_SETTINGS"] = str(
+    Path(tempfile.mkdtemp(prefix="eli-legal-gui-")) / "settings.ini"
+)
 
 # The probe itself, for the test that gives it its answers.
 real_vram_holders = hardware.vram_holders

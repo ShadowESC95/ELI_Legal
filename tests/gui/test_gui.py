@@ -669,3 +669,187 @@ def test_stop_says_at_once_that_the_run_is_stopping(desk):
     dag._stop()
     assert d.sv.ctx.store.get(type(run), d.mid, run.run_id).status.value == "stopped"
     assert "stop" in dag.state.text().lower()
+
+
+def _wizard(d, actor, people):
+    from eli_legal.gui.matter_wizard import MatterWizard
+
+    wizard = MatterWizard(
+        d.window,
+        actor_id=actor,
+        jurisdictions=d.sv.ctx.jurisdictions.codes(),
+        default_jurisdiction="XX",
+        users=d.sv.users.directory(actor),
+        sources=[s for s in d.sv.sources.list() if s.approved],
+        frameworks=[s for s in d.sv.frameworks.list(actor_id=actor) if s.usable],
+        recommend=lambda profile, code: d.sv.frameworks.recommended(profile, code, actor_id=actor),
+        people=people,
+    )
+    wizard.show()
+    wizard.next()
+    wizard.name.setText("Gantry Marine v Holloway")
+    wizard.purpose.setText("Bench memorandum on acceptance of late delivery")
+    wizard.jurisdiction.setCurrentText("XX")
+    wizard.next()
+    wizard.parties.item(0, 0).setText("Gantry Marine Ltd")
+    wizard.parties.item(1, 0).setText("Holloway plc")
+    wizard.issues.setPlainText("Whether acceptance waived the delay")
+    wizard.next()
+    return wizard
+
+
+class _Confirmed:
+    """A session whose person has just confirmed their passphrase."""
+
+    def __init__(self, sv):
+        self.sv = sv
+
+    def decide(self, parent, what, work):
+        from eli_legal.security import authn
+
+        with authn.stepped_up():
+            return work()
+
+
+def test_the_team_page_says_who_can_approve_and_people_are_added_and_changed_there(
+    desk, monkeypatch
+):
+    """A person whose account cannot approve on this kind of matter is told why, in words, and
+    an administrator adds a person, or changes an account, without leaving the page."""
+    from PySide6.QtWidgets import QCheckBox, QLabel
+
+    from eli_legal.gui import people as people_mod
+
+    d = desk(ADMIN)
+    wizard = _wizard(d, ADMIN, people_mod.People(_Confirmed(d.sv), ADMIN))
+    rows = {wizard.team.item(r, 0).data(QtCore.Qt.ItemDataRole.UserRole): r
+            for r in range(wizard.team.rowCount())}  # fmt: skip
+    cannot = wizard.team.cellWidget(rows[SECRETARY], 4)
+    assert isinstance(cannot, QLabel) and cannot.text() == "cannot approve"
+    assert "Arbitrator" in cannot.toolTip() and "Change their account" in cannot.toolTip()
+    assert isinstance(wizard.team.cellWidget(rows[ARBITRATOR], 4), QCheckBox)
+    assert not wizard.reviewer_self.isEnabled()
+    assert "your account (Legal administrator, Technical administrator) cannot approve" in (
+        wizard.reviewer_self.text()
+    )
+    assert "Who can approve the report" in wizard.review_note.text()
+    assert all(b.isEnabled() for b in (wizard.add_person, wizard.change_person, wizard.change_me))
+
+    def filled(user_id, roles):
+        def run(dialog):
+            if not dialog.user_id.isReadOnly():
+                dialog.user_id.setText(user_id)
+                dialog.name.setText("J Brennan")
+            for i in range(dialog.roles.count()):
+                item = dialog.roles.item(i)
+                if item.data(QtCore.Qt.ItemDataRole.UserRole) in roles:
+                    item.setCheckState(QtCore.Qt.CheckState.Checked)
+            assert any(dialog.roles.item(i).text().startswith("★ Arbitrator")
+                       for i in range(dialog.roles.count())), "the roles that may approve"  # fmt: skip
+            return people_mod.QDialog.DialogCode.Accepted
+
+        return run
+
+    monkeypatch.setattr(people_mod.UserDialog, "exec", filled("j.brennan", {"arbitrator"}))
+    monkeypatch.setattr(people_mod, "new_passphrase", lambda *a, **k: "harbour lights at dawn")
+    wizard.add_person.click()
+    rows = {wizard.team.item(r, 0).data(QtCore.Qt.ItemDataRole.UserRole): r
+            for r in range(wizard.team.rowCount())}  # fmt: skip
+    new = rows["j.brennan"]
+    assert wizard.team.item(new, 0).checkState() == QtCore.Qt.CheckState.Checked, "added: on it"
+    d.sv.users.confirm("j.brennan", "harbour lights at dawn")  # they can sign in
+    reviews = wizard.team.cellWidget(new, 4)
+    reviews.setChecked(True)
+    assert wizard.team.cellWidget(new, 2).currentData() == "decision_maker"
+
+    monkeypatch.setattr(people_mod.UserDialog, "exec", filled(ADMIN, {"arbitrator"}))
+    wizard.change_me.click()
+    assert wizard.reviewer_self.isEnabled(), "an arbitrator's account may approve"
+    assert d.sv.ctx.store.get_user(ADMIN).roles >= {"legal_admin", "arbitrator"}
+    wizard.reviewer_self.setChecked(True)
+    assert wizard.team.cellWidget(new, 4).isChecked(), "what was chosen is kept"
+    wizard.next()
+    wizard.next()
+    values = wizard.values()
+    assert set(values["reviewers"]) == {ADMIN, "j.brennan"}
+    matter = d.sv.matters.create(actor_id=ADMIN, **values)
+    assert matter.reviewer_user_ids == {ADMIN, "j.brennan"}
+    assert matter.member_roles["j.brennan"] == "decision_maker"
+    events = [e["event_type"] for e in d.sv.ctx.audit.events(matter_id="-")]
+    assert "user_created" in events and "user_updated" in events
+    wizard.close()
+
+
+def test_only_an_account_that_manages_users_can_add_people_from_the_team_page(desk):
+    from eli_legal.gui import people as people_mod
+
+    d = desk()
+    for people in (None, people_mod.People(_Confirmed(d.sv), ARBITRATOR)):
+        wizard = _wizard(d, ARBITRATOR, people)
+        assert wizard.reviewer_self.isEnabled() and wizard.reviewer_self.isChecked()
+        assert not wizard.add_person.isEnabled()
+        assert "Settings → Users" in wizard.add_person.toolTip()
+        wizard.close()
+
+
+def test_named_reviewers_says_why_nobody_can_approve_and_an_account_is_changed_there(
+    desk, monkeypatch
+):
+    """With nobody on the matter able to approve, the page says which accounts can and what
+    each person's account is, and an administrator changes one without leaving the page."""
+    from eli_legal.gui import people as people_mod
+    from eli_legal.gui.tabs import matter_tab
+    from eli_legal.gui.tabs.matter_tab import MatterTab
+
+    d = desk(ADMIN)
+    wizard = _wizard(d, ADMIN, None)
+    rows = {wizard.team.item(r, 0).data(QtCore.Qt.ItemDataRole.UserRole): r
+            for r in range(wizard.team.rowCount())}  # fmt: skip
+    wizard.team.item(rows[SECRETARY], 0).setCheckState(QtCore.Qt.CheckState.Checked)
+    wizard.next()
+    wizard.next()
+    values = wizard.values()
+    wizard.close()
+    assert values["reviewers"] == []
+    matter = d.sv.matters.create(actor_id=ADMIN, **values)
+    d.session.set_matter(matter.matter_id)
+    page = d.page(MatterTab)
+    said = []
+
+    def answer(reply):
+        def ask(parent, title, text, *a, **k):
+            said.append(text)
+            return reply
+
+        return ask
+
+    monkeypatch.setattr(matter_tab.QMessageBox, "question", answer(QMessageBox.StandardButton.No))
+    page._reviewers()
+    assert "Nobody on this matter can approve" in said[-1]
+    assert "Arbitrator, Judge or Tribunal member" in said[-1]
+    assert f"Tom Byrne ({SECRETARY}): Tribunal secretary" in said[-1]
+
+    monkeypatch.setattr(matter_tab.QMessageBox, "question", answer(QMessageBox.StandardButton.Yes))
+    opened = []
+
+    def pick(dialog):
+        opened.append(dialog.windowTitle())
+        if dialog.windowTitle() != "Whose account?":
+            return matter_tab.QDialog.DialogCode.Rejected
+        for i in range(dialog.list.count()):
+            if dialog.list.item(i).data(QtCore.Qt.ItemDataRole.UserRole) == SECRETARY:
+                dialog.list.item(i).setCheckState(QtCore.Qt.CheckState.Checked)
+        return matter_tab.QDialog.DialogCode.Accepted
+
+    def give_arbitrator(dialog):
+        for i in range(dialog.roles.count()):
+            if dialog.roles.item(i).data(QtCore.Qt.ItemDataRole.UserRole) == "arbitrator":
+                dialog.roles.item(i).setCheckState(QtCore.Qt.CheckState.Checked)
+        return people_mod.QDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(matter_tab.PickDialog, "exec", pick)
+    monkeypatch.setattr(people_mod.UserDialog, "exec", give_arbitrator)
+    monkeypatch.setattr(QInputDialog, "getText", lambda *a, **k: (PHRASE[ADMIN], True))
+    page._reviewers()
+    assert "arbitrator" in d.sv.ctx.store.get_user(SECRETARY).roles
+    assert opened == ["Whose account?", "Named reviewers"], "then the reviewers can be named"

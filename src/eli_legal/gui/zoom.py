@@ -13,6 +13,8 @@ on every widget, which in 0.8.1 slowed the window down while a run was under way
 
 from __future__ import annotations
 
+import os
+
 from PySide6.QtCore import QEvent, QObject, QSettings, Qt, QTimer, Signal
 from PySide6.QtGui import QFont, QKeySequence, QShortcut, QTransform
 from PySide6.QtWidgets import (
@@ -47,6 +49,15 @@ def _prop(widget: QObject, name: str) -> object:
 _KEY = "view/zoom"
 
 
+def _remembered() -> QSettings:
+    """Where the size a person chose is kept: their own settings, or the file named in
+    ELI_LEGAL_GUI_SETTINGS, which the tests use so that they never change a real person's."""
+    path = os.environ.get("ELI_LEGAL_GUI_SETTINGS", "")
+    if path:
+        return QSettings(path, QSettings.Format.IniFormat)
+    return QSettings("ELI", "ELI Legal")
+
+
 class Zoom(QObject):
     changed = Signal(float)
 
@@ -54,7 +65,7 @@ class Zoom(QObject):
         super().__init__(app)
         self.app = app
         try:
-            saved = float(QSettings("ELI", "ELI Legal").value(_KEY, 1.0))  # type: ignore[arg-type]
+            saved = float(_remembered().value(_KEY, 1.0))  # type: ignore[arg-type]
         except (TypeError, ValueError):
             saved = 1.0
         self.level = self._clamp(saved)
@@ -73,7 +84,7 @@ class Zoom(QObject):
         if level == self.level:
             return
         self.level = level
-        QSettings("ELI", "ELI Legal").setValue(_KEY, level)
+        _remembered().setValue(_KEY, level)
         self.apply()
 
     def zoom_in(self) -> None:

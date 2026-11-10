@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QListWidget,
     QListWidgetItem,
+    QMessageBox,
     QSplitter,
     QVBoxLayout,
     QWidget,
@@ -15,6 +16,7 @@ from PySide6.QtWidgets import (
 from eli_legal.domain import plain
 from eli_legal.domain.profiles import profile_spec
 from eli_legal.gui.matter_wizard import MatterWizard
+from eli_legal.gui.people import People
 from eli_legal.gui.tabs.base import Tab
 from eli_legal.gui.widgets import (
     ReasonDialog,
@@ -204,6 +206,7 @@ class MatterTab(Tab):
             recommend=lambda profile, code: self.sv.frameworks.recommended(
                 profile, code, actor_id=self.actor
             ),
+            people=People(self.session, self.actor),
         )
         if wizard.exec() != QDialog.DialogCode.Accepted:
             return
@@ -273,15 +276,45 @@ class MatterTab(Tab):
             return
         spec = profile_spec(matter.profile)
         users = {u.user_id: u for u in self.sv.users.directory(self.actor)}
-        items = [
-            (uid, f"{users[uid].display_name} ({uid})", uid in matter.reviewer_user_ids)
+        members = [
+            users[uid]
             for uid in sorted({matter.owner_user_id, *matter.authorised_user_ids})
-            if uid in users and users[uid].roles & spec.reviewer_roles
+            if uid in users
+        ]
+        needs = plain.approvers(spec.reviewer_roles)
+        can = [u for u in members if u.roles & spec.reviewer_roles]
+        cannot = [u for u in members if not u.roles & spec.reviewer_roles]
+        if not can:
+            self._nobody_can_approve(matter, spec, members, needs)
+            return
+        items = [
+            (
+                u.user_id,
+                f"{u.display_name} ({u.user_id})"
+                + (
+                    ""
+                    if u.passphrase_hash
+                    else " — has no passphrase yet, so cannot sign in to approve"
+                ),
+                u.user_id in matter.reviewer_user_ids,
+            )
+            for u in can
         ]
         dialog = PickDialog(
             self,
             "Named reviewers",
-            "Only these people will be able to approve a report on this matter. Without at least one, no run will start.",
+            "Only these people will be able to approve a report on this matter. Without at "
+            f"least one, no run will start. On a matter for {spec.label.lower()} an approver "
+            f"needs an account that is {needs}, and is on the matter as decision-maker."
+            + (
+                " Not listed, as their accounts cannot approve here: "
+                + "; ".join(
+                    f"{u.display_name} ({u.user_id}): {plain.roles(u.roles)}" for u in cannot
+                )
+                + "."
+                if cannot
+                else ""
+            ),
             items,
         )
         if dialog.exec() == QDialog.DialogCode.Accepted:
@@ -291,6 +324,47 @@ class MatterTab(Tab):
                     self.mid, actor_id=self.actor, reviewer_ids=dialog.chosen()
                 ),
             )
+
+    def _nobody_can_approve(self, matter, spec, members, needs) -> None:  # type: ignore[no-untyped-def]
+        """Say why nobody can be named, and let an administrator change an account here."""
+        people = People(self.session, self.actor)
+        said = (
+            f"Nobody on this matter can approve its report. On a matter for "
+            f"{spec.label.lower()} an approver needs an account that is {needs}.\n\n"
+            + "\n".join(
+                f"• {u.display_name} ({u.user_id}): {plain.roles(u.roles)}" for u in members
+            )
+        )
+        if not people.can_manage:
+            QMessageBox.information(
+                self,
+                "Named reviewers",
+                said + "\n\nAsk an administrator to give one of them such an account, or to "
+                "add someone who has one.",
+            )
+            return
+        answer = QMessageBox.question(
+            self,
+            "Named reviewers",
+            said + "\n\nChange what one of their accounts may do now?",
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        dialog = PickDialog(
+            self,
+            "Whose account?",
+            f"Tick one person. Give them a ★ role ({needs}); then name them a reviewer.",
+            [
+                (u.user_id, f"{u.display_name} ({u.user_id}): {plain.roles(u.roles)}", False)
+                for u in members
+            ],
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted or len(dialog.chosen()) != 1:
+            return
+        user = next(u for u in members if u.user_id == dialog.chosen()[0])
+        if people.change(self, user, approve=spec.reviewer_roles, matter_label=spec.label):
+            self.refresh()
+            self._reviewers()
 
     def _sources(self) -> None:
         matter = self.session.matter

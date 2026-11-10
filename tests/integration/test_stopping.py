@@ -61,3 +61,17 @@ def test_no_model_answer_is_waited_for_once_the_run_is_stopped():
     with stopping.watching(lambda: True), pytest.raises(RunStopped):
         model.ask("facts", "Which statements are facts?")
     stopping.check_stop()  # outside a run it does nothing
+
+
+def test_a_run_held_for_want_of_a_reviewer_says_in_words_who_may_approve(demo):
+    """The hold names the accounts that may approve this kind of matter and where to name one,
+    and stays within what the step and the ledger keep."""
+    sv, mid = demo
+    sv.matters.set_reviewers(mid, actor_id=A, reviewer_ids=[])
+    run = sv.runs.start(mid, actor_id=A)
+    intake = next(
+        s for s in sv.ctx.store.list(RunStep, mid, run_id=run.run_id) if s.step_id == "scope"
+    )
+    assert intake.detail.startswith("missing_reviewer: nobody named on this matter may approve")
+    assert "Arbitrator, Judge or Tribunal member" in intake.detail
+    assert intake.detail.endswith("named under Named reviewers on the Case page")
