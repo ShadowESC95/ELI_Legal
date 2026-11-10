@@ -241,9 +241,9 @@ def test_eli_v3_is_kept_pointing_at_the_newest_copy_on_this_machine(tmp_path, mo
     takes the record over from a copy that is older or gone, and from no other."""
     from eli_legal import __version__, bundle
 
-    data = tmp_path / "home" / "data"
-    folder = data / "ELI_v3" / "bundles"
-    monkeypatch.setenv("XDG_DATA_HOME", str(data))
+    # Wherever ELI v3 keeps its data on this system (the tests point it into the test's folder).
+    folder = bundle.v3_bundle_dirs()[0]
+    assert str(folder).startswith(str(tmp_path))
     monkeypatch.setenv("APPIMAGE", str(tmp_path / f"ELI_Legal-{__version__}-linux-x86_64.AppImage"))
     (tmp_path / f"ELI_Legal-{__version__}-linux-x86_64.AppImage").write_bytes(b"")
     assert bundle.refresh_registration() is None, "ELI v3 is not on this machine: nothing made"
