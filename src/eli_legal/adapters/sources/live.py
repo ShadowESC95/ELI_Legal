@@ -45,6 +45,11 @@ from eli_legal.domain.errors import ConnectorError, EliLegalError
 from eli_legal.domain.models import Authority, AuthorityPassage, Treatment, utcnow
 from eli_legal.legal.authority_status import applicable_on
 from eli_legal.legal.citations import normalise_citation
+from eli_legal.legal.current_law_citator import (
+    REPEALED_BY_VERSION,
+    REPEALED_IN_PART,
+    UNDATED_REPEAL,
+)
 from eli_legal.legal.source_registry import RegisteredSource
 from eli_legal.persistence.sqlite import Store
 from eli_legal.ports.legal_sources import ConnectorDeclaration
@@ -66,25 +71,65 @@ class Found:
 Located = tuple[str, str, str]  # (locator, text, heading)
 
 
+class _SameHostRedirect(urllib.request.HTTPRedirectHandler):
+    """A redirect is followed only to the same host, and only over https: a plain http address
+    given in a redirect (as CELLAR gives) is asked for over https instead, never in clear."""
+
+    def __init__(self, host: str) -> None:
+        super().__init__()
+        self.host = host
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[no-untyped-def]
+        return super().redirect_request(
+            req, fp, code, msg, headers, safe_redirect(self.host, newurl)
+        )
+
+
+def safe_redirect(host: str, newurl: str) -> str:
+    parts = urllib.parse.urlsplit(newurl)
+    target = (parts.hostname or "").lower()
+    if target != host:
+        raise ConnectorError(f"refused: {host} redirected to {target or newurl}, another host")
+    if parts.scheme not in ("http", "https"):
+        raise ConnectorError(f"refused: {host} redirected to a {parts.scheme} address")
+    return urllib.parse.urlunsplit(("https", target, parts.path, parts.query, parts.fragment))
+
+
+def answered(host: str, status: int, body: bytes) -> bytes:
+    """The body of an answer that holds a document; anything else is said plainly."""
+    if status == 202 or not body:
+        raise ConnectorError(
+            f"{host} did not answer with the document (HTTP {status}, {len(body)} bytes): it may "
+            "be limiting automated requests; try again later"
+        )
+    if len(body) > MAX_BYTES:
+        raise ConnectorError(f"{host} answered with more than {MAX_BYTES} bytes")
+    return body
+
+
 def http_fetch(guard: NetworkGuard, hosts: Sequence[str]) -> Fetch:
-    """Fetch a URL through the network guard, from one of the connector's own hosts only."""
+    """Fetch a URL through the network guard, from one of the connector's own hosts only, over
+    https only, redirects included."""
 
     def fetch(url: str, accept: str) -> bytes:
         host = (urllib.parse.urlsplit(url).hostname or "").lower()
         if urllib.parse.urlsplit(url).scheme != "https" or host not in hosts:
             raise ConnectorError(f"refused: {host or url} is not one of this source's hosts")
-        request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": accept})
+        request = urllib.request.Request(
+            url,
+            headers={"User-Agent": USER_AGENT, "Accept": accept, "Accept-Language": "eng, en"},
+        )
+        opener = urllib.request.build_opener(_SameHostRedirect(host))
         try:
             with guard.allow(host=host, reason="look up a legal authority"):
-                with urllib.request.urlopen(request, timeout=40) as response:  # noqa: S310
+                with opener.open(request, timeout=60) as response:
+                    status = int(getattr(response, "status", 200) or 200)
                     body = response.read(MAX_BYTES + 1)
         except EliLegalError:
             raise
         except OSError as exc:
             raise ConnectorError(f"{host} could not be reached: {exc}") from exc
-        if len(body) > MAX_BYTES:
-            raise ConnectorError(f"{host} answered with more than {MAX_BYTES} bytes")
-        return bytes(body)
+        return bytes(answered(host, status, bytes(body)))
 
     return fetch
 
@@ -300,37 +345,146 @@ class EuConnector(LiveConnector):
                 treatments.append(
                     Treatment("repealed", effective_to + timedelta(days=1), by_citation=repealer)
                 )
-        html = self.fetch(
-            f"https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:{celex}", "text/html"
-        )
         ecli = next((r["ecli"] for r in rows if r.get("ecli")), "")
-        authority = Authority(
-            source_id=self.source_id,
-            citation=ecli or _short_title(title) or _act_citation(celex) or celex,
-            title=title,
-            jurisdiction="EU",
-            kind=AuthorityKind.CASE if is_case else AuthorityKind.LEGISLATION,
-            uri=f"https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:{celex}",
-            content_hash=content_hash(html),
-            court="Court of Justice of the European Union" if is_case else "",
-            decision_date=_day(first.get("date", "")),
-            effective_from=_day(starts[0]) if starts and not is_case else None,
-            effective_to=effective_to,
-            status=status,
-            status_basis=(
-                "EUR-Lex records no later treatment of judgments; a person must confirm it"
-                + self._cited_by(celex)
-                if is_case
-                else f"CELLAR: in force {'yes' if in_force == '1' else 'no'}"
-                + (f"; applies from {starts[-1]}" if len(starts) > 1 else "")
-                + (f"; end of validity {end}" if end and not end.startswith("9999") else "")
-                + (f"; repealed by CELEX {repealer}" if repealer else "")
-            ),
-            treatments=treatments,
-            aliases=[celex, *([ecli] if ecli else [])],
+        citation = ecli or _short_title(title) or _act_citation(celex) or celex
+        keys = [celex, ecli, citation_key]
+        basis = (
+            "EUR-Lex records no later treatment of judgments; a person must confirm it"
+            + self._cited_by(celex)
+            if is_case
+            else f"CELLAR: in force {'yes' if in_force == '1' else 'no'}"
+            + (f"; applies from {starts[-1]}" if len(starts) > 1 else "")
+            + (f"; end of validity {end}" if end and not end.startswith("9999") else "")
+            + (f"; repealed by CELEX {repealer}" if repealer else "")
         )
-        passages = _eurlex_judgment(html) if is_case else _eurlex_act(html)
-        return [Found(authority, passages, [celex, ecli, citation_key])]
+
+        published: dict[str, list[Located]] = {}
+
+        def recitals() -> list[Located]:
+            """The recitals, from the act as published: a consolidated text leaves them out,
+            and they are cited and never amended."""
+            if "r" not in published:
+                published["r"] = [
+                    p for p in _eurlex_act(self._text(celex)) if p[0].startswith("Recital ")
+                ]
+            return published["r"]
+
+        def version(
+            text_celex: str,
+            valid_from: date | None,
+            valid_to: date | None,
+            standing: AuthorityStatus,
+            history: list[Treatment],
+            which: str,
+        ) -> Found:
+            text = self._text(text_celex)
+            authority = Authority(
+                source_id=self.source_id,
+                citation=citation,
+                title=title,
+                jurisdiction="EU",
+                kind=AuthorityKind.CASE if is_case else AuthorityKind.LEGISLATION,
+                uri=f"https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:{text_celex}",
+                content_hash=content_hash(text),
+                court="Court of Justice of the European Union" if is_case else "",
+                decision_date=_day(first.get("date", "")),
+                effective_from=valid_from,
+                effective_to=valid_to,
+                status=standing,
+                status_basis=basis
+                + (f"; text: {which}" if which else "")
+                + (CONSOLIDATED_NOTE if which.startswith("consolidated") else ""),
+                treatments=history,
+                aliases=sorted({celex, text_celex, *([ecli] if ecli else [])}),
+            )
+            passages = _eurlex_judgment(text) if is_case else _eurlex_act(text)
+            if text_celex != celex and not any(p[0].startswith("Recital ") for p in passages):
+                passages = [*recitals(), *passages]
+            return Found(authority, passages, keys)
+
+        entered = _day(starts[0]) if starts and not is_case else None
+        versions = [] if is_case else self._consolidations(celex)
+        # A "version" dated once the act had ceased to apply records its repeal, not a text in
+        # force; and none applies before the act entered into force.
+        versions = [
+            (c, max(d, entered) if entered else d)
+            for c, d in versions
+            if effective_to is None or d <= effective_to
+        ]
+        # Two versions dated before the act entered into force both start on that day: the
+        # later one is the text then.
+        latest_by_date = {d: c for c, d in versions}
+        versions = [(c, d) for d, c in sorted(latest_by_date.items())]
+        if not versions:
+            return [version(celex, entered, effective_to, status, treatments, "")]
+        # Amended since it was published: each consolidated version holds the text in force from
+        # its date until the next. The latest is the act today; the one in force on the matter's
+        # relevant date is fetched too, or the act as published if that date comes first.
+        amenders = self._amenders(celex)
+        by = ", ".join(amenders[:6]) + ("…" if len(amenders) > 6 else "")
+        dates = [d for _, d in versions]
+
+        def superseded(at: date) -> list[Treatment]:
+            return [Treatment("amended", at, by_citation=by, note="a later version applies")]
+
+        found = []
+        latest_celex, latest_from = versions[-1]
+        found.append(version(latest_celex, latest_from, effective_to, status, treatments,
+                             f"consolidated version of {latest_from.isoformat()}"))  # fmt: skip
+        if self.as_of is not None and self.as_of < latest_from:
+            earlier = [(c, d) for c, d in versions if d <= self.as_of]
+            if earlier:
+                text_celex, valid_from = earlier[-1]
+                following = dates[dates.index(valid_from) + 1]
+                found.append(version(text_celex, valid_from, following - timedelta(days=1),
+                                     AuthorityStatus.AMENDED, superseded(following),
+                                     f"consolidated version of {valid_from.isoformat()}"))  # fmt: skip
+            else:
+                found.append(version(celex, entered, dates[0] - timedelta(days=1),
+                                     AuthorityStatus.AMENDED, superseded(dates[0]),
+                                     "as published in the Official Journal"))  # fmt: skip
+        return found
+
+    def _text(self, celex: str) -> bytes:
+        """The text, from CELLAR by its identifier: the Publications Office's own service for
+        machines, which EUR-Lex's website (for people) may refuse to automated requests."""
+        return self.fetch(
+            f"https://publications.europa.eu/resource/celex/{celex}",
+            "application/xhtml+xml, text/html;q=0.9",
+        )
+
+    def _consolidations(self, celex: str) -> list[tuple[str, date]]:
+        """Each consolidated version of an act and the date it applies from, oldest first."""
+        stem = f"0{celex[1:]}-"
+        rows = self._select(
+            "SELECT DISTINCT ?celex WHERE {\n  ?w cdm:resource_legal_id_celex ?celex .\n"
+            f'  FILTER(STRSTARTS(STR(?celex), "{stem}"))\n}}'
+        )
+        out = []
+        for r in rows:
+            m = re.match(rf"^{re.escape(stem)}(\d{{4}})(\d{{2}})(\d{{2}})$", r.get("celex", ""))
+            if m:
+                out.append((r["celex"], date(*map(int, m.groups()))))
+        return sorted(out, key=lambda x: x[1])
+
+    def _amenders(self, celex: str) -> list[str]:
+        rows = self._select(
+            "SELECT DISTINCT ?amender WHERE {\n"
+            f'  ?work cdm:resource_legal_id_celex "{celex}"^^<http://www.w3.org/2001/XMLSchema#string> .\n'
+            "  ?a cdm:resource_legal_amends_resource_legal ?work .\n"
+            "  ?a cdm:resource_legal_id_celex ?amender .\n}"
+        )
+        return sorted(r["amender"] for r in rows if r.get("amender"))
+
+    def _select(self, body: str) -> list[dict[str, str]]:
+        query = "PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>\n" + body
+        data = json.loads(
+            self.fetch(
+                f"{_SPARQL}?{urllib.parse.urlencode({'query': query})}",
+                "application/sparql-results+json",
+            )
+        )
+        return [{k: v["value"] for k, v in b.items()} for b in data["results"]["bindings"]]
 
 
 _SHORT = re.compile(
@@ -371,13 +525,19 @@ _ANNEX_CHARS = 3000
 
 
 _TRAILING_ARTICLE = re.compile(r"^(.*[.;:])\s+(Article\s+\d+[a-z]*)$")
+CONSOLIDATED_NOTE = (
+    "; a consolidated text is documentation only: the act as published in the Official Journal "
+    "and the acts amending it are the authentic texts, so quote those where it matters"
+)
+# A consolidated text marks where each amendment begins and ends: ▼B, ►M1, ◄, ►C1.
+_CONSOLIDATION_MARK = re.compile(r"[►▼]\s*[A-Z]{1,2}\d*|◄")
 
 
 def _segments(html: bytes) -> list[str]:
     parsed = LocalDocumentParser().parse("document.html", html)
     out: list[str] = []
     for segment in parsed.segments:
-        text = " ".join(segment.text.split())
+        text = " ".join(_CONSOLIDATION_MARK.sub(" ", segment.text).split())
         # Some older acts print an article's heading at the end of the paragraph before it
         # ("… shall not be affected by this Directive. Article 11").
         glued = _TRAILING_ARTICLE.match(text)
@@ -619,10 +779,16 @@ class UkConnector(LiveConnector):
             then = self._legislation(ident, citation_key, as_of=self.as_of)
             a = then.authority
             a.effective_to = start - timedelta(days=1)
+            # What happened since, as the current version records it: each provision repealed
+            # since, and the Act itself repealed or amended.
+            later = [t for t in current.authority.treatments if t.provision]
             if current.authority.status is AuthorityStatus.REPEALED:
                 a.treatments = list(current.authority.treatments)
             else:
-                a.treatments = [Treatment("amended", start, note="a later version is in force")]
+                a.treatments = [
+                    *later,
+                    Treatment("amended", start, note="a later version is in force"),
+                ]
             a.status = AuthorityStatus.AMENDED
             a.status_basis += f"; superseded by the version valid from {start.isoformat()}"
             found.append(then)
@@ -669,7 +835,15 @@ class UkConnector(LiveConnector):
         valid_el = root.find(".//{http://purl.org/dc/terms/}valid")
         parent = {child: el for el in root.iter() for child in el}
         sections = [p for p in root.iter(f"{_LEG_NS}P1") if not _quoted(p, parent)]
-        repealed = [p for p in sections if p.get("Status") == "Repealed"]
+        # legislation.gov.uk marks a repealed section on the group around it (or a Part or
+        # Schedule around that), with the date the repeal took effect.
+        # Or, in older entries, the section keeps only its number and a row of dots, with the
+        # repeal in its own annotation ("S. 156 repealed (1.10.2006) by …").
+        marks: dict[int, ET.Element | None] = {}
+        for p in sections:
+            mark = _repeal_mark(p, parent)  # an element with no children is falsy: compare to None
+            marks[id(p)] = mark if mark is not None else (p if _dotted(p) else None)
+        repealed = [p for p in sections if marks[id(p)] is not None]
         passages: list[Located] = []
         for p in sections:
             text = _provision_text(p)
@@ -691,8 +865,49 @@ class UkConnector(LiveConnector):
                 heading = " ".join("".join(named.itertext()).split()) if named is not None else ""
                 passages.append((_provision_locator(schedule, ident), text, heading))
         whole_repeal = bool(sections) and len(repealed) == len(sections)
-        dates = [d for p in repealed if (d := _day(p.get("RestrictStartDate", ""))) is not None]
-        repeal_date = min(dates) if dates else None
+        version_from = _day(valid_el.text or "") if valid_el is not None else None
+        # The date, author and reach of each repeal are in the annotation the mark points to
+        # ("Pt. 5A omitted (1.10.2015) by virtue of Consumer Rights Act 2015 …"); the mark's own
+        # date is when that version of the text began, not when it was repealed.
+        notes = {
+            c.get("id"): " ".join("".join(c.itertext()).split())
+            for c in root.iter(f"{_LEG_NS}Commentary")
+        }
+        provision_repeals: list[Treatment] = []
+        for p in repealed:
+            mark = marks[id(p)]
+            found = _repeal_annotation(mark, notes) if mark is not None else None
+            locator = _provision_locator(p, ident)
+            if found is None:
+                if version_from is None:
+                    provision_repeals.append(
+                        Treatment("repealed", date.today(), provision=locator, note=UNDATED_REPEAL)
+                    )
+                else:
+                    provision_repeals.append(
+                        Treatment(
+                            "repealed", version_from, provision=locator, note=REPEALED_BY_VERSION
+                        )  # fmt: skip
+                    )
+                continue
+            when, by, reach = found
+            if reach == "elsewhere":
+                continue  # repealed for Scotland or Northern Ireland only: in force here
+            provision_repeals.append(
+                Treatment(
+                    "repealed",
+                    when,
+                    by_citation=by,
+                    provision=locator,
+                    note=REPEALED_IN_PART if reach == "part" else "",
+                )  # fmt: skip
+            )
+        repealed = [p for p in repealed
+                    if any(t.provision == _provision_locator(p, ident) for t in provision_repeals)]  # fmt: skip
+        whole_repeal = bool(sections) and len(repealed) == len(sections)
+        dates = [t.effective_date for t in provision_repeals if not t.note]
+        # The Act as a whole is gone only once its last provision is.
+        repeal_date = max(dates) if dates and len(dates) == len(provision_repeals) else None
         title = title_el.text if title_el is not None and title_el.text else key
         authority = Authority(
             source_id=self.source_id,
@@ -706,8 +921,17 @@ class UkConnector(LiveConnector):
             status=AuthorityStatus.REPEALED if whole_repeal else AuthorityStatus.IN_FORCE,
             status_basis=f"legislation.gov.uk: the version valid from "
             f"{valid_el.text if valid_el is not None else 'an unstated date'}"
-            + (f"; {len(repealed)} of {len(sections)} sections repealed" if repealed else ""),
-            treatments=[Treatment("repealed", repeal_date)] if whole_repeal and repeal_date else [],
+            + (
+                f"; {len(repealed)} of {len(sections)} provisions repealed: "
+                + ", ".join(t.provision for t in provision_repeals[:12])
+                + ("…" if len(provision_repeals) > 12 else "")
+                if repealed
+                else ""
+            ),
+            treatments=[
+                *provision_repeals,
+                *([Treatment("repealed", repeal_date)] if whole_repeal and repeal_date else []),
+            ],
             aliases=[ident],
         )
         return Found(authority, passages[:3000], [key, title])
@@ -748,6 +972,55 @@ def _quoted(p: ET.Element, parent: dict[ET.Element, ET.Element]) -> bool:
             return True
         a = parent.get(a)
     return False
+
+
+_REPEAL_NOTE = re.compile(
+    r"\b(?:repealed|omitted|revoked|ceases? to have effect)\b\s*"
+    r"(?:\((?P<reach>(?:E|W|S|N\.?\s?I)[.\s]*(?:(?:E|W|S|N\.?\s?I)[.\s]*)*)\)\s*)?"
+    r"\((?P<d>\d{1,2})\.(?P<m>\d{1,2})\.(?P<y>\d{4})\)"
+    r"(?:\s*by(?:\s+virtue\s+of)?\s+(?P<by>.+?)(?=\s*\((?:c\.|S\.I\.|SIF)|[,;]|$))?",
+    re.I,
+)
+
+
+def _repeal_annotation(
+    mark: ET.Element, notes: dict[str | None, str]
+) -> tuple[date, str, str] | None:
+    """(date, what repealed it, reach) from the annotation of a repealed provision. Reach is
+    "all" (England and Wales, or everywhere), "part" (only England or only Wales) or
+    "elsewhere" (only Scotland or Northern Ireland)."""
+    for ref in mark.iter(f"{_LEG_NS}CommentaryRef"):
+        m = _REPEAL_NOTE.search(notes.get(ref.get("Ref"), ""))
+        if not m:
+            continue
+        try:
+            when = date(int(m["y"]), int(m["m"]), int(m["d"]))
+        except ValueError:
+            continue
+        reach = "all"
+        if m["reach"]:
+            letters = re.sub(r"N\.?\s?I", "N", m["reach"].upper().replace(".", "").replace(" ", ""))
+            has_e, has_w = "E" in letters, "W" in letters
+            reach = "all" if has_e and has_w else "part" if has_e or has_w else "elsewhere"
+        return when, " ".join((m["by"] or "").split()), reach
+    return None
+
+
+def _dotted(p: ET.Element) -> bool:
+    """A provision whose words are gone: only its number and dots remain."""
+    words = " ".join(" ".join(p.itertext()).split())
+    words = re.sub(r"^\S+\s*", "", words)  # its number
+    return bool(words) and set(words) <= {".", " ", "…"}
+
+
+def _repeal_mark(p: ET.Element, parent: dict[ET.Element, ET.Element]) -> ET.Element | None:
+    """The element that marks this provision repealed: itself, or what encloses it."""
+    el: ET.Element | None = p
+    while el is not None:
+        if el.get("Status") == "Repealed":
+            return el
+        el = parent.get(el)
+    return None
 
 
 def _provision_locator(p: ET.Element, ident: str) -> str:

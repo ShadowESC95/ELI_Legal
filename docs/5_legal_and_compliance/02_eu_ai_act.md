@@ -89,6 +89,7 @@ place before it adopts a tool, whatever the date.
 | Provision | What it requires | State |
 |---|---|---|
 | **Art. 16** | Ensure compliance with Arts. 8 to 15; identify the provider on the system; and the duties below | Organisational; each duty below is an organisation action recorded in the application |
+| **Art. 16(l)** Accessibility | Meet the accessibility requirements of Directives (EU) 2016/2102 and (EU) 2019/882 | **Partly.** Keyboard use, enlarging every page, plain words and explanations on hover are built and tested; no audit against EN 301 549 (WCAG 2.1 AA) has been made and screen readers have not been tried (OA-24) |
 | **Art. 17** Quality management system | Documented policies, procedures and instructions | **Not done.** Where it is documented and who runs it is recorded in the application (OA-08) |
 | **Art. 18** Keep documentation | Ten years after placing on the market | **Not arranged.** Retention periods are set and enforced in the application (OA-09); the ten-year keeping is the provider's |
 | **Art. 19** Automatically generated logs | Keep the logs under the provider's control | **Implemented** in each installation; retention at the provider is organisational |
@@ -109,6 +110,7 @@ place before it adopts a tool, whatever the date.
 | **Art. 26(7)** | Inform workers' representatives before use at work | — |
 | **Art. 26(8)**, 49(3) | Public authorities register their use | — |
 | **Art. 26(11)** | Inform people subject to decisions made with the system's assistance | A tribunal needs a position on how |
+| **Art. 86** | A person affected by a decision taken on the basis of the output of an Annex III system, with legal effect on them, may obtain a clear and meaningful explanation of the part the system played and of the main elements of the decision | Each run's evidence pack shows what the system read, the sources and models it used, what it checked and who approved what. The explanation, and the elements of the decision, are the decision-maker's to give (OA-25) |
 | **Art. 27** | Fundamental-rights impact assessment before first use, for bodies governed by public law and private bodies providing public services | Completed and signed in the application (OA-02), whose form is the `impact_assessment.md` template, combined with the data-protection assessment |
 | **Art. 4** | AI literacy of the people operating and using the system | User manual; instructions for use; training recorded per person in the application (OA-03), and anyone working on matters without a current record reported by the routine checks |
 

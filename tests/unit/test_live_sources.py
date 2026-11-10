@@ -13,7 +13,8 @@ from eli_legal.adapters.sources import live
 from eli_legal.domain.enums import AuthorityKind, AuthorityStatus
 from eli_legal.domain.enums import VerificationStatus as V
 from eli_legal.domain.errors import ConnectorError, NetworkDenied
-from eli_legal.legal.authority_status import applicable_on
+from eli_legal.domain.models import utcnow
+from eli_legal.legal.authority_status import applicable_on, status_at
 from eli_legal.legal.current_law_citator import CurrentLawCitator
 from eli_legal.legal.jurisdictions import JurisdictionRegistry
 from eli_legal.persistence.sqlite import Store
@@ -42,6 +43,18 @@ CITING = _sparql(
     [{"celex": "62022CJ0769", "date": "2026-04-21"}, {"celex": "62025CC0205", "date": "2026-04-16"},
      {"celex": "62022CJ0621", "date": "2024-10-04"}]
 )  # fmt: skip
+BRUSSELS = _sparql(
+    [{"celex": "32012R1215", "date": "2012-12-12", "inforce": "1", "start": "2013-01-09",
+      "end": "9999-12-31", "title": "Regulation (EU) No 1215/2012 of the European Parliament and of the Council"},
+     {"celex": "32012R1215", "start": "2015-01-10"}]
+)  # fmt: skip
+CONSOLIDATED = _sparql([{"celex": "02012R1215-20150110"}, {"celex": "02012R1215-20150226"}])
+AMENDERS = _sparql([{"amender": "32014R0542"}, {"amender": "32015R0281"}])
+# The Directive's consolidated versions: one of 2003, and one dated the day of its repeal, which
+# records the repeal rather than a text in force.
+DIRECTIVE_CONSOLIDATED = _sparql(
+    [{"celex": "01995L0046-20031120"}, {"celex": "01995L0046-20180525"}]
+)
 JUDGMENT = _sparql(
     [{"celex": "62012CJ0131", "date": "2014-05-13", "ecli": "ECLI:EU:C:2014:317",
       "title": "Judgment of the Court (Grand Chamber), 13 May 2014.#Google Spain SL"}]
@@ -89,7 +102,10 @@ FEED = b"""<feed xmlns="http://www.w3.org/2005/Atom">
 </feed>"""
 
 
-def _act(valid: str, duty: str) -> bytes:
+REPEAL_NOTE = "S. 25 repealed (31.3.2003) by The Example (Costs) Act 2002 (c. 1), s. 1"
+
+
+def _act(valid: str, duty: str, repeal_note: str = REPEAL_NOTE) -> bytes:
     """legislation.gov.uk's CLML: a section under its heading with numbered subsections, a
     schedule paragraph quoting the text it substitutes, and a schedule of plain paragraphs."""
     uri = "http://www.legislation.gov.uk/ukpga/1996/23"
@@ -101,6 +117,8 @@ def _act(valid: str, duty: str) -> bytes:
 <P2 id="section-33-1"><Pnumber>1</Pnumber><P2para><Text>{duty}</Text></P2para></P2>
 <P2 id="section-33-2"><Pnumber>2</Pnumber><P2para><Text>The tribunal shall comply with that duty.</Text></P2para></P2>
 </P1para></P1></P1group>
+<P1group Status="Repealed" RestrictStartDate="1997-01-31"><Title>Power to award costs.<CommentaryRef Ref="c25"/></Title>
+<P1 id="section-25" DocumentURI="{uri}/section/25"><Pnumber>25</Pnumber><P1para><Text>. . . . . . .</Text></P1para></P1></P1group>
 <Schedules><Schedule id="schedule-1" DocumentURI="{uri}/schedule/1"><Number>Schedule 1</Number>
 <ScheduleBody><Pblock><Title>Section 9: stay of legal proceedings</Title>
 <P1 id="schedule-1-paragraph-2" DocumentURI="{uri}/schedule/1/paragraph/2"><Pnumber>2</Pnumber>
@@ -113,14 +131,18 @@ def _act(valid: str, duty: str) -> bytes:
 <P3><Pnumber>a</Pnumber><P3para><Text>the strength of the parties' bargaining positions;</Text></P3para></P3>
 </P1group></ScheduleBody></Schedule></Schedules>
 </Body></Primary>
+<Commentaries><Commentary id="c25"><Para><Text>{repeal_note}</Text></Para></Commentary></Commentaries>
 </Legislation>""".encode()
 
 
 RESPONSES = {
-    "CELEX%3A32016R0679": EURLEX,
-    "CELEX:32016R0679": EURLEX,
-    "CELEX:31995L0046": EURLEX,
-    "CELEX:62012CJ0131": CURIA,
+    "resource/celex/32016R0679": EURLEX,
+    "resource/celex/31995L0046": EURLEX,
+    "resource/celex/01995L0046-20031120": b"<html><body><p>HAVE ADOPTED THIS DIRECTIVE:</p><p>Article 12</p><p>Right of access</p><p>1. Member States shall guarantee every data subject the right to obtain from the controller confirmation.</p></body></html>",
+    "resource/celex/62012CJ0131": CURIA,
+    "resource/celex/32012R1215": b"<html><body><p>HAVE ADOPTED THIS REGULATION:</p><p>Article 71</p><p>1. This Regulation shall not affect conventions.</p></body></html>",
+    "resource/celex/02012R1215-20150110": "<html><body><p>▼B</p><p>Article 71</p><p>1. This Regulation shall not affect conventions.</p><p>►M1</p><p>Article 71a</p><p>1. A court common to several Member States shall be deemed a court of a Member State.</p></body></html>".encode(),
+    "resource/celex/02012R1215-20150226": "<html><body><p>▼B</p><p>Article 71</p><p>1. This Regulation shall not affect conventions.</p><p>►M1</p><p>Article 71a</p><p>1. A court common to several Member States shall be deemed a court of a Member State.</p><p>Article 71b</p><p>1. The jurisdiction of a common court shall be determined as follows.</p></body></html>".encode(),
     "uksc/2019/41/data.xml": UKSC,
     "all/1996/data.feed": FEED,
     "ukpga/1996/23/2017-06-01/data.xml": _act("2016-01-01", "The tribunal shall act fairly and impartially."),
@@ -142,6 +164,10 @@ class Recorded:
             query = parse_qs(urlsplit(url).query)["query"][0]
             for marker, body in (
                 ("work_cites_work", CITING),
+                ("resource_legal_amends", AMENDERS),
+                ("02012R1215-", CONSOLIDATED),
+                ("01995L0046-", DIRECTIVE_CONSOLIDATED),
+                ("32012R1215", BRUSSELS),
                 ("32016R0679", GDPR),
                 ("31995L0046", DIRECTIVE),
                 ("ECLI:EU:C:2014:317", JUDGMENT),
@@ -268,7 +294,7 @@ def test_uk_legislation_is_judged_on_the_version_in_force_on_the_relevant_date(s
     [then] = [v for v in versions if applicable_on(v, when)]
     assert then.effective_from == date(2016, 1, 1) and then.effective_to == date(2025, 7, 31)
     passages = {p.locator: p for p in uk.passages(authority_id=then.authority_id)}
-    assert list(passages) == ["s.33", "Sch. 1 para. 2", "Sch. 2"], (
+    assert list(passages) == ["s.33", "s.25", "Sch. 1 para. 2", "Sch. 2"], (
         "a quoted provision is no section"
     )
     assert passages["s.33"].heading == "General duty of the tribunal."
@@ -328,3 +354,187 @@ def test_a_live_source_must_be_read_and_approved_before_any_matter_can_use_it(se
         "caselaw.nationalarchives.gov.uk",
     } <= sv.ctx.guard.approved_hosts()
     assert "Open Justice Licence" in sv.ctx.sources.get("uk_open").licence
+
+
+def _relying_on(locator: str, *, party_says: str = ""):
+    from eli_legal.domain.enums import ClaimKind
+    from eli_legal.domain.models import Claim, EvidenceLink
+
+    if party_says:
+        return Claim(matter_id="m", run_id="r", text=party_says, kind=ClaimKind.PARTY_AUTHORITY)
+    link = EvidenceLink(target_type="authority", target_id="a", locator=locator)
+    return Claim(matter_id="m", run_id="r", text="…", kind=ClaimKind.LEGAL_PROPOSITION,
+                 evidence=[link])  # fmt: skip
+
+
+def test_a_repealed_section_of_an_act_in_force_is_not_treated_as_current(store):
+    """legislation.gov.uk marks a repealed section on the group around it, with its date. The
+    Act stays in force; the section does not, and a finding resting on it fails."""
+    version = _act("2000-01-01", "The tribunal shall act fairly and impartially.")
+    uk = _connector(store, "uk_open", fetch=lambda url, accept: version)
+    act = uk._legislation("ukpga/1996/23", "arbitration act 1996").authority
+    act.status_checked_at = utcnow()
+    assert act.status is AuthorityStatus.IN_FORCE, "one section repealed is not the Act repealed"
+    [repeal] = [t for t in act.treatments if t.provision]
+    assert (repeal.provision, repeal.effective_date) == ("s.25", date(2003, 3, 31)), (
+        "the date of the repeal is in its annotation, not the date its text began (1997)"
+    )
+    assert repeal.by_citation == "The Example (Costs) Act 2002"
+    assert "1 of 3 provisions repealed: s.25" in act.status_basis
+    assert status_at(act, date(2017, 6, 1)) is AuthorityStatus.IN_FORCE
+    citator = CurrentLawCitator({"uk_open": uk})
+    pack = PACKS.get("GB-EAW")
+
+    def verdict(claim, when):
+        r = citator.verify(claim, act, pack=pack, relevant_date=when)
+        return r.status, r.detail
+
+    status, detail = verdict(_relying_on("s.25(1)"), date(2017, 6, 1))
+    assert (
+        status is V.FAILED and "s.25 of Arbitration Act 1996 was repealed on 2003-03-31" in detail
+    )
+    status, detail = verdict(_relying_on("s.25"), date(2001, 1, 1))
+    assert (
+        status is V.VERIFIED
+        and "s.25 has since been repealed (2003-03-31 by The Example (Costs) Act 2002)" in detail
+    )
+    assert verdict(_relying_on("s.33(1)"), date(2017, 6, 1))[0] is V.VERIFIED, "the rest stands"
+    party = _relying_on("", party_says="The tribunal may award costs under section 25 of the Act.")
+    assert verdict(party, date(2017, 6, 1))[0] is V.FAILED, "a section named by a party too"
+
+
+def test_a_repeal_without_a_date_is_judged_by_the_version_and_otherwise_goes_to_a_person(store):
+    """No annotation dates it: the provision was repealed on or before the date of the version
+    that shows it repealed. After that date it fails; before it, a person must say."""
+    version = _act("2020-01-01", "Fairly.", repeal_note="")
+    uk = _connector(store, "uk_open", fetch=lambda url, accept: version)
+    act = uk._legislation("ukpga/1996/23", "arbitration act 1996").authority
+    act.status_checked_at = utcnow()
+    citator = CurrentLawCitator({"uk_open": uk})
+    later = citator.verify(_relying_on("s.25"), act, pack=PACKS.get("GB-EAW"),
+                           relevant_date=date(2021, 1, 1))  # fmt: skip
+    assert later.status is V.FAILED and "on or before 2020-01-01" in later.detail
+    act.effective_from = date(2016, 1, 1)  # the version also applies earlier
+    earlier = citator.verify(_relying_on("s.25"), act, pack=PACKS.get("GB-EAW"),
+                             relevant_date=date(2017, 6, 1))  # fmt: skip
+    assert earlier.status is V.CONFLICT and "a person must confirm" in earlier.detail
+
+
+def test_a_repeal_for_another_part_of_the_kingdom_leaves_the_provision_in_force_here(store):
+    for note, expected in (
+        (
+            "S. 25 repealed (S.) (25.9.1991) by Age of Legal Capacity (Scotland) Act 1991 (c. 50)",
+            None,
+        ),
+        ("S. 25 repealed (E.) (1.4.2010) by The Example Act 2009 (c. 9)", V.CONFLICT),
+        (
+            "S. 25 omitted (E.W.) (1.10.2015) by virtue of Consumer Rights Act 2015 (c. 15)",
+            V.FAILED,
+        ),
+    ):
+        uk = _connector(
+            store, "uk_open", fetch=lambda url, accept, n=note: _act("2000-01-01", "F.", n)
+        )
+        act = uk._legislation("ukpga/1996/23", "arbitration act 1996").authority
+        act.status_checked_at = utcnow()
+        repeals = [t for t in act.treatments if t.provision]
+        if expected is None:
+            assert not repeals, "a repeal for Scotland only does not touch England and Wales"
+            continue
+        result = CurrentLawCitator({"uk_open": uk}).verify(
+            _relying_on("s.25"), act, pack=PACKS.get("GB-EAW"), relevant_date=date(2020, 1, 1)
+        )
+        assert result.status is expected, (note, result.detail)
+
+
+def test_a_section_left_as_dots_is_a_repealed_section(store):
+    xml = (
+        _act("2000-01-01", "F.")
+        .replace(
+            b'<P1group Status="Repealed" RestrictStartDate="1997-01-31">',
+            b"<P1group>",
+        )
+        .replace(
+            b"<P1para><Text>. . . . . . .</Text></P1para>",
+            b'<P1para><Text>. . . . . . .<CommentaryRef Ref="c25"/></Text></P1para>',
+        )
+    )
+    uk = _connector(store, "uk_open", fetch=lambda url, accept: xml)
+    act = uk._legislation("ukpga/1996/23", "arbitration act 1996").authority
+    [repeal] = [t for t in act.treatments if t.provision]
+    assert (repeal.provision, repeal.effective_date) == ("s.25", date(2003, 3, 31))
+
+
+def test_an_act_with_every_provision_repealed_is_repealed_when_the_last_one_was(store):
+    xml = b"""<Legislation xmlns="http://www.legislation.gov.uk/namespaces/legislation"
+ xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dct="http://purl.org/dc/terms/">
+<ukm:Metadata xmlns:ukm="http://www.legislation.gov.uk/namespaces/metadata"><dc:title>Old Act 1990</dc:title><dct:valid>2020-01-01</dct:valid></ukm:Metadata>
+<Primary><Body>
+<P1group Status="Repealed"><Title>One<CommentaryRef Ref="c1"/></Title><P1 id="section-1" DocumentURI="http://www.legislation.gov.uk/ukpga/1990/1/section/1"><Pnumber>1</Pnumber><P1para><Text>. . .</Text></P1para></P1></P1group>
+<P1group Status="Repealed"><Title>Two<CommentaryRef Ref="c2"/></Title><P1 id="section-2" DocumentURI="http://www.legislation.gov.uk/ukpga/1990/1/section/2"><Pnumber>2</Pnumber><P1para><Text>. . .</Text></P1para></P1></P1group>
+</Body></Primary><Commentaries>
+<Commentary id="c1"><Para><Text>S. 1 repealed (1.1.2005) by Newer Act 2004 (c. 4)</Text></Para></Commentary>
+<Commentary id="c2"><Para><Text>S. 2 repealed (30.6.2012) by Newest Act 2012 (c. 2)</Text></Para></Commentary>
+</Commentaries></Legislation>"""
+    uk = _connector(store, "uk_open", fetch=lambda url, accept: xml)
+    act = uk._legislation("ukpga/1990/1", "old act 1990").authority
+    assert act.status is AuthorityStatus.REPEALED
+    [whole] = [t for t in act.treatments if not t.provision]
+    assert whole.effective_date == date(2012, 6, 30), "the Act went with its last provision"
+
+
+def test_an_amended_eu_act_is_judged_on_the_consolidated_version_in_force_on_the_date(store):
+    """The act as published is the act until its first consolidated version; each consolidated
+    version holds the text in force from its date until the next. The latest is the act today."""
+    today_only = _connector(store, "eu_cellar")
+    [now] = today_only.resolve(citation_key="regulation (eu) no 1215/2012")
+    assert now.effective_from == date(2015, 2, 26) and now.status is AuthorityStatus.IN_FORCE
+    assert "consolidated version of 2015-02-26" in now.status_basis
+    assert "documentation only" in now.status_basis, "the Official Journal text is authentic"
+    passages = {p.locator: p.text for p in today_only.passages(authority_id=now.authority_id)}
+    assert "Art. 71b(1)" in passages and not any(
+        "\u25ba" in t or "\u25bc" in t for t in passages.values()
+    )
+    in_2014 = _connector(store, "eu_cellar", as_of=date(2014, 6, 1))
+    versions = in_2014.resolve(citation_key="regulation (eu) no 1215/2012")
+    [then] = [v for v in versions if applicable_on(v, date(2014, 6, 1))]
+    assert then.effective_to == date(2015, 1, 9) and "as published" in then.status_basis
+    assert [t.by_citation for t in then.treatments] == ["32014R0542, 32015R0281"]
+    held = {p.locator for p in in_2014.passages(authority_id=then.authority_id)}
+    assert held == {"Art. 71(1)"}, "the text of 2014: no Article 71a yet"
+    verdict, detail = _assess(in_2014, then, date(2014, 6, 1))
+    assert verdict is V.VERIFIED and "has since changed (now amended)" in detail
+    in_jan_2015 = _connector(store, "eu_cellar", as_of=date(2015, 2, 1))
+    [middle] = [v for v in in_jan_2015.resolve(citation_key="regulation (eu) no 1215/2012")
+                if applicable_on(v, date(2015, 2, 1))]  # fmt: skip
+    assert (middle.effective_from, middle.effective_to) == (date(2015, 1, 10), date(2015, 2, 25))
+
+
+def test_a_redirect_stays_on_the_host_and_on_https_and_an_empty_answer_is_said_plainly():
+    upgraded = live.safe_redirect(
+        "publications.europa.eu", "http://publications.europa.eu/resource/cellar/x/DOC_1"
+    )
+    assert upgraded == "https://publications.europa.eu/resource/cellar/x/DOC_1", "never in clear"
+    with pytest.raises(ConnectorError, match="another host"):
+        live.safe_redirect("publications.europa.eu", "https://example.com/elsewhere")
+    with pytest.raises(ConnectorError, match="did not answer with the document"):
+        live.answered("eur-lex.europa.eu", 202, b"")
+    assert live.answered("publications.europa.eu", 200, b"<html/>") == b"<html/>"
+
+
+def test_a_consolidated_eu_text_keeps_its_recitals_and_no_version_outlives_the_act(store):
+    """A consolidated text leaves the recitals out; they are cited and never amended, so they
+    come from the act as published. A consolidated "version" dated the day the act was repealed
+    records the repeal, not a text in force."""
+    eu = _connector(store, "eu_cellar", as_of=date(2017, 6, 1))
+    versions = eu.resolve(citation_key="directive 95/46/ec")
+    assert [(v.effective_from, v.effective_to) for v in versions] == [
+        (date(2003, 11, 20), date(2018, 5, 24))
+    ]
+    [act] = versions
+    assert act.status is AuthorityStatus.REPEALED
+    held = [p.locator for p in eu.passages(authority_id=act.authority_id)]
+    assert "Recital 65" in held and "Art. 12(1)" in held
+    then, detail = _assess(eu, act, date(2017, 6, 1))
+    assert then is V.VERIFIED and "now repealed" in detail
+    assert _assess(eu, act, date(2019, 1, 1))[0] is V.FAILED

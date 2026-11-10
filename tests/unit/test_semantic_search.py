@@ -281,3 +281,73 @@ def test_what_a_party_says_of_an_authority_is_shown_beside_its_closest_passage_i
         assert claim.closest_passage_id in own
     report = sv.runs.summary(mid, run.run_id, actor_id="arb.keane")["report"]
     assert "; closest in meaning)" in Path(report["path"]).read_text(encoding="utf-8")
+
+
+def test_nothing_derived_from_a_case_outlives_its_purge(demo):
+    """Vectors of a case's issues, facts and party statements are never stored; only vectors of
+    the legal sources' passages are, and those hold no case material."""
+    sv, mid = demo
+    sv.ctx.embedder = Senses()
+    sv.runs.start(mid, actor_id="sec.byrne")
+    store = sv.ctx.store
+    tables = {r[0] for r in store._all("SELECT name FROM sqlite_master WHERE type='table'")}
+    assert "text_vectors" not in tables
+    orphans = store._all(
+        "SELECT count(*) FROM passage_vectors v "
+        "LEFT JOIN passages p ON p.passage_id = v.passage_id WHERE p.passage_id IS NULL"
+    )
+    assert orphans[0][0] == 0, "every stored vector belongs to a legal source's passage"
+    before = store._all("SELECT count(*) FROM passage_vectors")[0][0]
+    assert before > 0
+    sv.matters.close(mid, actor_id="arb.keane", purge_content=True, reason="Retention ended.")
+    from eli_legal.domain.models import Claim, Issue
+
+    assert not store.list(Claim, mid) and not store.list(Issue, mid)
+    assert store._all("SELECT count(*) FROM passage_vectors")[0][0] == before, (
+        "the legal sources' vectors are not the case's to purge"
+    )
+
+
+def test_a_fact_linked_by_meaning_alone_is_marked_for_the_reviewer(demo):
+    """Meaning finds more links than words, and some are wrong: each one made by meaning alone
+    is recorded with the fact and marked in the report."""
+    sv, mid = demo
+    sv.ctx.embedder = Senses()
+    run = sv.runs.start(mid, actor_id="sec.byrne")
+    facts = [c for c in sv.ctx.store.list(Claim, mid, run_id=run.run_id) if c.meaning_issue_ids]
+    assert facts, "the demonstration's papers give links by meaning alone"
+    for fact in facts:
+        assert set(fact.meaning_issue_ids) <= set(fact.issue_ids)
+    report = sv.runs.summary(mid, run.run_id, actor_id="arb.keane")["report"]
+    assert "by meaning only: check it bears on this issue" in Path(report["path"]).read_text(
+        encoding="utf-8"
+    )
+
+
+def test_meaning_links_are_recorded_apart_from_links_by_words():
+    issues = [Issue(matter_id="m", run_id="r", label="Whether the employer lawfully fired her")]
+    issues.append(Issue(matter_id="m", run_id="r", label="Whether the invoice was settled late"))
+    facts = [
+        Claim(matter_id="m", run_id="r", text=t, kind=ClaimKind.FACT)
+        for t in ("She was dismissed on 4 March.", "The employer fired her lawfully, it says.",
+                  "The payment arrived after the due date.", "The office is in Examplia City.")
+    ]  # fmt: skip
+    IssueMapper(
+        LegalModel(NullInference()), semantic=SemanticIndex(Store(":memory:"), Senses())
+    ).link_facts(issues=issues, facts=facts)
+    fired = issues[0].issue_id
+    assert facts[0].meaning_issue_ids == [fired], "no shared words: linked by meaning alone"
+    assert fired in facts[1].issue_ids and not facts[1].meaning_issue_ids, "shares its words"
+
+
+def test_auto_prefers_the_model_measured_to_link_facts_as_precisely_as_words(tmp_path, monkeypatch):
+    """bge-small ranks law well but links facts less precisely than words; nomic-embed does not.
+    With both in the model folder, auto takes nomic-embed though it is the larger."""
+    monkeypatch.setattr(embedding_mod, "model_folders", lambda extra, home: [("t", tmp_path)])
+    small = tmp_path / "bge-small-en-v1.5-q8_0.gguf"
+    large = tmp_path / "nomic-embed-text-v1.5.Q8_0.gguf"
+    other = tmp_path / "e5-small-v2.Q8_0.gguf"
+    for path, size in ((small, 36), (large, 140), (other, 30)):
+        path.write_bytes(b"\0" * (size * 1024 * 1024))
+    assert embedding_mod.discover() == [large, other, small]
+    assert embedding_mod.from_settings("auto").path == large

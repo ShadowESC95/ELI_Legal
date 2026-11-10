@@ -8,12 +8,22 @@ Governed legal case preparation: it takes the papers in a dispute, establishes w
 - **Stop waited for the step at work to finish**, which with a model can take minutes, and the program could not be closed until then. The step at work now ends at its next model answer, document or issue, no later step starts, and the page says at once that the run is stopping.
 - **A stop could be undone** by a step saving the run at the same moment. A stop now stands, whatever a step saves.
 - **Ctrl+C in the terminal did not close the program**; each press printed an error. It now closes it.
+- **Facts and issues of a deleted case outlived it (0.8.0).** Searching by meaning kept the vectors of a case's own words in a table that deleting the case's contents did not reach. They are no longer kept at all, and those already kept are deleted when you update. Only the vectors of the legal sources' passages are kept.
+- **A section repealed while the rest of its Act is in force was treated as current (0.8.0).** UK legislation was judged on the Act as a whole. Each section, article or schedule relied on is now judged on its own: it fails from the date it was repealed, read from legislation.gov.uk's own note of the repeal and of the Act that made it. A repeal that applies only in another part of the United Kingdom leaves the section in force; a repeal in part, or without a date, goes to a person.
+- **An amended EU act was read as first published (0.8.0).** The connector now reads the consolidated version in force on the matter's relevant date (the act as published until its first), keeps the recitals, and says that only the Official Journal texts are authentic. EU texts now come from the Publications Office's service for machines, since EUR-Lex's website had begun answering automated requests with an empty page; redirects stay on the same host and on HTTPS.
 - **Run from source on Python 3.10 or 3.11, the desktop application could end itself** ("Fatal Python error: none_dealloc"), through a fault in PySide6 6.12 that ELI Legal now steers clear of. The installers carry Python 3.12 and were not affected.
 
 ## New in this version
 
 - **Start a new case**, first in the sidebar: how a case is built, as a map of its eleven parts from who the work is for to its release. Choose a part to see what it is, every question you will be asked with what it means and an example, tips, and who does it, with a button that does it now. With a case open, each part already done is ticked. The browser application has it too.
 - **Each page in the sidebar has a box of its own**, with the groups spaced apart and Start a new case picked out.
+- **A fact filed under an issue by meaning alone is marked in the report** ("by meaning only: check it bears on this issue"). Meaning finds far more of the facts that bear on an issue than shared words do, and some of its links are wrong; on the shipped benchmark one model (bge-small) made links less precise than words alone (0.58 against 0.62). Chosen automatically, the embedding model is now one measured to link at least as precisely as words (nomic-embed), when one is present.
+- **The registers cover more of the law that applies to the provider:** the Cyber Resilience Act, whose reporting duties apply now, the Product Liability Directive from 9 December 2026, and the AI Act's prohibited practices, accessibility and right to an explanation, each with what the organisation must record.
+
+## Still to know
+
+- Benchmarks measure retrieval and linking against answers fixed in advance on public legislation. They are not a measure of accuracy on real matters, which has not been done.
+- A repeal of part of a subsection, or of words within it, is not detected; a consolidated EU text is documentation, not the authentic text.
 
 ## Which file
 

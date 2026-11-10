@@ -17,7 +17,6 @@ mixes two models' vectors; a passage that is replaced loses its vectors with it.
 from __future__ import annotations
 
 import array
-import hashlib
 import importlib
 import threading
 from collections.abc import Iterable, Sequence
@@ -137,33 +136,16 @@ class SemanticIndex:
         return Coverage(done, total, missing)
 
     # ── searching ───────────────────────────────────────────────────────────
+    # Vectors of a case's own words (its issues, facts, a party's sentence) are made when needed
+    # and never stored: they are derived from the case, and would outlive its purge. Only the
+    # vectors of the legal sources' passages are kept.
     def query_vector(self, text: str) -> list[float]:
-        key = hashlib.sha256(f"query\n{text}".encode()).hexdigest()
-        held = self.store.text_vector(self.model_id, key)
-        if held is not None:
-            return list(_unpack(held))
         [vector] = self.embedder.embed([text], kind="query")
-        self.store.put_text_vector(self.model_id, key, _pack(vector))
         return vector
 
     def document_vectors(self, texts: Sequence[str]) -> list[list[float]]:
-        """Vectors for short texts (facts, issues), kept so a re-run need not embed again."""
-        keys = [hashlib.sha256(f"document\n{t}".encode()).hexdigest() for t in texts]
-        out: dict[int, list[float]] = {}
-        todo: list[int] = []
-        for i, key in enumerate(keys):
-            held = self.store.text_vector(self.model_id, key)
-            if held is None:
-                todo.append(i)
-            else:
-                out[i] = list(_unpack(held))
-        if todo:
-            for i, vector in zip(
-                todo, self.embedder.embed([texts[i] for i in todo], kind="document"), strict=True
-            ):
-                self.store.put_text_vector(self.model_id, keys[i], _pack(vector))
-                out[i] = vector
-        return [out[i] for i in range(len(texts))]
+        """Vectors for short texts (facts, issues), made for this use only and not kept."""
+        return self.embedder.embed(list(texts), kind="document") if texts else []
 
     def _matrix(self, ids: list[str], js: list[str] | None) -> tuple[list[str], list[int], Any]:
         version = self.store.vector_version(self.model_id)

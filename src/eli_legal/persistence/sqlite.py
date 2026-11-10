@@ -759,19 +759,6 @@ class Store:
         )
         return int(rows[0][0]), int(rows[0][1])
 
-    def text_vector(self, model: str, text_hash: str) -> bytes | None:
-        rows = self._all(
-            "SELECT vector FROM text_vectors WHERE model = ? AND text_hash = ?", (model, text_hash)
-        )
-        return bytes(rows[0][0]) if rows else None
-
-    def put_text_vector(self, model: str, text_hash: str, vector: bytes) -> None:
-        with self._tx() as con:
-            con.execute(
-                "INSERT OR REPLACE INTO text_vectors(model, text_hash, vector) VALUES (?,?,?)",
-                (model, text_hash, vector),
-            )
-
 
 def _token_hash(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()

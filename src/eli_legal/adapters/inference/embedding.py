@@ -49,9 +49,23 @@ def prefixes(name: str) -> tuple[str, str]:
     return "", ""
 
 
+# Families measured on the shipped benchmark (python -m eli_legal evaluate) whose links from
+# facts to issues were at least as precise as linking by words alone, best first. Others are
+# used only when none of these is present, smallest first: bge-small ranked law best of those
+# measured but linked facts less precisely than words (0.58 against 0.62).
+_MEASURED_FIRST = ("nomic-embed",)
+
+
+def _preference(path: Path) -> tuple[int, int]:
+    name = path.name.lower()
+    rank = next((i for i, m in enumerate(_MEASURED_FIRST) if m in name), len(_MEASURED_FIRST))
+    return rank, path.stat().st_size
+
+
 def discover(extra: str = "", home: Path | None = None) -> list[Path]:
-    """Embedding GGUF files in the model folders, smallest first (they are all quick; the
-    smallest is the one most likely to fit beside a chat model)."""
+    """Embedding GGUF files in the model folders: first those measured to link facts to
+    issues at least as precisely as words do, then the rest smallest first (they are all
+    quick; the smallest is the one most likely to fit beside a chat model)."""
     found: dict[str, Path] = {}
     for _label, folder in model_folders(extra, home):
         if not folder.is_dir():
@@ -65,7 +79,7 @@ def discover(extra: str = "", home: Path | None = None) -> list[Path]:
                         found.setdefault(str(real), real)
                 except OSError:
                     continue
-    return sorted(found.values(), key=lambda p: p.stat().st_size)
+    return sorted(found.values(), key=_preference)
 
 
 @dataclass

@@ -322,8 +322,9 @@ class SourcesTab(Tab):
             or []
         )
         history = "\n".join(
-            f"   {t.effective_date}: {t.treatment}"
+            f"   {t.effective_date}: {t.provision + ' ' if t.provision else ''}{t.treatment}"
             + (f" by {t.by_citation}" if t.by_citation else "")
+            + (f" ({t.note})" if t.note else "")
             for t in authority.treatments
         )
         head = f"{authority.citation} — {authority.title}\nStatus: {authority.status.value}; basis: {authority.status_basis or 'not stated'}"

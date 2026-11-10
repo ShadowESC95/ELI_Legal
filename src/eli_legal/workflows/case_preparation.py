@@ -447,6 +447,7 @@ class CasePreparation:
         facts = [f for f in self._claims(c, {ClaimKind.FACT}) if f.status not in _REMOVED]
         for fact in facts:
             fact.issue_ids = []
+            fact.meaning_issue_ids = []
         mapper.link_facts(
             issues=issues,
             facts=facts,

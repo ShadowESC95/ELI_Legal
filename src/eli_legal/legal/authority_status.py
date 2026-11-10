@@ -33,6 +33,8 @@ def status_at(authority: Authority, when: date) -> AuthorityStatus:
         return AuthorityStatus.NOT_YET_IN_FORCE
     status = AuthorityStatus.IN_FORCE
     for t in sorted(authority.treatments, key=lambda t: t.effective_date):
+        if t.provision:
+            continue  # a repeal of one section is not a change in the Act's own standing
         if t.effective_date <= when and t.treatment.lower() in _STATUS_CHANGING:
             status = _STATUS_CHANGING[t.treatment.lower()]
     if authority.effective_to and when > authority.effective_to:

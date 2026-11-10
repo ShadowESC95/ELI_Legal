@@ -194,6 +194,9 @@ class IssueMapper:
                 lexical = len(fact_terms & wanted) >= min(self.min_overlap, max(1, len(wanted)))
                 modelled = issue.issue_id in linked_by_model.get(fact.claim_id, set())
                 meant = issue.issue_id in linked_by_meaning.get(fact.claim_id, set())
+                if meant and not (lexical or modelled):
+                    if issue.issue_id not in fact.meaning_issue_ids:
+                        fact.meaning_issue_ids.append(issue.issue_id)
                 if lexical or modelled or meant:
                     if issue.issue_id not in fact.issue_ids:
                         fact.issue_ids.append(issue.issue_id)

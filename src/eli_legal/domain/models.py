@@ -164,6 +164,9 @@ class Claim:
     # chosen during the run so the report is rebuilt the same without the model. A pointer for
     # the reader, never a finding that the authority supports it.
     closest_passage_id: str = ""
+    # The issues a fact was linked to by meaning alone (not its words, not a model), which the
+    # report marks for the reviewer to check: meaning finds more links, and some are wrong.
+    meaning_issue_ids: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -186,6 +189,9 @@ class Treatment:
     effective_date: date
     by_citation: str = ""
     note: str = ""
+    # The one provision it affects ("s.25", "Art. 17"), when not the whole authority: a section
+    # repealed in an Act otherwise in force.
+    provision: str = ""
 
 
 @dataclass(slots=True)

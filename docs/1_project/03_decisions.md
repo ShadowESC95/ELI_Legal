@@ -87,3 +87,25 @@ it current when it starts, taking the record over from a copy that is older or g
 from one of the same version, and installers register and unregister their own copy. A source
 checkout registers only when told to, and ELI v3 hosting ELI Legal in its own process never
 registers anything.
+
+**D-24 Nothing derived from a case is kept beyond what its purge reaches.** Vectors of a case's
+own words (its issues, its facts, what a party says of an authority) are made when needed and
+thrown away. Keeping them would save a second or two a run, in a table shared by every matter,
+and would leave something of the case behind when its contents are deleted. Only the vectors of
+the legal sources' passages are kept: they are public law, not the case.
+
+**D-25 A provision has its own status.** A section relied on is judged on its own repeal, not
+only the Act's. The date of a repeal is the one legislation.gov.uk's annotation gives, not the
+start date of the version that first shows it, which can be years earlier. What the annotation
+cannot settle (a repeal in part, without a date) goes to a person, and a repeal of part of a
+subsection is not detected: a passage quoted from it is still checked word for word.
+
+**D-26 Meaning that links facts is marked, and the model chosen for it is one measured.** Meaning
+finds about four times as many of the facts that bear on an issue as words do, and some of its
+links are wrong: one model measured (bge-small) was less precise than words alone. A link made
+by meaning alone is therefore marked in the report for the reviewer, and the model chosen
+automatically is one measured to be at least as precise as words, where one is present.
+
+**D-27 An EU act is read as in force on the date, and the authentic text is named.** An amended
+act is read in the consolidated version in force on the relevant date. Consolidated texts are
+documentation: the report's status basis says that the Official Journal texts are authentic.

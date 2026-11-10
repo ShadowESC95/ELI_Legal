@@ -393,10 +393,21 @@ class LegalReportBuilder:
             facts = [c for c in mine if c.kind in (ClaimKind.FACT, ClaimKind.PROCEDURAL)]
             add("**Evidence**")
             add("")
+            by_meaning = any(issue.issue_id in c.meaning_issue_ids for c in facts)
             lines += _table(
-                ["Ref", "Stated by", "Statement (verbatim)", "Source"],
+                ["Ref", "Stated by", "Statement (verbatim)", "Source"]
+                + (["Linked to this issue"] if by_meaning else []),
                 [
                     [ref[c.claim_id], party.get(c.party_id or "", "—"), f"“{c.text}”", source_of(c)]
+                    + (
+                        [
+                            "by meaning only: check it bears on this issue"
+                            if issue.issue_id in c.meaning_issue_ids
+                            else "by its words"
+                        ]
+                        if by_meaning
+                        else []
+                    )
                     for c in facts
                 ],
             )

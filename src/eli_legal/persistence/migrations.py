@@ -143,4 +143,9 @@ MIGRATIONS: list[str] = [
         PRIMARY KEY (model, text_hash)
     );
     """,
+    # 5 — vectors of a case's own words were kept in a table no purge reached. They are no
+    # longer kept, and any kept are deleted with the table.
+    """
+    DROP TABLE IF EXISTS text_vectors;
+    """,
 ]
