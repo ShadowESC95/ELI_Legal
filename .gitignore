@@ -31,3 +31,6 @@ data/*.sqlite3-*
 secrets/*.head.json
 runtime/
 packaging/gpu-packs/
+
+# Notes kept only on this machine
+private/
