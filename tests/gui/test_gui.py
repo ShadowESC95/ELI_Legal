@@ -130,9 +130,10 @@ def test_the_application_has_the_specialised_tabs_and_nothing_else(desk):
         "Laws & Standards",
         "Settings",
         "How to use",
+        "Start a new case",
     ):
         assert any(wanted in t for t in titles), wanted
-    assert len(titles) == 14
+    assert len(titles) == 15
     for unwanted in (
         "Images",
         "Screen",
@@ -628,3 +629,43 @@ def test_an_official_database_is_added_by_reading_its_licence(desk, monkeypatch)
     d.settle()
     source = d.sv.ctx.sources.get("uk_open")
     assert source is not None and source.terms_reviewed and not source.approved
+
+
+def test_the_walkthrough_of_a_new_case_comes_first_and_shows_what_is_done(desk, monkeypatch):
+    from eli_legal.domain.how_to import NEW_CASE
+    from eli_legal.gui.tabs.matter_tab import MatterTab
+    from eli_legal.gui.tabs.new_case_tab import NewCaseTab
+
+    d = desk()
+    nav = d.window.nav
+    first = next(
+        nav.item(i)
+        for i in range(nav.count())
+        if nav.item(i).flags() & QtCore.Qt.ItemFlag.ItemIsEnabled
+    )
+    assert d.window.pages[first.data(QtCore.Qt.ItemDataRole.UserRole)].__class__ is NewCaseTab
+    page = d.page(NewCaseTab)
+    page.refresh()
+    assert len(page.cards) == len(NEW_CASE) == 11
+    ticked = {part.key for part in NEW_CASE if part.key in page.done}
+    assert {"for", "case", "parties", "team", "law", "open", "documents"} <= ticked
+    assert "of 11 parts done" in page.status.text()
+    page.choose(3)
+    assert page.part_title.text().startswith("4. The team and the reviewer")
+    assert page.questions.rowCount() == len(NEW_CASE[3].questions)
+    page.forward.click()
+    assert page.index == 4
+    opened = []
+    monkeypatch.setattr(MatterTab, "_new", lambda self: opened.append(True))
+    page.do_it.click()
+    assert opened, "Do this now opens Start a new case"
+
+
+def test_stop_says_at_once_that_the_run_is_stopping(desk):
+    d = desk()
+    dag = d.page(WorkflowTab)
+    run = d.sv.runs.create(d.mid, actor_id=ARBITRATOR)
+    d.session.run_id = run.run_id
+    dag._stop()
+    assert d.sv.ctx.store.get(type(run), d.mid, run.run_id).status.value == "stopped"
+    assert "stop" in dag.state.text().lower()

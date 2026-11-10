@@ -4,16 +4,28 @@ Ctrl and + (or =) zooms in, Ctrl and - zooms out, Ctrl and 0 returns to normal s
 with the mouse wheel does the same anywhere: in every page, table, form and dialog. The level is
 remembered for the next time.
 
-The wheel is listened for on ELI Legal's own widgets, picked up as they appear, never on the
-whole application: a listener on the whole application crashes Qt's browser engine (PySide6
-6.12), which ELI v3, hosting ELI Legal in its own process, may be using.
+The wheel is listened for only where it arrives: in each window, and on the scrolling areas,
+lists and number boxes that take the wheel for themselves (the rest pass it up to their window).
+Not on the whole application, whose every event would then pass through Python (and which
+crashes Qt's browser engine in PySide6 6.12, which ELI v3, hosting ELI Legal, may use), and not
+on every widget, which in 0.8.1 slowed the window down while a run was under way.
 """
 
 from __future__ import annotations
 
 from PySide6.QtCore import QEvent, QObject, QSettings, Qt, QTimer, Signal
 from PySide6.QtGui import QFont, QKeySequence, QShortcut, QTransform
-from PySide6.QtWidgets import QApplication, QGraphicsView, QLabel, QTableWidget, QToolTip, QWidget
+from PySide6.QtWidgets import (
+    QAbstractScrollArea,
+    QAbstractSpinBox,
+    QApplication,
+    QComboBox,
+    QGraphicsView,
+    QLabel,
+    QTableWidget,
+    QToolTip,
+    QWidget,
+)
 
 from eli_legal.gui import theme
 
@@ -35,7 +47,7 @@ class Zoom(QObject):
         self.apply()
         self.sweep = QTimer(self)
         self.sweep.timeout.connect(self.watch_new)
-        self.sweep.start(1000)
+        self.sweep.start(3000)
         self.watch_new()
 
     @staticmethod
@@ -101,15 +113,22 @@ class Zoom(QObject):
             widget.setTransform(QTransform.fromScale(self.level, self.level))
 
     def watch_new(self) -> None:
-        """Listen for Ctrl and the wheel on every widget that has appeared since last time."""
+        """Listen for Ctrl and the wheel where it arrives, on what has appeared since last time:
+        each window, and each scrolling area (its viewport), list and number box."""
         for widget in self.app.allWidgets():
             if widget.property("zoomWatched"):
                 continue
             kind = widget.metaObject().className()
             if "WebEngine" in kind or "Quick" in kind:
                 continue  # the browser engine's own widgets are never touched
+            if isinstance(widget, QAbstractScrollArea):
+                target: QWidget = widget.viewport()
+            elif widget.isWindow() or isinstance(widget, (QComboBox, QAbstractSpinBox)):
+                target = widget
+            else:
+                continue
             widget.setProperty("zoomWatched", True)
-            widget.installEventFilter(self)
+            target.installEventFilter(self)
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802 - Qt's name
         if event.type() == QEvent.Type.Wheel:

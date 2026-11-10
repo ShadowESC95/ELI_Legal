@@ -31,6 +31,7 @@ from eli_legal.gui.tabs.governance_tab import GovernanceTab
 from eli_legal.gui.tabs.help_tab import HelpTab
 from eli_legal.gui.tabs.home_tab import HomeTab
 from eli_legal.gui.tabs.matter_tab import MatterTab
+from eli_legal.gui.tabs.new_case_tab import NewCaseTab
 from eli_legal.gui.tabs.review_tab import ReviewTab
 from eli_legal.gui.tabs.settings_tab import SettingsTab
 from eli_legal.gui.tabs.sources_tab import SourcesTab
@@ -96,6 +97,7 @@ class MainWindow(QMainWindow):
             FrameworksTab(session),
             SettingsTab(session, self.sign_out),
             HelpTab(session, self.go),
+            NewCaseTab(session, self.go),
         ]
         for page in self.pages:
             self.tabs.addTab(page, page.title)
@@ -132,7 +134,7 @@ class MainWindow(QMainWindow):
     # ── navigation ───────────────────────────────────────────────────────────
     # Each page in plain words: its name in the sidebar and what it is for.
     _SECTIONS = (
-        ("START HERE", ("HelpTab", "HomeTab")),
+        ("START HERE", ("NewCaseTab", "HelpTab", "HomeTab")),
         (
             "THIS CASE",
             ("MatterTab", "DocumentsTab", "ChatTab", "WorkflowTab", "AgentsTab", "FindingsTab",
@@ -142,6 +144,7 @@ class MainWindow(QMainWindow):
         ("SET-UP", ("SourcesTab", "FrameworksTab", "SettingsTab")),
     )  # fmt: skip
     _PAGE_KEYS = {
+        "start": "NewCaseTab",
         "help": "HelpTab",
         "home": "HomeTab",
         "matter": "MatterTab",
@@ -189,6 +192,7 @@ class MainWindow(QMainWindow):
                 nav.addItem(item)
                 holder = QWidget()
                 holder.setObjectName("navitem")
+                holder.setProperty("accent", name == "NewCaseTab")  # the way in stands out
                 inner = QVBoxLayout(holder)
                 inner.setContentsMargins(8, 3, 8, 4)
                 inner.setSpacing(1)
@@ -206,14 +210,18 @@ class MainWindow(QMainWindow):
 
     def _size_nav_items(self, nav: QListWidget) -> None:
         """Each entry as tall as its words need at the sidebar's width, so none is cut off."""
-        width = nav.width() - nav.verticalScrollBar().sizeHint().width() - 12
+        # inside each entry's box: the list's margins and the box's own (gui/theme.py)
+        width = nav.width() - nav.verticalScrollBar().sizeHint().width() - 30
         for row in range(nav.count()):
             item = nav.item(row)
             holder = nav.itemWidget(item)
             layout = holder.layout() if holder is not None else None
             if holder is not None and layout is not None:
                 holder.setFixedWidth(width)
-                item.setSizeHint(QSize(width, layout.totalHeightForWidth(width)))
+                # the box around it: its margin, border and padding above and below
+                item.setSizeHint(QSize(width, layout.totalHeightForWidth(width) + 14))
+            elif holder is None:  # a group's heading, with room above it
+                item.setSizeHint(QSize(width, nav.fontMetrics().height() + 22))
 
     def _nav_zoomed(self, level: float) -> None:
         self.nav.setFixedWidth(round(self._NAV_WIDTH * level))

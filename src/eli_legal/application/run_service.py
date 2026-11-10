@@ -184,9 +184,14 @@ class RunService:
         run = self._load(matter, run_id, actor_id, "workflow.stop")
         if run.status in (RunStatus.APPROVED_FOR_RELIANCE, RunStatus.REJECTED):
             raise InvalidState(f"run is already {run.status.value}")
-        run.status = RunStatus.STOPPED
-        run.finished_at = utcnow()
-        self.ctx.store.put(run)
+
+        def stop(stored: Run) -> None:
+            stored.status = RunStatus.STOPPED
+            stored.finished_at = utcnow()
+
+        # One change of the stored run, so a step saving the run at the same moment cannot
+        # undo it; the step at work ends at its next model call, document or issue.
+        run = self.ctx.store.change(Run, matter.matter_id, run_id, stop)
         self.ctx.log(
             "run_stopped",
             actor_id=actor_id,

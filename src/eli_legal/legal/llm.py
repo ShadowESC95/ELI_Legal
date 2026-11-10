@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from eli_legal.domain.errors import InferenceUnavailable
+from eli_legal.domain.stopping import check_stop
 from eli_legal.ports.inference import InferencePort
 from eli_legal.security.content_boundary import wrap_untrusted_source
 
@@ -150,6 +151,7 @@ class LegalModel:
     def ask(self, task: str, prompt: str, *, max_tokens: int = 1500) -> dict[str, Any] | None:
         if not self.available or self.inference is None:
             return None
+        check_stop()  # a person who stopped the run is not kept waiting for another answer
         self.stats.calls += 1
         try:
             raw = self.inference.generate(

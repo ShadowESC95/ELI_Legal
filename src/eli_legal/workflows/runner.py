@@ -18,8 +18,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from eli_legal.domain import stopping
 from eli_legal.domain.enums import HoldScope, RunStatus, StepStatus
-from eli_legal.domain.errors import AuditIntegrityError, HoldRaised
+from eli_legal.domain.errors import AuditIntegrityError, HoldRaised, RunStopped
 from eli_legal.domain.models import AuditEvent, Matter, Run, RunStep, utcnow
 from eli_legal.governance.holds import HoldBook
 from eli_legal.persistence.sqlite import Store
@@ -232,7 +233,8 @@ class WorkflowRunner:
                     record.started_at = utcnow()
                     record.detail = ""
                     self.store.put(record)
-                    self._run_step(step, record, context, handlers[step.id])
+                    with stopping.watching(lambda: self._stopped(matter.matter_id, run.run_id)):
+                        self._run_step(step, record, context, handlers[step.id])
                 self.store.put(record)
                 self._audit_step(record, actor_id)
                 statuses[step.id] = record.status
@@ -246,6 +248,10 @@ class WorkflowRunner:
             raise
         return records
 
+    def _stopped(self, matter_id: str, run_id: str) -> bool:
+        current = self.store.get(Run, matter_id, run_id)
+        return current is not None and current.status is RunStatus.STOPPED
+
     def _run_step(
         self, step: StepDef, record: RunStep, context: StepContext, handler: StepHandler
     ) -> None:
@@ -253,6 +259,12 @@ class WorkflowRunner:
             outputs = handler(context)
             record.outputs = dict(outputs or {})
             record.status = StepStatus.OK
+        except RunStopped:
+            # A person stopped the run while this step was working: it ends where it is, with
+            # nothing it had half done kept as its result.
+            record.status = StepStatus.SKIPPED
+            record.detail = "stopped by a person while this step was working"
+            record.outputs = {}
         except HoldRaised as held:
             record.status = StepStatus.HELD
             record.detail = str(held)[:280]

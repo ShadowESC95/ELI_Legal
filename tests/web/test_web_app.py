@@ -148,9 +148,10 @@ def test_a_person_can_sign_in_read_the_matter_and_take_a_decision_in_the_browser
         )
     )
     assert (
-        len(tabs) == 14
-        and "How to use" in tabs[0]
-        and "Home" in tabs[1]
+        len(tabs) == 15
+        and "Start a new case" in tabs[0]
+        and "How to use" in tabs[1]
+        and "Home" in tabs[2]
         and all(
             any(w in t for t in tabs)
             for w in ("Ask about the case", "Progress", "Who does each step", "Record of actions",
@@ -165,6 +166,11 @@ def test_a_person_can_sign_in_read_the_matter_and_take_a_decision_in_the_browser
     assert "Start a new case" in page.text("#view") and "your organisation" in page.text(
         "#view .glossary"
     )
+    # Start a new case: the eleven parts, with this case's progress ticked.
+    page.tab("start")
+    assert page.until("document.querySelectorAll('#view .partmap .part').length === 11")
+    assert page.until("document.querySelectorAll('#view .partmap .part.done').length >= 6")
+    assert "You are asked" in page.text("#view")
     page.tab("home")
     # Home opens first: where the matter stands and the next thing to do.
     assert page.until("document.querySelectorAll('#view .stage').length === 6"), page.text("#view")[

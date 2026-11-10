@@ -46,6 +46,8 @@ is done in your session is recorded as done by you.
 
 ## Stopping
 
-`eli-legal run stop M R --reason …` stops a run. Rejecting or returning a report stops reliance.
+Stop on the Progress page (or `eli-legal run stop M R --reason …`) stops a run. The step at work
+ends at its next model answer, document or issue, and no later step starts; the page says at once
+that the run is stopping. Rejecting or returning a report stops reliance.
 If the software cannot be trusted, stop using it and prepare the matter by hand; the originals in
 the vault are untouched.

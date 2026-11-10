@@ -24,6 +24,7 @@ an administrator unlocks it. Sign out when you leave the machine.
 
 | Screen | You use it to |
 |---|---|
+| Start a new case | Walk through every part of a new case, in order, and see which are done |
 | How to use | Learn the steps of a case and what any word means |
 | Home | See where the open matter stands, your role on it, what to do next (with a button that takes you there, or who can do it if you cannot), what is waiting for you on your other matters, and the routine checks |
 | Case details | Open a case; see parties, issues, relevant date; decide who has access, who reviews, which sources apply |

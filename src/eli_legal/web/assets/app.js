@@ -235,7 +235,7 @@
 
   // ── frame ──────────────────────────────────────────────────────────────────
   // The pages, in plain words, as the desktop application names them (GET /v1/words, how_to.pages).
-  const TAB_KEYS = ['help', 'home', 'matter', 'evidence', 'chat', 'dag', 'agents', 'findings', 'review', 'audit', 'governance', 'sources', 'laws', 'settings'];
+  const TAB_KEYS = ['start', 'help', 'home', 'matter', 'evidence', 'chat', 'dag', 'agents', 'findings', 'review', 'audit', 'governance', 'sources', 'laws', 'settings'];
   const pageOf = (id) => ((S.w && S.w.how_to && S.w.how_to.pages) || {})[id === 'dag' ? 'workflow' : id] || { name: id, about: '' };
   const TABS = () => TAB_KEYS.map((id) => [id, pageOf(id).name, pageOf(id).about]);
   // What a word means, for the pointer to rest on: column headings, and anything given a title.
@@ -293,6 +293,43 @@
   const goTo = (page) => { S.tab = PAGE_TAB[page] || page; render(); };
   const MARK = { ok: '✓', attention: '!', failed: '✗', could_not_run: '?' };
   const checkTone = (state) => (state === 'ok' ? 'good' : state === 'attention' ? 'warn' : 'bad');
+  // ── Start a new case: the eleven parts, and every question in each ───────────
+  const STAGE_OF = { documents: 'documents', analysis: 'analysis', holds: 'holds', review: 'review', release: 'release' };
+  VIEWS.start = async () => {
+    const guide = (S.w && S.w.how_to && S.w.how_to.new_case) || { intro: '', parts: [] };
+    const m = S.matter;
+    const done = new Set();
+    if (m) {
+      ['for', 'open'].forEach((k) => done.add(k));
+      if (m.name && m.purpose) done.add('case');
+      if ((m.parties || []).length && (m.stated_issues || []).length) done.add('parties');
+      if ((m.reviewer_user_ids || []).length) done.add('team');
+      if ((m.approved_source_ids || []).length) done.add('law');
+      const stages = await api('GET', `${M()}/guide`).then((g) => g.stages).catch(() => []);
+      stages.forEach((s) => { const part = Object.keys(STAGE_OF).find((k) => STAGE_OF[k] === s.key); if (part && s.state === 'done') done.add(part); });
+    }
+    if (S.part === undefined) S.part = 0;
+    const part = guide.parts[S.part] || guide.parts[0];
+    const pick = (i) => { S.part = i; render(); };
+    return h('div', null,
+      card('Start a new case: a guided walkthrough', h('p', null, guide.intro),
+        h('div', { class: 'row' },
+          h('p', null, m ? h('b', null, `Your open case: ${m.name} — ${done.size} of ${guide.parts.length} parts done.`) : h('b', null, 'No case is open.'),
+            m ? ' A tick marks each; choose any part to see what it needs.' : ' Start one, or read each part first.'),
+          btn('Start a new case', () => goTo('matter'), 'go'))),
+      card('How a case is built — the eleven parts, in order',
+        h('div', { class: 'partmap' }, guide.parts.map((p, i) => h('button', {
+          type: 'button', class: `part${done.has(p.key) ? ' done' : ''}${i === S.part ? ' chosen' : ''}`, title: p.what, onclick: () => pick(i),
+        }, h('b', null, `${done.has(p.key) ? '✓ ' : ''}${i + 1}. ${p.title}`), h('span', null, p.summary))))),
+      part ? card(`${S.part + 1}. ${part.title}${done.has(part.key) ? ' — done for your open case' : ''}`,
+        h('p', null, h('b', null, 'Who: '), part.who), h('p', null, part.what),
+        part.questions.length ? table([['You are asked', 0], ['What it means', 1, 'wide'], ['For example', 2]], part.questions) : null,
+        part.tips.length ? h('div', null, h('b', null, 'Good to know'), h('ul', null, part.tips.map((t) => h('li', null, t)))) : null,
+        h('div', { class: 'row' },
+          btn('◀ Previous part', () => pick(Math.max(0, S.part - 1))), btn('Next part ▶', () => pick(Math.min(guide.parts.length - 1, S.part + 1))),
+          btn(part.button, () => goTo(part.page === 'new_matter' ? 'matter' : part.page), 'go'))) : null);
+  };
+
   // ── How to use ─────────────────────────────────────────────────────────────
   VIEWS.help = async () => {
     const guide = (S.w && S.w.how_to) || { intro: '', reading: '', steps: [] };

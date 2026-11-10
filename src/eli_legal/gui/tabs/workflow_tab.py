@@ -419,12 +419,23 @@ class WorkflowTab(Tab):
         reason = ReasonDialog.ask(
             self,
             "Stop this run",
-            "Stopping takes effect before the next step begins. Why are you stopping it?",
+            "The step at work ends at its next model answer, document or issue, and no further "
+            "step starts. Why are you stopping it?",
         )
-        if reason:
-            self.session.attempt(
-                self,
-                lambda: self.sv.runs.stop(self.mid, self.rid, actor_id=self.actor, reason=reason),
+        if not reason:
+            return
+        stopped = self.session.attempt(
+            self,
+            lambda: self.sv.runs.stop(self.mid, self.rid, actor_id=self.actor, reason=reason),
+        )
+        if stopped is not None:
+            # Say so at once: the step at work may need a moment to reach a point it can end at.
+            set_chip(self.state, "stopping…" if self.session.working else "stopped", theme.WARN)
+            self.session.busy.emit(
+                "Stopping the run: the step at work ends at its next model answer, document or "
+                "issue. You can close ELI Legal once it has."
+                if self.session.working
+                else "The run is stopped."
             )
 
     def _restart(self) -> None:

@@ -116,12 +116,25 @@ QListWidget#nav {{
     background: #0f131a; border: none; border-right: 1px solid #232b38; border-radius: 0;
     padding: {px(4)}px;
 }}
-QListWidget#nav::item {{ border-radius: 6px; margin: 1px 2px; }}
-QListWidget#nav::item:selected {{ background: #26384f; }}
-QListWidget#nav::item:hover {{ background: #1c2636; }}
+QListWidget#nav::item {{
+    border: 1px solid {BORDER}; border-radius: 9px; background: {PANEL};
+    margin: 3px 6px; padding: 2px;
+}}
+QListWidget#nav::item:selected {{ background: #22324a; border: 2px solid {ACCENT}; }}
+QListWidget#nav::item:hover:!selected {{ background: #1c2636; border-color: #4e6a91; }}
+QListWidget#nav::item:disabled {{
+    background: transparent; border: none; margin: 12px 6px 2px 8px; color: {ACCENT};
+}}
 QWidget#navitem, QWidget#navitem QLabel {{ background: transparent; }}
 QLabel[role="navname"] {{ font-weight: bold; color: #ffffff; }}
 QLabel[role="navabout"] {{ color: {MUTED}; }}
+QWidget#navitem[accent="true"] QLabel[role="navname"] {{ color: {GOOD}; }}
+QFrame[role="partcard"] {{ border-radius: 10px; background: {PANEL}; border: 1px solid {BORDER}; }}
+QFrame[role="partcard"]:hover {{ border-color: #4e6a91; }}
+QFrame[role="partcard"][done="true"] {{ border: 1px solid {GOOD}; }}
+QFrame[role="partcard"][done="true"] QLabel {{ color: {GOOD}; }}
+QFrame[role="partcard"][chosen="true"] {{ background: #22324a; border: 2px solid {ACCENT}; }}
+QFrame[role="partcard"] QLabel {{ background: transparent; }}
 """
 
 

@@ -46,6 +46,7 @@ from eli_legal.domain.models import (
     utcnow,
 )
 from eli_legal.domain.profiles import profile_spec
+from eli_legal.domain.stopping import check_stop
 from eli_legal.governance.completeness import check_run_completeness, verification_digest
 from eli_legal.governance.gates import (
     apply_decision,
@@ -290,7 +291,7 @@ class CasePreparation:
             "current_law": current_law_mod.VERIFIER_ID,
             "analysis_boundary": analysis_mod.VERIFIER_ID,
         }
-        ctx.store.put(run)
+        self._save_run(run)
         return {
             "profile": matter.profile.value,
             "jurisdiction_packs": [p.code for p in packs],
@@ -306,10 +307,24 @@ class CasePreparation:
             },
         }
 
+    def _save_run(self, run: Run) -> None:
+        """Save what a step recorded on the run (its tools, versions, report), never its state:
+        a person may have stopped it meanwhile, and that must stand."""
+
+        def keep_state(stored: Run) -> None:
+            run.status, run.finished_at = stored.status, stored.finished_at
+            for name in ("tool_versions", "model_versions", "prompt_versions",
+                         "framework_versions", "workflow_id", "workflow_version",
+                         "policy_version", "report_id"):  # fmt: skip
+                setattr(stored, name, getattr(run, name))
+
+        self.ctx.store.change(Run, run.matter_id, run.run_id, keep_state)
+
     def ingest(self, c: StepContext) -> Mapping[str, Any]:
         documents = self.ctx.store.list(Document, c.matter.matter_id)
         pending = [d for d in documents if d.status is DocumentStatus.REGISTERED]
         for document in pending:
+            check_stop()
             self.ingestion.process(document, actor_id=c.actor_id)
         return {"documents": len(documents), "processed_now": len(pending)}
 
@@ -448,7 +463,7 @@ class CasePreparation:
             if semantic is not None and semantic.available
             else "words"
         )
-        ctx.store.put(c.run)
+        self._save_run(c.run)
         ctx.store.delete_records(Issue, mid, run_id=rid)
         ctx.store.put_many([*issues, *facts])
         return {
@@ -513,6 +528,7 @@ class CasePreparation:
                     )
             retriever = CaseLawRetriever(connectors, semantic=semantic)
             for issue in issues:
+                check_stop()
                 for proposition in retriever.propositions_for_issue(
                     matter_id=mid,
                     run_id=rid,
@@ -540,7 +556,7 @@ class CasePreparation:
             c.run.tool_versions["retrieval_note"] = note
         else:
             c.run.tool_versions.pop("retrieval_note", None)
-        ctx.store.put(c.run)
+        self._save_run(c.run)
         self._upsert_claims(c, claims, set(_LEGAL_KINDS))
         every = self._claims(c)
         for issue in issues:
@@ -751,6 +767,7 @@ class CasePreparation:
         )
         drafted: dict[str, Claim] = {}
         for issue in ctx.store.list(Issue, matter.matter_id, run_id=rid):
+            check_stop()
             if issue.source == "model_proposed":
                 continue  # an issue only a model suggested gets no arguments until a person adopts it
             for argument in analyst.arguments_for_issue(
@@ -814,7 +831,7 @@ class CasePreparation:
         report.audit_head, report.created_at = head, built_at
         ctx.store.put(report)
         c.run.report_id = report.report_id
-        ctx.store.put(c.run)
+        self._save_run(c.run)
         ctx.log(
             "report_drafted",
             actor_id=c.actor_id,

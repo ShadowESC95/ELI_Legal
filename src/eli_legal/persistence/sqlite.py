@@ -11,7 +11,7 @@ import hashlib
 import re
 import sqlite3
 import threading
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -214,6 +214,15 @@ class Store:
             f"SELECT data FROM {spec.table} WHERE id=? AND matter_id=?", (record_id, matter_id)
         )
         return codec.loads(cls, rows[0][0]) if rows else None
+
+    def change(self, cls: type[T], matter_id: str, record_id: str, edit: Callable[[T], None]) -> T:
+        """Read a record, change it and write it back as one step: no other thread's write
+        can fall between the read and the write."""
+        with self._lock:
+            record = self.require(cls, matter_id, record_id)
+            edit(record)
+            self.put(record)
+            return record
 
     def require(self, cls: type[T], matter_id: str, record_id: str) -> T:
         found = self.get(cls, matter_id, record_id)

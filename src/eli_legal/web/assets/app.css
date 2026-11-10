@@ -38,6 +38,12 @@ nav.tabs { flex-wrap: wrap; overflow-x: visible; }
 nav.tabs .tab { font-size: 1.05rem; padding: 8px 14px; }
 th[title] { cursor: help; text-decoration: underline dotted; text-underline-offset: 3px; }
 .glossary dt { font-weight: bold; margin-top: 8px; }
+.partmap { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+.partmap .part { display: flex; flex-direction: column; gap: 4px; text-align: left; padding: 10px 12px; border-radius: 10px; }
+.partmap .part span { color: var(--muted, #94a8c6); font-weight: normal; }
+.partmap .part.done { border-color: #a3be8c; }
+.partmap .part.done b { color: #a3be8c; }
+.partmap .part.chosen { border: 2px solid var(--accent, #88c0d0); background: #22324a; }
 .glossary dd { margin: 2px 0 0 0; color: var(--muted, #94a8c6); }
 .tab { border: 1px solid transparent; border-bottom: none; border-radius: 8px 8px 0 0; background: transparent; padding: 7px 13px; color: var(--mut); white-space: nowrap; }
 .tab[aria-selected=true] { background: var(--bg); color: var(--fg); border-color: var(--line); }

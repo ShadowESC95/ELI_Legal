@@ -81,3 +81,7 @@ class EntitlementDenied(EliLegalError):
 
 class InvalidInput(EliLegalError, ValueError):
     """The request is missing something a governed action requires, such as a reason."""
+
+
+class RunStopped(EliLegalError):
+    """A person stopped the run while a step was working; the step ends where it is."""

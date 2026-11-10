@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import secrets
+import signal
 import sys
 from pathlib import Path
 
@@ -250,6 +251,9 @@ def _licensed() -> bool:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # Ctrl+C in the terminal that started it closes the program, as it does any other. Qt's
+    # event loop otherwise keeps Python from acting on it, and each press only prints an error.
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
     if Settings().hard_offline:
         hard_offline.relaunch_sandboxed_if_needed()  # macOS only; returns elsewhere
     app = create_application(argv)

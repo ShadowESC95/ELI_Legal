@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from eli_legal.domain.models import AuthorityPassage
+from eli_legal.domain.stopping import check_stop
 from eli_legal.legal.dates import split_sentences
 from eli_legal.persistence.sqlite import Store
 from eli_legal.ports.embedding import EmbeddingPort
@@ -117,6 +118,7 @@ class SemanticIndex:
         todo = self.store.passages_without_vectors(self.model_id, ids, js, limit=max(budget, 0))
         done = 0
         for start in range(0, len(todo), INDEX_BATCH):
+            check_stop()
             batch = todo[start : start + INDEX_BATCH]
             texts: list[str] = []
             owners: list[tuple[str, int]] = []

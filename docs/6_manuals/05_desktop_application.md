@@ -22,8 +22,8 @@ default; which model is in use, if any; and who is signed in, with their roles.
 
 ## Pages
 
-The pages are listed down the left in plain words, each with a line saying what it is for, in four
-groups: **start here** (How to use, Home), **this case** (Case details to Review and approve),
+The pages are listed down the left in plain words, each in a box of its own with a line saying
+what it is for, in four groups: **start here** (Start a new case, How to use, Home), **this case** (Case details to Review and approve),
 **checking and records** (Record of actions, Compliance) and **set-up** (Legal sources, Laws and
 standards, Settings). Ctrl+1 to Ctrl+9 open the first nine; F1 opens How to use.
 
@@ -35,12 +35,13 @@ uses, with its meaning.
 
 | Page | What it is for |
 |---|---|
+| 🧭 Start a new case | How a case is built: its eleven parts as a map, from who the work is for to its release. Choose a part to see what it is, every question asked with what it means and an example, tips, and who does it, with a button that does it now. With a case open, each part already done is ticked. |
 | How to use | A case from start to finish, step by step, with who does each step and a button to the page for it; and every word the application uses, explained, with a search. |
 | 🏠 Home | Where the open matter stands (six stages: set up, documents, analysis, holds and checks, review, release), your role on it and what you may read, the next things to do with a button to each, the work waiting for you on every matter you are on, the routine checks, and where compliance stands. |
 | 📁 Case details | Open a matter with the six-page wizard; parties, issues, relevant date; the team, each person's role on the matter, whom they act for and what they read; change a role; the named reviewers; the approved sources; close a matter. |
 | 📄 Documents | Take documents in, saying for each file what it is, who filed it, who may see it and where it came from; read any document as located passages; see what was not read and what was flagged. Anything you are not cleared to read is listed as withheld, with the reason. |
 | 💬 Ask about the case | Ask about the matter. Answers come from its documents, the run's findings and the approved sources, each with its locator and whether it may be relied on. With a model, a short summary whose every sentence is tied to its sources. It will not say who should win, and nothing can be decided from chat. |
-| 🕸 Progress | The analysis steps as a map, coloured by what happened to each step. Start, stop or restart a run; select a step to see what it did. Runs execute in the background. |
+| 🕸 Progress | The analysis steps as a map, coloured by what happened to each step. Start, stop or restart a run (a stop ends the step at work at its next model answer, document or issue); select a step to see what it did. Runs execute in the background. |
 | 🤖 Who does each step | Each step as an agent with a fixed mandate: what it reads, what it writes, what it may never do, which controls it carries out, and what it did in the selected run. Three are model-assisted (marked ✦); four are people. |
 | 🔎 Findings | Every finding of the run with its source passage, its checks and who decided them. Record a check by hand, or take a held finding out of reliance. |
 | ⚖ Review and approve | Holds; checks waiting for a person; the report; the decision (tick each stated limit, give reasons, approve / return / reject); release to confirmed recipients. |

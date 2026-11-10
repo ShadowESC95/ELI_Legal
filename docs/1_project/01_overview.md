@@ -70,7 +70,7 @@ server, and a command line. It can also be loaded into ELI v3 as a separately li
 
 | Part | What it is | Start it with |
 |---|---|---|
-| Desktop application | Fourteen pages: How to use, Home, Case details, Documents, Ask about the case, Progress, Who does each step, Findings, Review and approve, Record of actions, Compliance, Legal sources, Laws and standards, Settings | `eli-legal-gui` |
+| Desktop application | Fifteen pages: Start a new case, How to use, Home, Case details, Documents, Ask about the case, Progress, Who does each step, Findings, Review and approve, Record of actions, Compliance, Legal sources, Laws and standards, Settings | `eli-legal-gui` |
 | Server and browser application | The same eleven screens in a browser, over HTTPS, for a chambers, firm or tribunal | `eli-legal serve` |
 | Command line | Every operation, for scripted and administrative use | `eli-legal` |
 | ELI v3 edition | The same services, presented to ELI v3 as a separately licensed edition | see [ELI v3 integration](../3_architecture/03_eli_v3_integration.md) |
