@@ -8,6 +8,7 @@ Governed legal case preparation: it takes the papers in a dispute, establishes w
 - **Stop waited for the step at work to finish**, which with a model can take minutes, and the program could not be closed until then. The step at work now ends at its next model answer, document or issue, no later step starts, and the page says at once that the run is stopping.
 - **A stop could be undone** by a step saving the run at the same moment. A stop now stands, whatever a step saves.
 - **Ctrl+C in the terminal did not close the program**; each press printed an error. It now closes it.
+- **Run from source on Python 3.10 or 3.11, the desktop application could end itself** ("Fatal Python error: none_dealloc"), through a fault in PySide6 6.12 that ELI Legal now steers clear of. The installers carry Python 3.12 and were not affected.
 
 ## New in this version
 

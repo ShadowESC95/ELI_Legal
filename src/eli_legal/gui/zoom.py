@@ -30,6 +30,20 @@ from PySide6.QtWidgets import (
 from eli_legal.gui import theme
 
 ROW_HEIGHT = 26  # a table row at normal size
+
+
+def _prop(widget: QObject, name: str) -> object:
+    """A widget's property, or None if it has none, without asking Qt for a missing one.
+
+    PySide6 6.12 returns a missing property as None without counting the reference; on
+    Python 3.10 and 3.11, where None can be freed, enough of those calls end the program
+    ("Fatal Python error: none_dealloc"). Python 3.12 and later are not affected."""
+    key = name.encode()
+    if any(bytes(n.data()) == key for n in widget.dynamicPropertyNames()):
+        return widget.property(name)
+    return None
+
+
 _KEY = "view/zoom"
 
 
@@ -85,14 +99,14 @@ class Zoom(QObject):
         for window in self.app.topLevelWidgets():
             window.setFont(font)
         for widget in self.app.allWidgets():
-            if not propagates and not widget.property("role"):
+            if not propagates and not _prop(widget, "role"):
                 widget.setFont(font)
             self.fit(widget)
         self.changed.emit(self.level)
 
     def size_role(self, widget: QWidget) -> None:
         """A label larger or smaller than the text around it: titles, the sidebar."""
-        points = theme.ROLE_POINTS.get(str(widget.property("role") or ""))
+        points = theme.ROLE_POINTS.get(str(_prop(widget, "role") or ""))
         if points:
             font = QFont(widget.font())
             font.setPointSizeF(points * self.level)
@@ -104,19 +118,19 @@ class Zoom(QObject):
             self.size_role(widget)
         elif isinstance(widget, QTableWidget):
             widget.verticalHeader().setDefaultSectionSize(round(ROW_HEIGHT * self.level))
-            widths = widget.property("fitWidths")
-            if widths:
+            widths = _prop(widget, "fitWidths")
+            if isinstance(widths, (list, tuple)):
                 for column, width in enumerate(widths):
                     if width:
                         widget.setColumnWidth(column, round(int(width) * self.level))
-        elif isinstance(widget, QGraphicsView) and widget.property("zooms"):
+        elif isinstance(widget, QGraphicsView) and _prop(widget, "zooms"):
             widget.setTransform(QTransform.fromScale(self.level, self.level))
 
     def watch_new(self) -> None:
         """Listen for Ctrl and the wheel where it arrives, on what has appeared since last time:
         each window, and each scrolling area (its viewport), list and number box."""
         for widget in self.app.allWidgets():
-            if widget.property("zoomWatched"):
+            if _prop(widget, "zoomWatched"):
                 continue
             kind = widget.metaObject().className()
             if "WebEngine" in kind or "Quick" in kind:
