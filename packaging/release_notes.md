@@ -2,21 +2,17 @@ Governed legal case preparation: it takes the papers in a dispute, establishes w
 
 **A high-risk AI system under the EU AI Act (Article 6(2) and Annex III, point 8(a)). It has not been conformity-assessed or validated on real matters, and it is not legal advice.** Read the [documentation](https://github.com/ShadowESC95/ELI_Legal/blob/@TAG@/docs/README.md), starting with the legal overview, before using it on a matter.
 
-This release makes ELI Legal easier to read and to use for people who do not work in IT.
-
 ## Fixed in this release
 
-- **Compliance said "Waiting for your organisation" without saying for what.** Each requirement now names what your organisation still has to record, the page explains what waiting means, and a button takes you to the record it needs. The panel below the requirements is never empty.
-- **Who is responsible for what was shown as R, I, C and A.** It now says *does it*, *answers for it*, *is asked first* and *is kept informed*, with a key saying who the provider and the deployer are; its last column is no longer cut off.
-- **Adding a legal source asked technical questions most people cannot answer.** The official EU and UK databases are now added by choosing one and reading its licence; your own collection has a form in plain words, with an example under every field.
+- **The window became slow while a run was under way (0.8.1).** Zooming listened for the mouse wheel on every part of the window, so every redraw passed through it. It now listens only where the wheel arrives.
+- **Stop waited for the step at work to finish**, which with a model can take minutes, and the program could not be closed until then. The step at work now ends at its next model answer, document or issue, no later step starts, and the page says at once that the run is stopping.
+- **A stop could be undone** by a step saving the run at the same moment. A stop now stands, whatever a step saves.
+- **Ctrl+C in the terminal did not close the program**; each press printed an error. It now closes it.
 
 ## New in this version
 
-- **Pages named in plain words**, each with a line saying what it is for, in a larger sidebar: Case details, Documents, Ask about the case, Progress, Who does each step, Review and approve, Record of actions, Compliance, Legal sources, Laws and standards.
-- **How to use**: a case from start to finish, step by step, with who does each step and a button to the page for it, and every word the application uses explained, with a search. F1 opens it.
-- **Explanations on hover.** Rest the pointer on a column heading, a field, a button, a page in the sidebar or a status at the top, and a yellow box explains it.
-- **Make everything larger or smaller**: Ctrl and + or −, Ctrl and 0 for normal size, or Ctrl and the mouse wheel, on every page, table and dialog. The size is remembered.
-- **The browser application** has the same page names, the How to use page and explanations on its column headings.
+- **Start a new case**, first in the sidebar: how a case is built, as a map of its eleven parts from who the work is for to its release. Choose a part to see what it is, every question you will be asked with what it means and an example, tips, and who does it, with a button that does it now. With a case open, each part already done is ticked. The browser application has it too.
+- **Each page in the sidebar has a box of its own**, with the groups spaced apart and Start a new case picked out.
 
 ## Which file
 
@@ -43,6 +39,6 @@ Every one of them includes the desktop application, the server with its browser 
 - **Windows:** the program ran the synthetic dispute; the setup program was installed silently, started and uninstalled. The desktop application was not opened by a person.
 - **macOS (Intel and Apple silicon):** the program ran the synthetic dispute. The disk images were not opened by a person.
 - The test suite (desktop application, server, browser application, security, the whole lifecycle, the benchmarks) passes on Linux, Windows and macOS.
-- **The desktop application** was looked at, at normal size and at 150%, from screenshots taken on Linux: the sidebar, How to use, Compliance, Who is responsible and the source forms. Zooming takes about a tenth of a second a step on a full window.
+- **The desktop application** was looked at from screenshots taken on Linux: the boxed sidebar, and Start a new case with and without a case open. A stop during a step, a step saving the run after a stop, and a model asked after a stop are each tested.
 
 Installation and first steps: [docs/6_manuals/01_installation.md](https://github.com/ShadowESC95/ELI_Legal/blob/@TAG@/docs/6_manuals/01_installation.md).
