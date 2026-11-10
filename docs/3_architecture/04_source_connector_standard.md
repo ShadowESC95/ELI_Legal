@@ -48,7 +48,7 @@ admits it, and it is used on matters that list it.
 
 | Connector | Reaches | Resolves | Status it gives |
 |---|---|---|---|
-| `eu_cellar` | publications.europa.eu, eur-lex.europa.eu | CELEX, ECLI, case numbers, "Regulation (EU) 2016/679", "Directive 95/46/EC" | Legislation: in force, entry into force and application, end of validity, the repealing act. Judgments: none recorded, so unknown and for a person |
+| `eu_cellar` | publications.europa.eu, eur-lex.europa.eu | CELEX, ECLI, case numbers, "Regulation (EU) 2016/679", "Directive 95/46/EC" | Legislation: in force, entry into force and application, end of validity, the repealing act. Judgments: no treatment recorded, so unknown and for a person, who is told how many later judgments and Advocate General's opinions cite it and the latest three |
 | `uk_open` | www.legislation.gov.uk, caselaw.nationalarchives.gov.uk | Acts by title and year, SIs, neutral citations | Legislation: the current version and, for a relevant date before it, the version then in force, each with its dates and repealed sections. Judgments: none recorded, so unknown and for a person |
 
 An authority is fetched when first needed, stored as a dated source version with its hash,

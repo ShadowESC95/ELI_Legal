@@ -34,6 +34,7 @@ Generated from the program by `scripts/generate_reference_docs.py`. Do not edit 
 | `eli-legal source revoke <source_id>` |  |
 | `eli-legal source add-live <kind> --id --terms-reviewed` | a live official database: eu_cellar or uk_open |
 | `eli-legal source import <source_id> <directory>` |  |
+| `eli-legal source index <source_id>` | embed a source's passages for searching by meaning now, not during a run |
 | `eli-legal matter` | manage matters |
 | `eli-legal matter create --name --purpose --jurisdiction --profile --governing-law --forum --rules --relevant-date --party --issue --represents --framework --no-recommended-frameworks --member --reviewer --source` |  |
 | `eli-legal matter list` |  |
@@ -86,6 +87,7 @@ Generated from the program by `scripts/generate_reference_docs.py`. Do not edit 
 | `eli-legal compliance evaluate` | run the accuracy evaluation on the planted-defect matter |
 | `eli-legal compliance draft <kind>` | draft the Annex IV documentation or the declaration |
 | `eli-legal compliance sign-off <action> --sha256` | sign off a drafted document by its SHA-256 |
+| `eli-legal evaluate <benchmark> --embedding --json` | measure legal research and fact linking on benchmarks |
 | `eli-legal checks` | run or show the routine checks |
 | `eli-legal checks run --as-system` |  |
 | `eli-legal checks show` |  |
@@ -115,8 +117,8 @@ Generated from the program by `scripts/generate_reference_docs.py`. Do not edit 
 | `eli-legal framework context <matter>` | what the model is told on a matter |
 | `eli-legal bundle` | make this copy available to ELI v3 as a bundle |
 | `eli-legal bundle show` |  |
-| `eli-legal bundle register --into` |  |
-| `eli-legal bundle unregister --into` |  |
+| `eli-legal bundle register --if-eli-v3 --into` |  |
+| `eli-legal bundle unregister --this-copy --into` |  |
 | `eli-legal licence` | this copy's licence: show it, activate a key, remove it |
 | `eli-legal licence status` |  |
 | `eli-legal licence activate <key>` |  |

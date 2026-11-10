@@ -88,6 +88,15 @@ Nothing can be searched that is not on the approved-source register.
    [Source connector standard](../3_architecture/04_source_connector_standard.md).
 4. Each matter then chooses which approved sources it uses.
 
+**Live official databases.** `eli-legal source add-live eu_cellar --terms-reviewed` (the EU's
+Publications Office and EUR-Lex) or `uk_open` (legislation.gov.uk and Find Case Law) registers
+one with its publisher, licence and hosts already declared; approve it as above. It looks up
+each authority a matter relies on when first needed, judges legislation on the version in force
+on the matter's relevant date, and keeps what it fetched for 24 hours. It reaches only its own
+hosts, and nothing under hard offline. No open database records whether a judgment was later
+overruled: that goes to a person. Find Case Law's licence needs a further licence from the
+National Archives for computational analysis; obtain it before approving `uk_open` for that use.
+
 "Complete for" matters: if a source is recorded as complete for a citation form and a citation in
 that form is not found, the system treats the authority as possibly non-existent and holds it. If
 you over-state completeness you will get false alarms; if you under-state it, missing cases pass
@@ -109,6 +118,45 @@ answers.
 - Changing the model is a recorded decision. Monitoring then flags the change: complete a change
   assessment and re-run your evaluation before relying on the new one.
 - Read the model's licence. Some restrict professional or commercial use.
+
+## 4a. Searching by meaning
+
+Research finds passages by the words of each issue and, with an embedding model, also by their
+meaning; facts are linked to the issues they bear on the same way. It runs on this machine. It
+decides only which passages are offered and which facts are filed under an issue: everything is
+quoted word for word and checked as before.
+
+- **Setting it up.** Put an embedding model in GGUF form in a model folder (bge-small-en-v1.5
+  and nomic-embed-text-v1.5 were measured). `ELI_LEGAL_EMBEDDING_MODEL` is `auto` by default
+  (the first one found), a file path, or `none`.
+- **Embedding a corpus.** Passages are embedded when a run first needs them, at most
+  `ELI_LEGAL_EMBEDDING_BUDGET` (20,000) in one run; the report says when part of a source was
+  not yet covered. `eli-legal source index <source>` embeds a source ahead of any run.
+- **What a run records.** The model and its file's fingerprint are the run's retrieval and
+  linking tools. Changing the model is a change monitoring flags between runs: assess it and
+  re-run the benchmarks before relying on it.
+- **Measuring it.** `eli-legal evaluate` runs the research benchmark (70 issues over fifteen EU
+  and UK instruments) and the linking benchmark (50 facts in four disputes) with the model
+  configured, or another with `--embedding <file>`. As measured for 0.8:
+
+  | Research | recall at 10 | MRR | nDCG at 10 | governing provisions offered | closest passage in point |
+  |---|---|---|---|---|---|
+  | By words (0.7) | 0.66 | 0.54 | 0.51 | 34% | 40% |
+  | By words (0.8) | 0.66 | 0.60 | 0.54 | 44% | 40% |
+  | By words and meaning, bge-small | 0.76 | 0.70 | 0.64 | 60% | 67% |
+  | By words and meaning, nomic | 0.74 | 0.68 | 0.62 | 52% | 54% |
+
+  "Closest passage" is the passage shown beside what a party says of an authority: whether,
+  in each instrument that governs an issue, the passage closest to it is in point.
+
+  | Linking facts to issues | precision | recall | F1 |
+  |---|---|---|---|
+  | By words | 0.62 | 0.10 | 0.17 |
+  | By words and meaning, bge-small | 0.58 | 0.36 | 0.44 |
+  | By words and meaning, nomic | 0.65 | 0.44 | 0.52 |
+
+  The benchmarks are written for this software and are not real matters. Measure on your own
+  annotated matters before relying on a figure.
 
 ## 5. The server
 

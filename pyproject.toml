@@ -81,6 +81,8 @@ eli_legal = [
   "edition/*.json",
   "edition/personas/*.json",
   "edition/templates/*.json",
+  "evaluation/benchmark/*.json",
+  "evaluation/benchmark/*.jsonl.gz",
   "governance/registers/*.csv",
   "governance/templates/*.md",
   "gui/assets/*.png",

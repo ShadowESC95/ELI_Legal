@@ -124,4 +124,23 @@ MIGRATIONS: list[str] = [
         totp_last_step INTEGER NOT NULL DEFAULT 0
     );
     """,
+    # 4 — the heading printed above a passage; vectors for searching by meaning, kept per
+    # embedding model so a change of model never mixes two models' vectors.
+    """
+    ALTER TABLE passages ADD COLUMN heading TEXT NOT NULL DEFAULT '';
+    CREATE TABLE IF NOT EXISTS passage_vectors (
+        passage_id TEXT NOT NULL,
+        model TEXT NOT NULL,
+        part INTEGER NOT NULL,
+        vector BLOB NOT NULL,
+        PRIMARY KEY (passage_id, model, part)
+    );
+    CREATE INDEX IF NOT EXISTS ix_passage_vectors_model ON passage_vectors(model);
+    CREATE TABLE IF NOT EXISTS text_vectors (
+        model TEXT NOT NULL,
+        text_hash TEXT NOT NULL,
+        vector BLOB NOT NULL,
+        PRIMARY KEY (model, text_hash)
+    );
+    """,
 ]

@@ -67,3 +67,23 @@ stops Python code only; native libraries, io_uring and child processes go round 
 filter (Linux), the kernel sandbox (macOS) or a firewall rule (Windows) cannot be bypassed from
 inside the program, and on Linux cannot be removed until it exits, so switching it off takes
 effect only at the next start.
+
+**D-21 Meaning ranks and files; it never verifies.** An embedding model changes which passages
+research offers and which facts are filed under an issue. It does not decide that a source says
+something: a passage found by meaning is quoted word for word and verified like any other, and
+the report says how research was done. Research fuses the two rankings with the one by words
+weighted 0.2, and a fact is linked to the issue it is closest to when it stands out for that
+issue (z 0.25). Both settings were chosen on half of a benchmark and checked on the other half,
+and both models measured chose the same ones. A higher setting tuned to the whole benchmark
+would have reported better figures and meant less.
+
+**D-22 What is measured is the code that runs.** The benchmarks call the research and linking
+code a matter uses, not a copy, over legislation as its official databases publish it. Research
+by words may not fall below its measured figures without a test failing. The figures are for
+benchmarks written for this software; they are not a claim about real matters.
+
+**D-23 ELI v3 opens the newest copy.** An installed copy of ELI Legal keeps ELI v3's record of
+it current when it starts, taking the record over from a copy that is older or gone and never
+from one of the same version, and installers register and unregister their own copy. A source
+checkout registers only when told to, and ELI v3 hosting ELI Legal in its own process never
+registers anything.

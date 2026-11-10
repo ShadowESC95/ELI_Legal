@@ -75,7 +75,19 @@ separate application on ELI v3's core. The contract is ELI v3's `eli/bundles` (s
 | How ELI Legal is installed | How ELI v3 finds it | Runs |
 |---|---|---|
 | In ELI v3's Python environment (`pip install eli-legal`) | the `eli.bundles` entry point (`eli_legal.bundle:describe`) | inside ELI v3's process, with ELI v3's loaded model unless another is chosen |
-| On its own (AppImage, installer) | `eli-legal bundle register` writes `legal.json` into ELI v3's `bundles` folder | as its own program |
+| On its own (AppImage, installer) | `legal.json` in ELI v3's `bundles` folder: written by the `.run` and Windows installers, and by every installed copy when it starts and the record names no copy, a removed one or an older version; `eli-legal bundle register` writes it by hand | as its own program |
+| Downloaded, never started | ELI v3 looks in Desktop, Downloads and Applications for the files its legal edition names | as its own program |
+
+**Which copy ELI v3 opens.** ELI v3 looks afresh each time it starts and opens one copy: the
+installed package, else the registered copy, else one found by looking. Each gives way to a
+strictly newer version, so an old copy never hides a new release (a change to ELI v3's bundle
+discovery made on 10 November 2026; earlier releases of ELI v3 prefer the package or the
+registration whatever its version, and take the most recently changed file found).
+Looking skips setup programs and takes the highest version. A copy registers itself only
+when it is newer than the one registered, so two copies of the same version never take turns,
+and an uninstaller removes the record only if it names its own copy. Installing a release does
+not install it into ELI v3's Python environment: a package installed there stays at its version
+until it is upgraded with pip.
 
 From ELI v3: the start-up question (ELI v3 or a bundle), `eli --bundle legal`, `eli --bundles`, or
 the Bundles menu. Opened this way ELI Legal keeps its data in its own folder, never ELI v3's, and

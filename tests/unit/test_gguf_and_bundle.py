@@ -234,3 +234,56 @@ def test_a_separate_copy_registers_with_eli_v3_and_unregisters(tmp_path):
     record = json.loads(path.read_text(encoding="utf-8"))
     assert record["id"] == "legal" and record["command"] and record["contract"] == 1
     assert bundle.unregister(tmp_path / "bundles") == [path] and not path.exists()
+
+
+def test_eli_v3_is_kept_pointing_at_the_newest_copy_on_this_machine(tmp_path, monkeypatch):
+    """ELI v3 starts whichever copy its record names: each installed copy, when it starts,
+    takes the record over from a copy that is older or gone, and from no other."""
+    from eli_legal import __version__, bundle
+
+    data = tmp_path / "home" / "data"
+    folder = data / "ELI_v3" / "bundles"
+    monkeypatch.setenv("XDG_DATA_HOME", str(data))
+    monkeypatch.setenv("APPIMAGE", str(tmp_path / f"ELI_Legal-{__version__}-linux-x86_64.AppImage"))
+    (tmp_path / f"ELI_Legal-{__version__}-linux-x86_64.AppImage").write_bytes(b"")
+    assert bundle.refresh_registration() is None, "ELI v3 is not on this machine: nothing made"
+    assert not folder.parent.exists()
+    folder.parent.mkdir(parents=True)
+    path = bundle.refresh_registration()
+    assert path == folder / "legal.json"
+
+    def names() -> str:
+        return str(json.loads(path.read_text(encoding="utf-8"))["command"][0])
+
+    assert names().endswith(f"ELI_Legal-{__version__}-linux-x86_64.AppImage")
+    older = tmp_path / "ELI_Legal-0.6.1-linux-x86_64.AppImage"
+    older.write_bytes(b"")
+    path.write_text(json.dumps({"id": "legal", "version": "0.6.1", "command": [str(older)]}))
+    bundle.refresh_registration()
+    assert names().endswith(f"{__version__}-linux-x86_64.AppImage"), "an older copy gives way"
+    newer = tmp_path / "ELI_Legal-9.0.0-linux-x86_64.AppImage"
+    newer.write_bytes(b"")
+    path.write_text(json.dumps({"id": "legal", "version": "9.0.0", "command": [str(newer)]}))
+    assert bundle.refresh_registration() is None and names() == str(newer), "a newer one stays"
+    newer.unlink()
+    bundle.refresh_registration()
+    assert names().endswith(f"{__version__}-linux-x86_64.AppImage"), "a removed copy gives way"
+    monkeypatch.setenv("ELI_LEGAL_MODE", "eli_v3")
+    path.write_text(json.dumps({"id": "legal", "version": "0.1", "command": [str(older)]}))
+    assert bundle.refresh_registration() is None, "ELI v3's own process is not a copy"
+    monkeypatch.delenv("ELI_LEGAL_MODE")
+    monkeypatch.delenv("APPIMAGE")
+    assert bundle.refresh_registration() is None, "a source checkout registers only when told"
+
+
+def test_an_uninstaller_removes_only_the_record_of_its_own_copy(tmp_path, monkeypatch):
+    from eli_legal import bundle
+
+    path = bundle.register(tmp_path / "bundles")
+    other = tmp_path / "another" / "eli-legal-gui"
+    other.parent.mkdir()
+    other.write_bytes(b"")
+    path.write_text(json.dumps({"id": "legal", "version": "1.0", "command": [str(other)]}))
+    assert bundle.unregister(tmp_path / "bundles", this_copy=True) == [] and path.exists()
+    bundle.register(tmp_path / "bundles")
+    assert bundle.unregister(tmp_path / "bundles", this_copy=True) == [path]

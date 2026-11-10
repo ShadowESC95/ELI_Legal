@@ -66,7 +66,13 @@ Name: "{autodesktop}\ELI Legal"; Filename: "{app}\eli-legal-gui.exe"; Tasks: des
 Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}"; Tasks: addtopath; Check: NeedsAddPath(ExpandConstant('{app}'))
 
 [Run]
+; ELI v3, if it is on this machine, opens this copy from its start-up choice and Bundles menu.
+Filename: "{app}\eli-legal.exe"; Parameters: "bundle register --if-eli-v3"; Flags: runhidden waituntilterminated
 Filename: "{app}\eli-legal-gui.exe"; Description: "Start ELI Legal"; Flags: nowait postinstall skipifsilent
+
+[UninstallRun]
+; ELI v3's record of this copy goes with it; a record of another copy is left alone.
+Filename: "{app}\eli-legal.exe"; Parameters: "bundle unregister --this-copy"; Flags: runhidden waituntilterminated; RunOnceId: "UnregisterFromEliV3"
 
 [Messages]
 FinishedLabel=ELI Legal is installed.%n%nYour matters, the audit ledger and its key are kept in your user data folder (AppData\Local\ELI Legal), separate from the program. Uninstalling never removes them.

@@ -69,6 +69,9 @@ def demo_settings(root: Path, workspace: DemoWorkspace, **overrides: Any) -> Set
         "data_dir": root / "data" / "matters",
         "artifacts_dir": root / "artifacts",
         "jurisdictions_dir": workspace.jurisdictions,
+        # The demonstration and its evaluation give the same result on every machine, whatever
+        # embedding models it holds.
+        "embedding_model": "none",
     }
     values.update(overrides)
     return Settings(_env_file=None, **values)  # type: ignore[call-arg]

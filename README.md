@@ -29,8 +29,8 @@ documents ─▶ ingest ─▶ coverage ─▶ facts ─▶ issues ─▶ eviden
 | Ingest | PDF, DOCX, ODT, RTF, HTML, e-mail and text are read into paragraphs with page/paragraph locators. Originals are stored once, read-only, addressed by SHA-256. | A file that cannot be read is reported, never guessed at. |
 | Coverage | Every document is accounted for. | An unread document holds the run until a named person accepts the gap. |
 | Facts | Factual statements are taken **word for word** from the documents, with date, party and locator. | — |
-| Issues | Issues stated at intake, lifted from the papers, or proposed by a model (labelled as proposed). | — |
-| Legal research | Approved sources only. Also lists every authority the parties cite, with the sentence citing it. | An unapproved source cannot be reached. |
+| Issues | Issues stated at intake, lifted from the papers, or proposed by a model (labelled as proposed). Facts are filed under the issues they bear on by their words and, with an embedding model, their meaning. | — |
+| Legal research | Approved sources only, searched by the words of each issue and, with an embedding model on this machine, by meaning. Also lists every authority the parties cite, with the sentence citing it. | An unapproved source cannot be reached. |
 | Citation check | Does the authority exist in an approved source? | Not found in a source that is complete for that kind of citation: fails. |
 | Current-law check | Is it still good law, for the matter's relevant date, as confirmed recently enough? | Overruled, repealed, wrong version, or stale status: held. |
 | Proposition check | Does the source say what it is quoted as saying? | Anything reworded goes to a person; two models agreeing is not verification. |
@@ -218,14 +218,18 @@ question and Bundles menu).
   every member state. See [docs/5_legal_and_compliance/02_eu_ai_act.md](docs/5_legal_and_compliance/02_eu_ai_act.md). The registers under
   `src/eli_legal/governance/registers` map requirements to controls, and each duty that is an organisation's is
   an action to record in the application; until it is recorded it shows as waiting. They are aids, to be checked against the official texts, not legal advice.
-- **Not validated on real matters.** The evaluation matter is synthetic. Accuracy thresholds on
-  representative real matters must be set and met before anyone relies on it.
+- **Not validated on real matters.** The evaluation matter is synthetic, and so are the
+  benchmarks (`eli-legal evaluate`): 70 issues over fifteen real EU and UK instruments for legal
+  research, 50 facts in four disputes for linking facts to issues. On them research by words and
+  meaning finds 76% of the provisions in point among the first ten (by words alone 66%), and
+  linking reaches F1 0.44 to 0.52. Accuracy thresholds on representative real matters must be
+  set and met before anyone relies on it.
 - **Live databases for the EU and the UK only, and no case-law citator.** Live connectors reach
   the EU's Publications Office (CELLAR and EUR-Lex) and the UK's legislation.gov.uk and Find Case
   Law, once their licence is read and they are approved. They tell whether legislation is in force,
   from and until when, and what repealed it, on the matter's relevant date. No open database records
   whether a judgment was later overruled, so a judgment's standing goes to a person unless a licensed
-  citator is connected. Other legal systems use a corpus you load.
+  citator is connected; for an EU judgment the person is told which later judgments cite it. Other legal systems use a corpus you load.
 - **No encryption at rest and no OCR.** Use an encrypted volume; convert scans before ingestion.
 - **Unsigned installers.** The Windows and macOS builds are made and smoke-tested by the release workflow but have not been used by a person.
 - **No single sign-on or hardware keys.** Passphrase, lock-out and one-time codes only.

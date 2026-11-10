@@ -34,6 +34,7 @@ from eli_legal.legal.frameworks import (
 )
 from eli_legal.legal.issue_mapper import stems
 from eli_legal.legal.llm import PROMPT_VERSIONS, LegalModel, fenced
+from eli_legal.legal.semantic import SemanticIndex
 from eli_legal.security.access import Visibility
 from eli_legal.security.redaction import content_hash
 
@@ -87,6 +88,10 @@ class ChatAnswer:
 @dataclass(slots=True)
 class ChatService:
     ctx: AppContext
+
+    def _semantic(self) -> SemanticIndex | None:
+        """Chat ranks passages as research does; what is not embedded yet is found by words."""
+        return self.ctx.semantic
 
     def _latest_run(self, matter: Matter, run_id: str | None) -> Run | None:
         if run_id:
@@ -358,7 +363,7 @@ class ChatService:
         if connectors:
             codes = ctx.jurisdictions.jurisdiction_codes(matter)
             seen_authority: set[str] = set()
-            for hit in CaseLawRetriever(connectors).search(
+            for hit in CaseLawRetriever(connectors, semantic=self._semantic()).search(
                 jurisdictions=codes, query=question, limit=8
             ):
                 authority = hit.authority

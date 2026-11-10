@@ -247,6 +247,9 @@ def main(argv: list[str] | None = None) -> int:
     app = create_application(argv)
     if not _licensed():
         return 0
+    from eli_legal import bundle
+
+    bundle.refresh_registration()  # ELI v3 opens the newest copy on this machine
     settings = Settings()
     try:
         _ensure_key(settings)

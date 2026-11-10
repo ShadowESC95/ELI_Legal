@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -111,11 +112,61 @@ def register(target: Path | None = None) -> Path:
     return path
 
 
-def unregister(target: Path | None = None) -> list[Path]:
+def _version_key(text: str) -> tuple[int, ...]:
+    m = re.match(r"\s*(\d+(?:\.\d+)*)", str(text or ""))
+    return tuple(int(x) for x in m.group(1).split(".")) if m else ()
+
+
+def installed_copy() -> bool:
+    """An AppImage or an installed, packaged program; not a source checkout."""
+    return bool(os.environ.get("APPIMAGE")) or bool(getattr(sys, "frozen", False))
+
+
+def refresh_registration(target: Path | None = None) -> Path | None:
+    """Keep ELI v3's record of ELI Legal pointing at the newest copy on this machine.
+
+    Called when an installed copy starts. It registers this copy if ELI v3 is on this machine
+    and its record names no copy, a copy that has since been removed, or an older version;
+    a copy of the same version leaves the record alone, so two copies never take turns. A
+    source checkout registers only when told to. Never raises: ELI Legal starts regardless.
+    """
+    if target is None and (not installed_copy() or os.environ.get("ELI_LEGAL_MODE") == "eli_v3"):
+        return None  # a source checkout, or ELI v3's own process hosting ELI Legal
+    try:
+        folder = target or v3_bundle_dirs()[0]
+        if target is None and not folder.parent.is_dir():
+            return None  # ELI v3 is not on this machine
+        path = folder / "legal.json"
+        if path.is_file():
+            held = json.loads(path.read_text(encoding="utf-8"))
+            command = held.get("command") or []
+            present = bool(command) and Path(str(command[0])).exists()
+            if present and _version_key(held.get("version", "")) >= _version_key(__version__):
+                return None
+        return register(folder)
+    except (OSError, ValueError, TypeError):
+        return None
+
+
+def eli_v3_present() -> bool:
+    return v3_bundle_dirs()[0].parent.is_dir()
+
+
+def _names_this_copy(path: Path) -> bool:
+    try:
+        command = json.loads(path.read_text(encoding="utf-8")).get("command") or []
+        return bool(command) and Path(str(command[0])).resolve() == Path(own_command()[0]).resolve()
+    except (OSError, ValueError, TypeError):
+        return False
+
+
+def unregister(target: Path | None = None, *, this_copy: bool = False) -> list[Path]:
+    """Take ELI Legal off ELI v3's list; with ``this_copy``, only where the record names this
+    copy (an uninstaller must not remove the record of another copy)."""
     removed = []
     for folder in [target] if target else v3_bundle_dirs():
         path = folder / "legal.json"
-        if path.is_file():
+        if path.is_file() and (not this_copy or _names_this_copy(path)):
             path.unlink()
             removed.append(path)
     return removed

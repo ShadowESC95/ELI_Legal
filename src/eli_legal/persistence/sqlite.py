@@ -75,9 +75,15 @@ _SPECS: dict[type, _Spec] = {
 }
 
 _WORD = re.compile(r"[^\W_]+", re.UNICODE)
+# Words that carry no subject. Searching for them finds every passage that uses them: a question
+# "whether the buyer could keep them" matches any provision that says "them". The fuller list
+# (0.8) raised the research benchmark's MRR from 0.54 to 0.60 for research by words.
 _STOPWORDS = frozenset(
     "a an and are as at be been by for from has have in is it its of on or that the to was were "
-    "which with this these those not no under shall may must will would should can could".split()
+    "which with this these those not no under shall may must will would should can could "
+    "them they their theirs his her hers him she he whether any all other such than then there "
+    "where when what who whom whose also being having did does do had into our we you your me "
+    "my so if but because about still very just only own same each both".split()
 )
 
 
@@ -533,6 +539,11 @@ class Store:
         with self._tx() as con:
             aid = authority.authority_id
             con.execute("DELETE FROM passages_fts WHERE authority_id=?", (aid,))
+            con.execute(
+                "DELETE FROM passage_vectors WHERE passage_id IN "
+                "(SELECT passage_id FROM passages WHERE authority_id=?)",
+                (aid,),
+            )
             con.execute("DELETE FROM passages WHERE authority_id=?", (aid,))
             con.execute("DELETE FROM authority_citations WHERE authority_id=?", (aid,))
             con.execute(
@@ -558,12 +569,13 @@ class Store:
             for p in passages:
                 con.execute(
                     "INSERT INTO passages(passage_id, authority_id, ordinal, locator, text, "
-                    "text_hash) VALUES (?,?,?,?,?,?)",
-                    (p.passage_id, aid, p.ordinal, p.locator, p.text, p.text_hash),
+                    "text_hash, heading) VALUES (?,?,?,?,?,?,?)",
+                    (p.passage_id, aid, p.ordinal, p.locator, p.text, p.text_hash, p.heading),
                 )
+                # The heading is searched with the words under it.
                 con.execute(
                     "INSERT INTO passages_fts(text, passage_id, authority_id) VALUES (?,?,?)",
-                    (p.text, p.passage_id, aid),
+                    (f"{p.heading}\n{p.text}" if p.heading else p.text, p.passage_id, aid),
                 )
 
     def get_authority(self, authority_id: str) -> Authority | None:
@@ -600,16 +612,16 @@ class Store:
 
     def passages_for(self, authority_id: str) -> _List[AuthorityPassage]:
         rows = self._all(
-            "SELECT authority_id, ordinal, locator, text, text_hash, passage_id FROM passages "
-            "WHERE authority_id=? ORDER BY ordinal",
+            "SELECT authority_id, ordinal, locator, text, text_hash, passage_id, heading "
+            "FROM passages WHERE authority_id=? ORDER BY ordinal",
             (authority_id,),
         )
         return [AuthorityPassage(*r) for r in rows]
 
     def get_passage(self, passage_id: str) -> AuthorityPassage | None:
         rows = self._all(
-            "SELECT authority_id, ordinal, locator, text, text_hash, passage_id FROM passages "
-            "WHERE passage_id=?",
+            "SELECT authority_id, ordinal, locator, text, text_hash, passage_id, heading "
+            "FROM passages WHERE passage_id=?",
             (passage_id,),
         )
         return AuthorityPassage(*rows[0]) if rows else None
@@ -629,7 +641,7 @@ class Store:
         marks = ",".join("?" for _ in ids)
         sql = (
             "SELECT p.authority_id, p.ordinal, p.locator, p.text, p.text_hash, p.passage_id, "
-            "a.data, bm25(passages_fts) FROM passages_fts "
+            "p.heading, a.data, bm25(passages_fts) FROM passages_fts "
             "JOIN passages p ON p.passage_id = passages_fts.passage_id "
             "JOIN authorities a ON a.authority_id = p.authority_id "
             f"WHERE passages_fts MATCH ? AND a.source_id IN ({marks})"
@@ -644,9 +656,112 @@ class Store:
         sql += " ORDER BY bm25(passages_fts) LIMIT ?"
         params.append(limit)
         return [
-            (AuthorityPassage(*r[:6]), codec.loads(Authority, r[6]), -float(r[7]))
+            (AuthorityPassage(*r[:7]), codec.loads(Authority, r[7]), -float(r[8]))
             for r in self._all(sql, params)
         ]
+
+    # ── vectors for searching by meaning (legal/semantic.py) ────────────────
+    def _passage_scope(
+        self, source_ids: Iterable[str], jurisdictions: Iterable[str] | None
+    ) -> tuple[str, _List[Any]]:
+        ids = sorted(set(source_ids))
+        where = f"a.source_id IN ({','.join('?' for _ in ids)})" if ids else "0"
+        params: _List[Any] = list(ids)
+        if jurisdictions is not None:
+            js = sorted(set(jurisdictions))
+            where += f" AND a.jurisdiction IN ({','.join('?' for _ in js)})" if js else " AND 0"
+            params.extend(js)
+        return where, params
+
+    def count_passages(
+        self, source_ids: Iterable[str], jurisdictions: Iterable[str] | None = None
+    ) -> int:
+        where, params = self._passage_scope(source_ids, jurisdictions)
+        rows = self._all(
+            "SELECT count(*) FROM passages p JOIN authorities a ON a.authority_id = p.authority_id "
+            f"WHERE {where}",
+            params,
+        )
+        return int(rows[0][0])
+
+    def passages_without_vectors(
+        self,
+        model: str,
+        source_ids: Iterable[str],
+        jurisdictions: Iterable[str] | None = None,
+        *,
+        limit: int = 1000,
+    ) -> _List[AuthorityPassage]:
+        where, params = self._passage_scope(source_ids, jurisdictions)
+        rows = self._all(
+            "SELECT p.authority_id, p.ordinal, p.locator, p.text, p.text_hash, p.passage_id, "
+            "p.heading FROM passages p JOIN authorities a ON a.authority_id = p.authority_id "
+            f"WHERE {where} AND NOT EXISTS (SELECT 1 FROM passage_vectors v "
+            "WHERE v.passage_id = p.passage_id AND v.model = ?) "
+            "ORDER BY a.citation, p.authority_id, p.ordinal LIMIT ?",
+            [*params, model, limit],
+        )
+        return [AuthorityPassage(*r) for r in rows]
+
+    def put_passage_vectors(self, model: str, rows: Iterable[tuple[str, int, bytes]]) -> None:
+        with self._tx() as con:
+            con.executemany(
+                "INSERT OR REPLACE INTO passage_vectors(passage_id, model, part, vector) "
+                "VALUES (?,?,?,?)",
+                [(pid, model, part, blob) for pid, part, blob in rows],
+            )
+
+    def passage_vectors(
+        self, model: str, source_ids: Iterable[str], jurisdictions: Iterable[str] | None = None
+    ) -> _List[tuple[str, int, bytes]]:
+        where, params = self._passage_scope(source_ids, jurisdictions)
+        return [
+            (r[0], int(r[1]), bytes(r[2]))
+            for r in self._all(
+                "SELECT v.passage_id, v.part, v.vector FROM passage_vectors v "
+                "JOIN passages p ON p.passage_id = v.passage_id "
+                "JOIN authorities a ON a.authority_id = p.authority_id "
+                f"WHERE v.model = ? AND {where} ORDER BY v.passage_id, v.part",
+                [model, *params],
+            )
+        ]
+
+    def vectors_for_passages(
+        self, model: str, passage_ids: Iterable[str]
+    ) -> _List[tuple[str, int, bytes]]:
+        ids = sorted(set(passage_ids))
+        if not ids:
+            return []
+        return [
+            (r[0], int(r[1]), bytes(r[2]))
+            for r in self._all(
+                "SELECT passage_id, part, vector FROM passage_vectors WHERE model = ? AND "
+                f"passage_id IN ({','.join('?' for _ in ids)}) ORDER BY passage_id, part",
+                [model, *ids],
+            )
+        ]
+
+    def vector_version(self, model: str) -> tuple[int, int]:
+        """Changes whenever a vector of this model is added or a passage is replaced."""
+        rows = self._all(
+            "SELECT (SELECT count(*) FROM passage_vectors WHERE model = ?), "
+            "(SELECT coalesce(max(rowid), 0) FROM passages)",
+            (model,),
+        )
+        return int(rows[0][0]), int(rows[0][1])
+
+    def text_vector(self, model: str, text_hash: str) -> bytes | None:
+        rows = self._all(
+            "SELECT vector FROM text_vectors WHERE model = ? AND text_hash = ?", (model, text_hash)
+        )
+        return bytes(rows[0][0]) if rows else None
+
+    def put_text_vector(self, model: str, text_hash: str, vector: bytes) -> None:
+        with self._tx() as con:
+            con.execute(
+                "INSERT OR REPLACE INTO text_vectors(model, text_hash, vector) VALUES (?,?,?)",
+                (model, text_hash, vector),
+            )
 
 
 def _token_hash(token: str) -> str:

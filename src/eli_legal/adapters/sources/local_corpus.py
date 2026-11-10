@@ -102,29 +102,64 @@ def _parse_datetime(value: Any) -> datetime | None:
 def import_corpus(store: Store, source: RegisteredSource, directory: str | Path) -> list[Authority]:
     """Load ``*.json`` authority records from a directory into the corpus for ``source``.
 
-    Each record needs ``citation``, ``title``, ``jurisdiction`` and either ``text`` or
-    ``text_file`` (a path relative to the record). Re-importing a record with the same citation
+    Each record needs ``citation``, ``title``, ``jurisdiction`` and one of ``text``,
+    ``text_file`` (a path relative to the record) or ``passages`` (the text already divided:
+    ``[{"locator": "s.10", "text": "…", "heading": "…"}]``). Re-importing a record with the same citation
     replaces the earlier version.
     """
     root = Path(directory)
     if not root.is_dir():
         raise ConnectorError(f"corpus directory not found: {root}")
-    parser = LocalDocumentParser()
-    imported: list[Authority] = []
+    records: list[tuple[str, Any]] = []
     for record_path in sorted(root.glob("*.json")):
         try:
-            meta = json.loads(record_path.read_text(encoding="utf-8"))
+            records.append((record_path.name, json.loads(record_path.read_text(encoding="utf-8"))))
+        except ValueError as exc:
+            raise ConnectorError(f"invalid corpus record {record_path.name}: {exc}") from exc
+    return import_records(store, source, records, root=root)
+
+
+def import_records(
+    store: Store,
+    source: RegisteredSource,
+    records: Sequence[tuple[str, Any]],
+    *,
+    root: Path | None = None,
+) -> list[Authority]:
+    """Load authority records (name, record) into the corpus for ``source``. ``root`` is where
+    a record's ``text_file`` is looked for; without one, records carry their text."""
+    parser = LocalDocumentParser()
+    imported: list[Authority] = []
+    for name, meta in records:
+        record_path = (root or Path(".")) / name
+        try:
             citation = str(meta["citation"]).strip()
             jurisdiction = str(meta["jurisdiction"]).strip()
             title = str(meta.get("title") or citation)
-        except (ValueError, KeyError) as exc:
-            raise ConnectorError(f"invalid corpus record {record_path.name}: {exc}") from exc
+        except (ValueError, KeyError, TypeError) as exc:
+            raise ConnectorError(f"invalid corpus record {name}: {exc}") from exc
         if jurisdiction not in source.jurisdictions:
             raise ConnectorError(
                 f"{record_path.name}: jurisdiction {jurisdiction} is outside source "
                 f"{source.source_id}"
             )
-        if meta.get("text_file"):
+        headings: list[str] = []
+        if isinstance(meta.get("passages"), list):
+            # Already divided by its publisher: each passage with its own locator ("s.10",
+            # "Art. 17(1)") and, if the source prints one, its heading.
+            try:
+                given = [(str(x["locator"]), str(x["text"]), str(x.get("heading") or ""))
+                         for x in meta["passages"] if str(x.get("text") or "").strip()]  # fmt: skip
+            except (KeyError, TypeError) as exc:
+                raise ConnectorError(f"{record_path.name}: invalid passage: {exc}") from exc
+            if not given:
+                raise ConnectorError(f"{record_path.name}: no passage has any text")
+            segments = [(loc, text) for loc, text, _ in given]
+            headings = [head for _, _, head in given]
+            raw_for_hash = json.dumps(meta["passages"], sort_keys=True).encode("utf-8")
+        elif meta.get("text_file"):
+            if root is None:
+                raise ConnectorError(f"{name}: a text_file needs the corpus folder it is in")
             file_path = (record_path.parent / meta["text_file"]).resolve()
             if root.resolve() not in file_path.parents:
                 raise ConnectorError(f"{record_path.name}: text_file must be inside the corpus")
@@ -178,6 +213,7 @@ def import_corpus(store: Store, source: RegisteredSource, directory: str | Path)
                 locator=locator,
                 text=text,
                 text_hash=hashlib.sha256(text.encode("utf-8")).hexdigest(),
+                heading=headings[i] if i < len(headings) else "",
             )
             for i, (locator, text) in enumerate(segments)
         ]

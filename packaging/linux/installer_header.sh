@@ -48,6 +48,8 @@ remove_program() {
 }
 
 if [ "$MODE" = "uninstall" ]; then
+  # ELI v3's record of this copy goes with it; a record of another copy is left alone.
+  [ -x "$APP/eli-legal" ] && "$APP/eli-legal" bundle unregister --this-copy >/dev/null 2>&1 || true
   remove_program
   for name in eli-legal eli-legal-gui; do
     if [ -f "$BIN/$name" ] && grep -q "ELI Legal launcher" "$BIN/$name" 2>/dev/null; then rm -f "$BIN/$name"; fi
@@ -102,6 +104,12 @@ Categories=Office;
 StartupWMClass=ELI Legal
 DESKTOP
   command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$(dirname "$ENTRY")" >/dev/null 2>&1 || true
+fi
+
+# ELI v3, if it is on this machine, opens this copy from its start-up choice and Bundles menu.
+# For the current user only: a system-wide install registers when each user first starts it.
+if [ "$BIN" != "/usr/local/bin" ]; then
+  "$APP/eli-legal" bundle register --if-eli-v3 >/dev/null 2>&1 || true
 fi
 
 say ""

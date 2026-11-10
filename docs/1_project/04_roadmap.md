@@ -14,7 +14,8 @@ against code.
 3. Validation of the jurisdiction packs by qualified lawyers; then make validation mandatory.
 4. Single sign-on with an organisation's identity provider, and hardware security keys.
 5. Encryption at rest for the vault and stores; OCR on ingestion.
-6. Semantic retrieval alongside keyword search, matter-scoped.
+6. ~~Semantic retrieval alongside keyword search~~ (0.8: searching and linking by meaning, measured
+   on the research and linking benchmarks). Next: a reranker, and the benchmarks on real matters.
 7. Fact selection beyond dated and monetary statements when no model is configured.
 8. In ELI v3: apply the discovery patch and carry edition entitlements in the licence.
 

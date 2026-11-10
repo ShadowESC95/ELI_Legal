@@ -73,6 +73,14 @@ class Settings(BaseSettings):
     models_dirs: str = ""
     # Offer to choose a model when an administrator signs in and none is set.
     model_prompt: bool = True
+    # Searching by meaning (legal/semantic.py). "auto": the first embedding model found in the
+    # model folders (a GGUF whose name says it embeds, such as bge-small-en-v1.5 or
+    # nomic-embed-text-v1.5); a path names one; "none" switches it off. It changes which passages
+    # research offers and in what order, never what is verified. Runs on this machine.
+    embedding_model: str = "auto"
+    # At most this many passages are embedded during one run; the rest are found by their words
+    # until a later run, or "eli-legal source index", embeds them.
+    embedding_budget: int = 20000
 
     # How long a command-line sign-in lasts before the passphrase is needed again.
     session_hours: float = 8.0

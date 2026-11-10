@@ -38,15 +38,44 @@ DIRECTIVE = _sparql(
       "end": "2018-05-24", "repealer": "32016R0679",
       "title": "Directive 95/46/EC of the European Parliament and of the Council of 24 October 1995 on the protection of individuals"}]
 )  # fmt: skip
+CITING = _sparql(
+    [{"celex": "62022CJ0769", "date": "2026-04-21"}, {"celex": "62025CC0205", "date": "2026-04-16"},
+     {"celex": "62022CJ0621", "date": "2024-10-04"}]
+)  # fmt: skip
 JUDGMENT = _sparql(
     [{"celex": "62012CJ0131", "date": "2014-05-13", "ecli": "ECLI:EU:C:2014:317",
       "title": "Judgment of the Court (Grand Chamber), 13 May 2014.#Google Spain SL"}]
 )  # fmt: skip
-EURLEX = (
-    b"<html><body><p id='art_17'>Article 17</p><p>Right to erasure ('right to be forgotten')</p>"
-    b"<p>1. The data subject shall have the right to obtain from the controller the erasure of "
-    b"personal data concerning him or her without undue delay.</p></body></html>"
-)
+# EUR-Lex prints an act as a run of paragraphs: the citations, "Whereas:", each recital's number
+# then its words, the enacting formula, chapter headings, each article's heading and title, its
+# numbered paragraphs, each point's letter then its words, the signatures and the footnotes.
+EURLEX = """<html><body><p>4.5.2016</p><p>EN</p><p>Official Journal of the European Union</p>
+<p>THE EUROPEAN PARLIAMENT AND THE COUNCIL OF THE EUROPEAN UNION,</p>
+<p>Having regard to the Treaty on the Functioning of the European Union,</p>
+<p>Whereas:</p><p>(65)</p><p>A data subject should have the right to have personal data concerning him or her
+rectified and a ‘right to be forgotten’.</p>
+<p>HAVE ADOPTED THIS REGULATION:</p><p>CHAPTER III</p><p>Rights of the data subject</p>
+<p>Article 4</p><p>Definitions</p><p>For the purposes of this Regulation:</p>
+<p>(1)</p><p>‘personal data’ means any information relating to an identified or identifiable natural person;</p>
+<p>(2)</p><p>‘processing’ means any operation performed on personal data;</p>
+<p>Article 17</p><p>Right to erasure (‘right to be forgotten’)</p>
+<p>1. The data subject shall have the right to obtain from the controller the erasure of personal
+data concerning him or her without undue delay where one of the following grounds applies:</p>
+<p>(a)</p><p>the personal data are no longer necessary in relation to the purposes for which they were collected;</p>
+<p>(b)</p><p>the data subject withdraws consent.</p>
+<p>2. Where the controller has made the personal data public, it shall take reasonable steps. Article 18</p>
+<p>The data subject shall have the right to obtain restriction of processing.</p>
+<p>Done at Brussels, 27 April 2016.</p><p>For the European Parliament</p><p>The President</p>
+<p>(1) OJ C 229, 31.7.2012, p. 90.</p></body></html>""".encode()
+# A judgment: the parties, then "Judgment", each paragraph's number then its words, under the
+# headings of the judgment, and the ruling.
+CURIA = b"""<html><body><p>JUDGMENT OF THE COURT (Grand Chamber)</p><p>13 May 2014</p>
+<p>gives the following</p><p>Judgment</p><p>1</p><p>This request for a preliminary ruling concerns
+the interpretation of Directive 95/46.</p><p>Legal context</p><p>European Union law</p><p>3</p>
+<p>Directive 95/46 has the object of protecting the fundamental rights of natural persons.</p>
+<p>On those grounds, the Court (Grand Chamber) hereby rules:</p><p>1. Article 2(b) of Directive
+95/46 is to be interpreted as meaning that the activity of a search engine is processing.</p>
+<p>[Signatures]</p></body></html>"""
 UKSC = b"""<akomaNtoso xmlns="http://docs.oasis-open.org/legaldocml/ns/akn/3.0"><judgment name="judgment">
 <meta><identification source="#tna"><FRBRWork><FRBRthis value="https://caselaw.nationalarchives.gov.uk/id/uksc/2019/41"/>
 <FRBRdate date="2019-09-24" name="judgment"/><FRBRname value="R (on the application of Miller) v The Prime Minister"/></FRBRWork>
@@ -61,10 +90,29 @@ FEED = b"""<feed xmlns="http://www.w3.org/2005/Atom">
 
 
 def _act(valid: str, duty: str) -> bytes:
+    """legislation.gov.uk's CLML: a section under its heading with numbered subsections, a
+    schedule paragraph quoting the text it substitutes, and a schedule of plain paragraphs."""
+    uri = "http://www.legislation.gov.uk/ukpga/1996/23"
     return f"""<Legislation xmlns="http://www.legislation.gov.uk/namespaces/legislation"
  xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dct="http://purl.org/dc/terms/">
 <ukm:Metadata xmlns:ukm="http://www.legislation.gov.uk/namespaces/metadata"><dc:title>Arbitration Act 1996</dc:title><dct:valid>{valid}</dct:valid></ukm:Metadata>
-<Primary><Body><P1group><P1 id="section-33"><Pnumber>33</Pnumber><P1para><Text>{duty}</Text></P1para></P1></P1group></Body></Primary>
+<Primary><Body><P1group><Title>General duty of the tribunal.</Title>
+<P1 id="section-33" DocumentURI="{uri}/section/33"><Pnumber>33</Pnumber><P1para>
+<P2 id="section-33-1"><Pnumber>1</Pnumber><P2para><Text>{duty}</Text></P2para></P2>
+<P2 id="section-33-2"><Pnumber>2</Pnumber><P2para><Text>The tribunal shall comply with that duty.</Text></P2para></P2>
+</P1para></P1></P1group>
+<Schedules><Schedule id="schedule-1" DocumentURI="{uri}/schedule/1"><Number>Schedule 1</Number>
+<ScheduleBody><Pblock><Title>Section 9: stay of legal proceedings</Title>
+<P1 id="schedule-1-paragraph-2" DocumentURI="{uri}/schedule/1/paragraph/2"><Pnumber>2</Pnumber>
+<P1para><Text>For section 9 substitute:</Text><BlockAmendment><P1><Pnumber>9</Pnumber>
+<P1para><Text>A party may apply for a stay.</Text></P1para></P1></BlockAmendment></P1para></P1>
+</Pblock></ScheduleBody></Schedule>
+<Schedule id="schedule-2" DocumentURI="{uri}/schedule/2"><Number>Schedule 2</Number>
+<TitleBlock><Title>Guidelines</Title></TitleBlock><ScheduleBody><P1group><Title>Matters</Title>
+<P><Text>The matters to which regard is to be had are:</Text></P>
+<P3><Pnumber>a</Pnumber><P3para><Text>the strength of the parties' bargaining positions;</Text></P3para></P3>
+</P1group></ScheduleBody></Schedule></Schedules>
+</Body></Primary>
 </Legislation>""".encode()
 
 
@@ -72,7 +120,7 @@ RESPONSES = {
     "CELEX%3A32016R0679": EURLEX,
     "CELEX:32016R0679": EURLEX,
     "CELEX:31995L0046": EURLEX,
-    "CELEX:62012CJ0131": EURLEX,
+    "CELEX:62012CJ0131": CURIA,
     "uksc/2019/41/data.xml": UKSC,
     "all/1996/data.feed": FEED,
     "ukpga/1996/23/2017-06-01/data.xml": _act("2016-01-01", "The tribunal shall act fairly and impartially."),
@@ -93,6 +141,7 @@ class Recorded:
 
             query = parse_qs(urlsplit(url).query)["query"][0]
             for marker, body in (
+                ("work_cites_work", CITING),
                 ("32016R0679", GDPR),
                 ("31995L0046", DIRECTIVE),
                 ("ECLI:EU:C:2014:317", JUDGMENT),
@@ -138,6 +187,19 @@ def test_eu_citations_become_the_identifiers_the_publications_office_uses():
     assert live.celex_for("[2019] uksc 41") is None
 
 
+def test_every_way_of_citing_an_eu_act_finds_its_number():
+    for cited, celex in (
+        ("regulation (eu) no 1215/2012", "32012R1215"),  # before 2015: number, then year
+        ("regulation (eu) 1215/2012", "32012R1215"),
+        ("regulation (ec) no 593/2008", "32008R0593"),
+        ("council directive 85/374/eec", "31985L0374"),
+        ("regulation (eec) no 1408/71", "31971R1408"),
+        ("directive (eu) 2019/770", "32019L0770"),
+        ("commission implementing regulation (eu) 2021/914", "32021R0914"),
+    ):
+        assert live.celex_for(cited) == ("celex", celex), cited
+
+
 def test_uk_neutral_citations_become_find_case_law_addresses():
     assert live.find_case_law_path("[2019] uksc 41") == "uksc/2019/41"
     assert live.find_case_law_path("[2020] ewca civ 123") == "ewca/civ/2020/123"
@@ -151,7 +213,19 @@ def test_eu_legislation_carries_its_dates_and_who_repealed_it(store):
     assert gdpr.citation == "Regulation (EU) 2016/679" and gdpr.kind is AuthorityKind.LEGISLATION
     assert "applies from 2018-05-25" in gdpr.status_basis
     assert gdpr.status_checked_at is not None, "a live status is confirmed when it is fetched"
-    assert any(p.locator.startswith("Art. 17") for p in eu.passages(authority_id=gdpr.authority_id))
+    where = {p.locator: p for p in eu.passages(authority_id=gdpr.authority_id)}
+    assert list(where) == ["Recital 65", "Art. 4", "Art. 4(1)", "Art. 4(2)", "Art. 17(1)",
+                           "Art. 17(2)", "Art. 18"], "signatures and footnotes are left out"  # fmt: skip
+    erasure = where["Art. 17(1)"]
+    assert erasure.heading == "Right to erasure (‘right to be forgotten’)"
+    assert erasure.text.splitlines()[1:] == [
+        "(a) the personal data are no longer necessary in relation to the purposes for which they "
+        "were collected;",
+        "(b) the data subject withdraws consent.",
+    ], "a point's letter is joined to its words"
+    assert where["Art. 4(1)"].text.startswith("(1) ‘personal data’ means")
+    assert where["Art. 17(2)"].text.endswith("reasonable steps."), "a heading printed at the end"
+    assert where["Art. 18"].text.startswith("The data subject shall have the right to obtain")
     [old] = eu.resolve(citation_key="31995l0046")
     assert old.citation == "Directive 95/46/EC" and old.status is AuthorityStatus.REPEALED
     assert old.treatments[0].by_citation == "32016R0679"
@@ -166,6 +240,18 @@ def test_a_judgment_without_treatment_data_goes_to_a_person(store):
     eu, uk = _connector(store, "eu_cellar"), _connector(store, "uk_open")
     [cjeu] = eu.resolve(citation_key="c-131/12")
     assert cjeu.citation == "ECLI:EU:C:2014:317" and cjeu.status is AuthorityStatus.UNKNOWN
+    assert (
+        "cited by 2 later judgment(s) and 1 Advocate General's opinion(s), most recently "
+        "C-769/22 (2026-04-21), C-621/22 (2024-10-04); read them to confirm it was not departed"
+        in cjeu.status_basis
+    ), "where the person confirming its standing looks first"
+    assert live.case_number("62012CJ0131") == "C-131/12" and live.case_number("62019TJ0012") == (
+        "T-12/19"
+    )
+    paragraphs = {p.locator: p for p in eu.passages(authority_id=cjeu.authority_id)}
+    assert list(paragraphs) == ["¶1", "¶3", "Ruling"]
+    assert paragraphs["¶3"].heading == "European Union law"
+    assert "search engine is processing" in paragraphs["Ruling"].text
     assert _assess(eu, cjeu, date(2020, 1, 1))[0] is V.INCONCLUSIVE
     [miller] = uk.resolve(citation_key="[2019] uksc 41")
     assert miller.citation == "[2019] UKSC 41" and miller.decision_date == date(2019, 9, 24)
@@ -181,8 +267,19 @@ def test_uk_legislation_is_judged_on_the_version_in_force_on_the_relevant_date(s
     assert len(versions) == 2
     [then] = [v for v in versions if applicable_on(v, when)]
     assert then.effective_from == date(2016, 1, 1) and then.effective_to == date(2025, 7, 31)
-    words = [p.text for p in uk.passages(authority_id=then.authority_id)]
-    assert words == ["33 The tribunal shall act fairly and impartially."], "the text of 2017"
+    passages = {p.locator: p for p in uk.passages(authority_id=then.authority_id)}
+    assert list(passages) == ["s.33", "Sch. 1 para. 2", "Sch. 2"], (
+        "a quoted provision is no section"
+    )
+    assert passages["s.33"].heading == "General duty of the tribunal."
+    assert passages["s.33"].text.splitlines() == [
+        "(1) The tribunal shall act fairly and impartially.",
+        "(2) The tribunal shall comply with that duty.",
+    ], "the text of 2017, numbered as printed"
+    quoting = passages["Sch. 1 para. 2"].text
+    assert quoting == "For section 9 substitute:\n9 A party may apply for a stay.", "own line"
+    assert passages["Sch. 2"].heading == "Guidelines"
+    assert "(a) the strength of the parties' bargaining positions;" in passages["Sch. 2"].text
     verdict, detail = _assess(uk, then, when)
     assert verdict is V.VERIFIED and "has since changed (now amended)" in detail
 

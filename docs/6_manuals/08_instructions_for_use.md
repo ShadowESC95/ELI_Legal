@@ -17,7 +17,9 @@ human reviewer; unattended use.
   marked verified exists in an approved source and was in good standing when the source last said
   so. It is not a finding that it governs the case.
 - **What the parties' authorities stand for is not checked.** Section 5 of the report shows what a
-  party says an authority decides beside the closest passage of the authority. Compare them.
+  party says an authority decides beside the closest passage of the authority, closest in meaning
+  when an embedding model is set up and in wording otherwise (the table says which). Compare
+  them: the closest passage is a pointer, not a finding that the authority supports the party.
 - **Read section 6.** Findings that failed verification are listed there with reasons. An
   overruled case a party relies on is something you need to know, not noise.
 - **Read section 8.** It lists every limit of the particular report: documents not read, packs not
@@ -25,8 +27,10 @@ human reviewer; unattended use.
 - **Model-drafted arguments are prompts for thought.** They rest on verified items but can be
   misattributed, incomplete or repetitive.
 - **Absence is not evidence.** Without a model, facts are selected by rule (dated or monetary
-  statements); relevant undated facts can be missing. Keyword search can miss an authority
-  phrased differently. No source is complete unless it is declared so.
+  statements); relevant undated facts can be missing. Research by words alone misses a
+  provision put in other words more often: section 8 says whether research also searched by
+  meaning. Even with both, on the research benchmark a quarter of the provisions in point were
+  not among the first ten found. No source is complete unless it is declared so.
 
 ## What the organisation must do
 

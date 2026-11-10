@@ -69,7 +69,7 @@ from eli_legal.legal.frameworks import (
     compile_context,
     tighten_status_age,
 )
-from eli_legal.legal.issue_mapper import IssueMapper, stems, terms
+from eli_legal.legal.issue_mapper import MEANING_Z, IssueMapper, stems, terms
 from eli_legal.legal.llm import PROMPT_VERSIONS, LegalModel
 from eli_legal.legal.proposition_verifier import PropositionVerifier
 from eli_legal.legal.provenance import ProvenanceVerifier
@@ -425,7 +425,7 @@ class CasePreparation:
         documents = self._documents(c)
         excluded = self._model_excluded_documents(c)
         chunks = self._chunks(c, [d for d in documents if d.document_id not in excluded])
-        mapper = IssueMapper(self.model)
+        mapper = IssueMapper(self.model, semantic=ctx.semantic)
         issues = mapper.identify(matter=c.matter, run_id=rid, documents=documents, chunks=chunks)
         for issue in issues:
             issue.issue_id = stable_id("iss", rid, " ".join(sorted(terms(issue.label))))
@@ -442,6 +442,13 @@ class CasePreparation:
         for fact in facts:
             # With no issues to organise by, the chronology itself is the product.
             fact.material = bool(fact.issue_ids) or not issues
+        semantic = mapper.semantic
+        c.run.tool_versions["linking"] = (
+            f"words+meaning:{semantic.model_id};z{MEANING_Z}"
+            if semantic is not None and semantic.available
+            else "words"
+        )
+        ctx.store.put(c.run)
         ctx.store.delete_records(Issue, mid, run_id=rid)
         ctx.store.put_many([*issues, *facts])
         return {
@@ -482,8 +489,29 @@ class CasePreparation:
             else:
                 found[claim.claim_id] = claim
 
+        retriever = CaseLawRetriever(connectors)
+        note = ""
         if connectors:
-            retriever = CaseLawRetriever(connectors)
+            semantic = ctx.semantic
+            if semantic is not None:
+                # Passages not yet embedded are embedded now, up to the budget; the rest are
+                # found by their words alone, and the report says so.
+                try:
+                    coverage = semantic.ensure(
+                        list(connectors), codes, budget=ctx.settings.embedding_budget
+                    )
+                    if not coverage.complete:
+                        note = (
+                            f"Searching by meaning covered {coverage.total - coverage.missing} of "
+                            f"{coverage.total} passages; the rest were found by their words only."
+                        )
+                except Exception as exc:  # any failure of the model leaves research by words
+                    semantic = None
+                    note = (
+                        f"Searching by meaning could not run ({type(exc).__name__}: "
+                        f"{str(exc)[:160]}); passages were found by their words only."
+                    )
+            retriever = CaseLawRetriever(connectors, semantic=semantic)
             for issue in issues:
                 for proposition in retriever.propositions_for_issue(
                     matter_id=mid,
@@ -505,6 +533,14 @@ class CasePreparation:
             claim.issue_ids = [i for i, t in issue_terms.items() if len(claim_terms & t) >= 2]
             add(claim, claim.evidence[0].target_id)
         claims = list(found.values())
+        # What ranked the passages is a tool of the run: a change of it between runs is a change
+        # to reassess (monitoring), and the report states it.
+        c.run.tool_versions["retrieval"] = retriever.method
+        if note:
+            c.run.tool_versions["retrieval_note"] = note
+        else:
+            c.run.tool_versions.pop("retrieval_note", None)
+        ctx.store.put(c.run)
         self._upsert_claims(c, claims, set(_LEGAL_KINDS))
         every = self._claims(c)
         for issue in issues:
@@ -520,7 +556,7 @@ class CasePreparation:
             outcome="completed",
             object_type="run",
             source_ids=sorted(connectors),
-            tool_id="sqlite-fts5-bm25/1",
+            tool_id=retriever.method,
             payload={"jurisdictions": codes, "findings": len(claims)},
         )
         return {
@@ -529,6 +565,8 @@ class CasePreparation:
                 1 for x in claims if x.kind is ClaimKind.LEGAL_PROPOSITION
             ),
             "party_citations": sum(1 for x in claims if x.kind is ClaimKind.PARTY_AUTHORITY),
+            "ranked_by": retriever.method,
+            **({"note": note} if note else {}),
         }
 
     def citation_verification(self, c: StepContext) -> Mapping[str, Any]:
@@ -546,8 +584,26 @@ class CasePreparation:
             if authority is not None and claim.authority_id != authority.authority_id:
                 claim.authority_id = authority.authority_id
                 changed.append(claim)
+            if authority is not None and claim.kind is ClaimKind.PARTY_AUTHORITY:
+                closest = self._closest_in_meaning(claim, authority.authority_id)
+                if closest != claim.closest_passage_id:
+                    claim.closest_passage_id = closest
+                    if claim not in changed:
+                        changed.append(claim)
         self.ctx.store.put_many([*results, *changed])
         return _tally(results)
+
+    def _closest_in_meaning(self, claim: Claim, authority_id: str) -> str:
+        """The passage of the cited authority closest in meaning to what the party says of it,
+        for the reader to compare; '' without an embedding model or if it cannot run."""
+        semantic = self.ctx.semantic
+        if semantic is None:
+            return ""
+        try:
+            found = semantic.closest(claim.text, self.ctx.store.passages_for(authority_id))
+        except Exception:  # the model failing leaves the passage closest in wording
+            return ""
+        return found[0] if found else ""
 
     def current_law_check(self, c: StepContext) -> Mapping[str, Any]:
         ctx = self.ctx

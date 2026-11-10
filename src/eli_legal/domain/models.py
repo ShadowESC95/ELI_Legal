@@ -160,6 +160,10 @@ class Claim:
     access_scope: AccessScope = AccessScope.ALL_PARTIES
     status_reason: str = ""
     created_at: datetime = field(default_factory=utcnow)
+    # For what a party says of an authority: the passage of the authority closest in meaning,
+    # chosen during the run so the report is rebuilt the same without the model. A pointer for
+    # the reader, never a finding that the authority supports it.
+    closest_passage_id: str = ""
 
 
 @dataclass(slots=True)
@@ -217,6 +221,9 @@ class AuthorityPassage:
     text: str
     text_hash: str
     passage_id: str = field(default_factory=lambda: new_id("psg"))
+    # The heading the source prints above it ("Right to erasure", "Stipulations about time."):
+    # searched with the text, never quoted as if it were the text.
+    heading: str = ""
 
 
 @dataclass(slots=True)

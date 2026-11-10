@@ -8,6 +8,7 @@ are labelled as such so a reviewer can confirm or discard them.
 from __future__ import annotations
 
 import re
+import statistics
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -23,6 +24,7 @@ from eli_legal.legal.llm import (
     fenced,
     numbered,
 )
+from eli_legal.legal.semantic import SemanticIndex
 from eli_legal.persistence.sqlite import _STOPWORDS, _WORD
 
 _EXCERPT_CHARS = 9000
@@ -54,6 +56,13 @@ _LEGAL_HINTS = re.compile(
 )
 
 
+# Linking by meaning: a fact is linked to the issue it is closest to, when it stands out among the
+# matter's facts for that issue (its closeness this many standard deviations above their mean).
+# Chosen on half of the linking benchmark (evaluation/linking.py) and checked on the other half;
+# both embedding models measured chose it.
+MEANING_Z = 0.25
+_MEANING_MIN_FACTS = 3  # below this, "stands out" means nothing
+
 # Words that name the roles in any dispute; they link everything to everything.
 _ROLE_WORDS = frozenset(
     "claimant respondent applicant defendant plaintiff appellant party parties agreement "
@@ -79,6 +88,7 @@ def _kind(label: str) -> str:
 class IssueMapper:
     model: LegalModel
     min_overlap: int = 2
+    semantic: SemanticIndex | None = None
 
     def identify(
         self, *, matter: Matter, run_id: str, documents: Sequence[Document], chunks: Sequence[Chunk]
@@ -162,7 +172,8 @@ class IssueMapper:
         """Attach facts to the issues they bear on. Mutates the issues and the facts.
 
         Facts named in ``model_excluded_claim_ids`` are linked by wording only; their text is
-        never shown to the model.
+        never shown to the model. With an embedding model, a fact is also linked to the issue it
+        is closest to in meaning when it stands out for that issue (``MEANING_Z``).
         """
         issue_terms = {i.issue_id: stems(f"{i.label} {i.description}") for i in issues}
         if len(issues) > 1:
@@ -175,17 +186,47 @@ class IssueMapper:
         for_model = [f for f in facts if f.claim_id not in model_excluded_claim_ids]
         if self.model.available and issues and for_model:
             linked_by_model = self._model_link(issues, for_model)
+        linked_by_meaning = self._meaning_link(issues, for_model)
         for fact in facts:
             fact_terms = stems(fact.text)
             for issue in issues:
                 wanted = issue_terms[issue.issue_id]
                 lexical = len(fact_terms & wanted) >= min(self.min_overlap, max(1, len(wanted)))
                 modelled = issue.issue_id in linked_by_model.get(fact.claim_id, set())
-                if lexical or modelled:
+                meant = issue.issue_id in linked_by_meaning.get(fact.claim_id, set())
+                if lexical or modelled or meant:
                     if issue.issue_id not in fact.issue_ids:
                         fact.issue_ids.append(issue.issue_id)
                     if fact.claim_id not in by_id[issue.issue_id].claim_ids:
                         by_id[issue.issue_id].claim_ids.append(fact.claim_id)
+
+    def _meaning_link(self, issues: Sequence[Issue], facts: Sequence[Claim]) -> dict[str, set[str]]:
+        """Each fact to the issue it is closest to in meaning, if it stands out for that issue
+        among the matter's facts. Runs on this machine; the text goes to no language model."""
+        if self.semantic is None or not self.semantic.available:
+            return {}
+        if not issues or len(facts) < _MEANING_MIN_FACTS:
+            return {}
+        try:
+            issue_vectors = self.semantic.document_vectors(
+                [f"{i.label} {i.description}".strip() for i in issues]
+            )
+            fact_vectors = self.semantic.document_vectors([f.text for f in facts])
+        except Exception as exc:  # the model failing leaves linking by wording
+            self.model.stats.notes.append(f"fact_issue_link by meaning: {type(exc).__name__}")
+            return {}
+        sims = [[self.semantic.similarity(f, i) for i in issue_vectors] for f in fact_vectors]
+        spread = []
+        for j in range(len(issues)):
+            column = [row[j] for row in sims]
+            spread.append((statistics.mean(column), statistics.pstdev(column) or 1.0))
+        out: dict[str, set[str]] = {}
+        for fact, row in zip(facts, sims, strict=True):
+            j = max(range(len(issues)), key=lambda k: row[k])
+            mean, sd = spread[j]
+            if (row[j] - mean) / sd >= MEANING_Z:
+                out.setdefault(fact.claim_id, set()).add(issues[j].issue_id)
+        return out
 
     def _model_link(self, issues: Sequence[Issue], facts: Sequence[Claim]) -> dict[str, set[str]]:
         out: dict[str, set[str]] = {}

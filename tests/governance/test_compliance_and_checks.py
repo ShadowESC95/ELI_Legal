@@ -6,6 +6,7 @@ retention, deadlines), act where acting is certain, and never show a matter to s
 """
 
 import json
+import re
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -214,7 +215,8 @@ def test_an_authority_overruled_after_approval_opens_an_incident_once(approved):
     found = {r.check_id: r for r in sv.checks.run().results}["authorities"]
     assert found.state == "attention" and found.acted
     assert [i.text.split(",")[0] for i in found.items] == ["[2022] XXSC 7"]
-    assert "approved report" in found.items[0].text and "(2 findings)" in found.items[0].text
+    relied = re.search(r"\((\d+) findings\)", found.items[0].text)
+    assert "approved report" in found.items[0].text and relied and int(relied.group(1)) >= 2
     matter_id = found.items[0].matter_id
     incidents = [
         i

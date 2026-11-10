@@ -59,8 +59,11 @@ Fetch = Callable[[str, str], bytes]  # (url, accept) -> body
 @dataclass(frozen=True, slots=True)
 class Found:
     authority: Authority
-    passages: list[tuple[str, str]]  # (locator, text)
+    passages: list[Located]
     keys: list[str]
+
+
+Located = tuple[str, str, str]  # (locator, text, heading)
 
 
 def http_fetch(guard: NetworkGuard, hosts: Sequence[str]) -> Fetch:
@@ -127,8 +130,8 @@ class LiveConnector(LocalCorpusConnector):
             if same:
                 a.authority_id = same[0].authority_id
             passages = [
-                AuthorityPassage(a.authority_id, i, loc, text, content_hash(text))
-                for i, (loc, text) in enumerate(f.passages)
+                AuthorityPassage(a.authority_id, i, loc, text, content_hash(text), heading=head)
+                for i, (loc, text, head) in enumerate(f.passages)
             ]
             keys = {normalise_citation(k) for k in [citation_key, a.citation, *f.keys] if k}
             self.store.put_authority(a, passages, sorted(keys))
@@ -141,7 +144,10 @@ class LiveConnector(LocalCorpusConnector):
 
 # ── the European Union ───────────────────────────────────────────────────────
 _SPARQL = "https://publications.europa.eu/webapi/rdf/sparql"
-_ACT = re.compile(r"^(regulation|directive|decision)\s*(?:\((eu|ec|eec|euratom)\))?\s*(\d+)/(\d+)")
+_ACT = re.compile(
+    r"^(?:(?:council|commission)\s+)?(?:(?:implementing|delegated)\s+)?"
+    r"(regulation|directive|decision)\s*(?:\((eu|ec|eec|euratom)\))?\s*(?:no\.?\s*)?(\d+)/(\d+)"
+)
 _CASE = re.compile(r"^([ctf])-(\d+)/(\d{2})$")
 _CELEX = re.compile(r"^[0-9][0-9]{4}[a-z]{1,2}[0-9]{4}(?:\(\d+\))?$")
 _TYPE = {"regulation": "R", "directive": "L", "decision": "D"}
@@ -161,13 +167,36 @@ def celex_for(key: str) -> tuple[str, str] | None:
         return "case", f"6{full_year}{'CJ' if court == 'c' else 'TJ'}{int(number):04d}"
     m = _ACT.match(k)
     if m:
-        kind, series, a, b = m.groups()
-        # "(EU) 2016/679" and "Directive 2011/83" put the year first; "(EC) No 44/2001" second.
-        year, number = (a, b) if series == "eu" or kind != "regulation" or len(a) == 4 else (b, a)
+        kind, _series, a, b = m.groups()
+        year, number = _year_and_number(kind, a, b)
         if len(year) == 2:
             year = ("20" if int(year) < 50 else "19") + year
         return "celex", f"3{year}{_TYPE[kind]}{int(number):04d}"
     return None
+
+
+def _year_and_number(kind: str, a: str, b: str) -> tuple[str, str]:
+    """Which half of "2016/679", "1215/2012", "44/2001" or "95/46" is the year. Since 2015 every
+    act puts the year first; before, a regulation put it second and a directive or decision
+    first."""
+
+    def year_like(x: str) -> bool:
+        return len(x) == 4 and 1950 <= int(x) <= 2100
+
+    if year_like(a) != year_like(b):
+        return (a, b) if year_like(a) else (b, a)
+    if year_like(a):
+        return (a, b) if int(a) >= 2015 else (b, a)
+    return (b, a) if kind == "regulation" else (a, b)
+
+
+def case_number(celex: str) -> str:
+    """'62022CJ0769' -> 'C-769/22'; 'T' for the General Court."""
+    m = re.match(r"^6(\d{4})(CJ|TJ|CC|CO|TO)(\d{4})", celex)
+    if not m:
+        return celex
+    year, court, number = m.groups()
+    return f"{'T' if court.startswith('T') else 'C'}-{int(number)}/{year[2:]}"
 
 
 class EuConnector(LiveConnector):
@@ -195,6 +224,46 @@ class EuConnector(LiveConnector):
         data = json.loads(self.fetch(url, "application/sparql-results+json"))
         return [{k: v["value"] for k, v in b.items()} for b in data["results"]["bindings"]]
 
+    def _cited_by(self, celex: str) -> str:
+        """The later judgments and opinions of the Court that cite this one, as CELLAR records
+        them: where a person confirming its standing looks first. Whether each followed it or
+        departed from it is not recorded; nothing here changes the status."""
+        query = (
+            "PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>\n"
+            "SELECT DISTINCT ?celex ?date WHERE {\n"
+            f'  ?work cdm:resource_legal_id_celex "{celex}"^^'
+            "<http://www.w3.org/2001/XMLSchema#string> .\n"
+            "  ?citing cdm:work_cites_work ?work .\n"
+            "  ?citing cdm:resource_legal_id_celex ?celex .\n"
+            "  OPTIONAL { ?citing cdm:work_date_document ?date }\n"
+            '  FILTER(STRSTARTS(STR(?celex), "6"))\n'
+            "} ORDER BY DESC(?date) LIMIT 200"
+        )
+        try:
+            body = self.fetch(
+                f"{_SPARQL}?{urllib.parse.urlencode({'query': query})}",
+                "application/sparql-results+json",
+            )
+            rows = [
+                {k: v["value"] for k, v in b.items()}
+                for b in json.loads(body)["results"]["bindings"]
+            ]
+        except (ConnectorError, ValueError, KeyError):
+            return "; whether later judgments cite it could not be looked up"
+        judgments = [r for r in rows if r["celex"][5:7] in ("CJ", "TJ") and r["celex"] != celex]
+        opinions = [r for r in rows if r["celex"][5:7] == "CC"]
+        if not judgments and not opinions:
+            return "; CELLAR records no later judgment citing it"
+        out = f"; cited by {len(judgments)} later judgment(s)"
+        if opinions:
+            out += f" and {len(opinions)} Advocate General's opinion(s)"
+        latest = [f"{case_number(r['celex'])} ({r.get('date', '')[:10]})" for r in judgments[:3]]
+        return (
+            out
+            + (f", most recently {', '.join(latest)}" if latest else "")
+            + ("; read them to confirm it was not departed from")
+        )
+
     def lookup(self, citation_key: str) -> list[Found]:
         target = celex_for(citation_key)
         if target is None:
@@ -216,7 +285,9 @@ class EuConnector(LiveConnector):
         end = next((r["end"] for r in rows if r.get("end")), "")
         repealer = next((r["repealer"] for r in rows if r.get("repealer")), "")
         in_force = next((r["inforce"] for r in rows if r.get("inforce")), "")
-        title = next((r["title"] for r in rows if r.get("title")), celex).split("#")[0].strip()
+        title = " ".join(
+            next((r["title"] for r in rows if r.get("title")), celex).split("#")[0].split()
+        )
         effective_to = _day(end) if end and not end.startswith("9999") else None
         treatments: list[Treatment] = []
         if is_case:
@@ -248,6 +319,7 @@ class EuConnector(LiveConnector):
             status=status,
             status_basis=(
                 "EUR-Lex records no later treatment of judgments; a person must confirm it"
+                + self._cited_by(celex)
                 if is_case
                 else f"CELLAR: in force {'yes' if in_force == '1' else 'no'}"
                 + (f"; applies from {starts[-1]}" if len(starts) > 1 else "")
@@ -257,7 +329,8 @@ class EuConnector(LiveConnector):
             treatments=treatments,
             aliases=[celex, *([ecli] if ecli else [])],
         )
-        return [Found(authority, _eurlex_passages(html), [celex, ecli, citation_key])]
+        passages = _eurlex_judgment(html) if is_case else _eurlex_act(html)
+        return [Found(authority, passages, [celex, ecli, citation_key])]
 
 
 _SHORT = re.compile(
@@ -283,18 +356,225 @@ def _act_citation(celex: str) -> str:
     )
 
 
-def _eurlex_passages(html: bytes) -> list[tuple[str, str]]:
-    """EUR-Lex HTML as located passages: each paragraph, located by the article it is in."""
+_ARTICLE = re.compile(r"^Article\s+(\d+[a-z]*)$")
+_DIVISION = re.compile(
+    r"^(?:CHAPTER|TITLE|PART|SECTION|Chapter|Title|Part|Section)\s+[IVXLCDM\d]+[A-Z]?$"
+)
+_PARAGRAPH = re.compile(r"^(\d+[a-z]?)\.\s+\S")
+_POINT = re.compile(r"^‘?\((\d+[a-z]?|[a-z]{1,2}|[ivxlc]+)\)$")
+_ENACTING = re.compile(r"^HA(?:VE|S) ADOPTED (?:THIS|THE FOLLOWING)\b", re.I)
+_ANNEX = re.compile(r"^ANNEX(?:\s+([IVXLC]+|\d+))?$")
+_FOOTNOTE = re.compile(
+    r"^\(\d+\)\s+(?:OJ|Regulation|Directive|Decision|Council|Commission|Position|Opinion)\b"
+)
+_ANNEX_CHARS = 3000
+
+
+_TRAILING_ARTICLE = re.compile(r"^(.*[.;:])\s+(Article\s+\d+[a-z]*)$")
+
+
+def _segments(html: bytes) -> list[str]:
     parsed = LocalDocumentParser().parse("document.html", html)
-    out: list[tuple[str, str]] = []
-    article = ""
+    out: list[str] = []
     for segment in parsed.segments:
-        heading = re.match(r"^(Article|Art\.)\s+(\d+[a-z]*)\b", segment.text.strip())
+        text = " ".join(segment.text.split())
+        # Some older acts print an article's heading at the end of the paragraph before it
+        # ("… shall not be affected by this Directive. Article 11").
+        glued = _TRAILING_ARTICLE.match(text)
+        out.extend(glued.groups() if glued else [text] if text else [])
+    return out
+
+
+class _Passages:
+    """Builds located passages from a run of segments: each passage is a list of pieces, and a
+    point's marker, "(a)", is joined to the words that follow it."""
+
+    def __init__(self) -> None:
+        self.out: list[Located] = []
+        self.locator = ""
+        self.heading = ""
+        self.pieces: list[str] = []
+        self.marker = ""
+
+    def start(self, locator: str, heading: str = "") -> None:
+        self.flush()
+        self.locator, self.heading = locator, heading
+
+    def add(self, text: str) -> None:
+        if self.marker:
+            text, self.marker = f"{self.marker} {text}", ""
+        if self.locator:
+            self.pieces.append(text)
+
+    def flush(self) -> None:
+        if self.marker:
+            self.pieces.append(self.marker)
+            self.marker = ""
+        if self.locator and self.pieces:
+            self.out.append((self.locator, "\n".join(self.pieces), self.heading))
+        self.locator, self.pieces = "", []
+
+
+def _eurlex_act(html: bytes) -> list[Located]:
+    """A Union act as located passages: each recital; each numbered paragraph of an article,
+    with its points, under the article's title ("Art. 17(1)", "Right to erasure"); each
+    definition of a definitions article ("Art. 4(1)"); and each annex. The signatures and the
+    footnotes are left out."""
+    segments = _segments(html)
+    if not any(_ARTICLE.match(t) for t in segments):
+        return _eurlex_plain(segments)
+    b = _Passages()
+    stage = "front"  # front, recitals, articles, closing, annex
+    enacted = any(_ENACTING.match(t) for t in segments)
+    article = title = ""
+    expect_title = skip_next = False
+    recital = 0
+    for n, text in enumerate(segments):
+        if _FOOTNOTE.match(text):
+            continue
+        if skip_next:  # the title of a chapter or section
+            skip_next = False
+            continue
+        if _ENACTING.match(text):
+            b.flush()
+            stage = "articles"
+            continue
+        annex = _ANNEX.match(text)
+        if annex and stage in ("articles", "closing", "annex"):
+            name = f"Annex {annex.group(1)}" if annex.group(1) else "Annex"
+            following = segments[n + 1] if n + 1 < len(segments) else ""
+            b.start(name, following if len(following) < 150 else "")
+            stage = "annex"
+            continue
+        if stage in ("front", "recitals") and not enacted and _ARTICLE.match(text):
+            b.flush()
+            stage = "articles"  # no enacting formula printed: the articles begin here
+        if stage == "front":
+            if text.startswith("Whereas"):
+                stage = "recitals"
+                if text.rstrip(":").strip() == "Whereas":
+                    continue
+            else:
+                continue
+        if stage == "recitals":
+            point = _POINT.match(text)
+            if point and point.group(1).isdigit():
+                b.start(f"Recital {point.group(1)}")
+            elif text.startswith(("Whereas", "whereas")):
+                recital += 1
+                b.start(f"Recital {recital}")
+                b.add(text)
+            else:
+                b.add(text)
+            continue
+        if stage == "closing":
+            continue
+        if stage == "annex":
+            if sum(len(p) for p in b.pieces) > _ANNEX_CHARS:
+                b.start(f"{b.locator.split(' ¶')[0]} ¶{n}", b.heading)
+            if text != b.heading or b.pieces:
+                b.add(text)
+            continue
+        # The enacting terms.
+        if text.startswith("Done at "):
+            b.flush()
+            stage = "closing"
+            continue
+        if _DIVISION.match(text):
+            b.flush()
+            skip_next = True
+            continue
+        heading = _ARTICLE.match(text)
         if heading:
-            article = f"Art. {heading.group(2)}"
-        out.append((f"{article} {segment.locator}".strip() if article else segment.locator,
-                    segment.text))  # fmt: skip
-    return out[:2000]
+            article, title, expect_title = heading.group(1), "", True
+            b.start(f"Art. {article}")
+            continue
+        if expect_title:
+            expect_title = False
+            if (
+                len(text) < 200
+                and not _PARAGRAPH.match(text)
+                and not _POINT.match(text)
+                and not text.endswith((".", ":", ";"))
+            ):
+                title = b.heading = text
+                continue
+        paragraph = _PARAGRAPH.match(text)
+        if paragraph:
+            b.start(f"Art. {article}({paragraph.group(1)})", title)
+            b.add(text)
+            continue
+        point = _POINT.match(text)
+        if point:
+            numbered = point.group(1)[0].isdigit()
+            if numbered and (b.locator == f"Art. {article}" or b.locator.count("(") == 1
+                             and b.locator.startswith(f"Art. {article}(")
+                             and b.pieces and b.pieces[0].startswith("(")):  # fmt: skip
+                # Numbered points directly under the article: definitions, each its own.
+                b.start(f"Art. {article}({point.group(1)})", title)
+            b.marker = f"({point.group(1)})"
+            continue
+        if not b.locator:
+            b.start(f"Art. {article}", title)
+        b.add(text)
+    b.flush()
+    return b.out[:3000]
+
+
+def _bare_number(text: str) -> bool:
+    return text.isdigit() and len(text) < 5
+
+
+def _eurlex_judgment(html: bytes) -> list[Located]:
+    """A judgment as located passages: each numbered paragraph ("¶42"), under the heading of
+    the part of the judgment it is in, and the ruling."""
+    segments = _segments(html)
+    if "Judgment" not in segments:
+        return _eurlex_plain(segments)
+    b = _Passages()
+    begun = False
+    heading = ""
+
+    def heading_like(i: int) -> bool:
+        if i >= len(segments):
+            return False
+        t = segments[i]
+        return (
+            len(t) < 150
+            and not _bare_number(t)
+            and not t.endswith((".", ";", ":", ","))
+            and not t.startswith(("‘", "(", "—", "–"))
+        )
+
+    for i, text in enumerate(segments):
+        if not begun:
+            begun = text == "Judgment"
+            continue
+        if text.startswith("On those grounds"):
+            b.start("Ruling", "Ruling")
+            b.add(text)
+            continue
+        if b.locator == "Ruling":
+            if text.startswith("[Signatures]") or text.startswith("*"):
+                break
+            b.add(text)
+            continue
+        if _bare_number(text):
+            b.start(f"¶{text}", heading)
+            continue
+        nxt = segments[i + 1] if i + 1 < len(segments) else ""
+        if heading_like(i) and (_bare_number(nxt) or (heading_like(i + 1) and i + 2 < len(segments)
+                                and _bare_number(segments[i + 2]))):  # fmt: skip
+            b.flush()
+            heading = text
+            continue
+        b.add(text)
+    b.flush()
+    return b.out[:3000]
+
+
+def _eurlex_plain(segments: list[str]) -> list[Located]:
+    return [(f"¶{n}", t, "") for n, t in enumerate(segments[:3000], 1)]
 
 
 # ── the United Kingdom ───────────────────────────────────────────────────────
@@ -358,13 +638,12 @@ class UkConnector(LiveConnector):
         root = ET.fromstring(raw)
         name = root.find(f".//{_AKN}FRBRWork/{_AKN}FRBRname")
         when = root.find(f".//{_AKN}FRBRWork/{_AKN}FRBRdate")
-        passages: list[tuple[str, str]] = []
+        passages: list[Located] = []
         for para in root.iter(f"{_AKN}paragraph"):
             text = " ".join(" ".join(para.itertext()).split())
             if text:
-                passages.append(
-                    (f"¶{para.get('eId', '').removeprefix('para_') or len(passages) + 1}", text)
-                )
+                number = para.get("eId", "").removeprefix("para_") or str(len(passages) + 1)
+                passages.append((f"¶{number}", text, ""))
         authority = Authority(
             source_id=self.source_id,
             citation=_neutral_display(key),
@@ -388,14 +667,29 @@ class UkConnector(LiveConnector):
         root = ET.fromstring(raw)
         title_el = root.find(".//{http://purl.org/dc/elements/1.1/}title")
         valid_el = root.find(".//{http://purl.org/dc/terms/}valid")
-        sections = list(root.iter(f"{_LEG_NS}P1"))
+        parent = {child: el for el in root.iter() for child in el}
+        sections = [p for p in root.iter(f"{_LEG_NS}P1") if not _quoted(p, parent)]
         repealed = [p for p in sections if p.get("Status") == "Repealed"]
-        passages = []
+        passages: list[Located] = []
         for p in sections:
-            number = p.findtext(f"{_LEG_NS}Pnumber") or p.get("id", "").removeprefix("section-")
-            text = " ".join(" ".join(p.itertext()).split())
+            text = _provision_text(p)
             if text:
-                passages.append((f"s.{number}", text))
+                passages.append((_provision_locator(p, ident), text, _provision_heading(p, parent)))
+        # A schedule written as plain paragraphs, without numbered provisions (the guidelines
+        # for the reasonableness test, say), is one passage.
+        for schedule in root.iter(f"{_LEG_NS}Schedule"):
+            body = schedule.find(f"{_LEG_NS}ScheduleBody")
+            if (
+                body is None
+                or _quoted(schedule, parent)
+                or body.find(f".//{_LEG_NS}P1") is not None
+            ):
+                continue
+            text = _provision_text(body)
+            if text:
+                named = schedule.find(f"{_LEG_NS}TitleBlock/{_LEG_NS}Title")
+                heading = " ".join("".join(named.itertext()).split()) if named is not None else ""
+                passages.append((_provision_locator(schedule, ident), text, heading))
         whole_repeal = bool(sections) and len(repealed) == len(sections)
         dates = [d for p in repealed if (d := _day(p.get("RestrictStartDate", ""))) is not None]
         repeal_date = min(dates) if dates else None
@@ -439,6 +733,86 @@ class UkConnector(LiveConnector):
                 ident = (entry.findtext(f"{atom}id") or "").split("/id/", 1)[-1]
                 return ident or None
         return None
+
+
+_UNITS = {"section": "s.", "regulation": "reg.", "article": "art.", "rule": "r.",
+          "schedule": "Sch.", "paragraph": "para.", "part": "Pt."}  # fmt: skip
+
+
+def _quoted(p: ET.Element, parent: dict[ET.Element, ET.Element]) -> bool:
+    """A provision quoted inside another (an amendment's text, or a nested provision), which
+    belongs to the provision it is quoted in."""
+    a = parent.get(p)
+    while a is not None:
+        if a.tag in (f"{_LEG_NS}BlockAmendment", f"{_LEG_NS}P1"):
+            return True
+        a = parent.get(a)
+    return False
+
+
+def _provision_locator(p: ET.Element, ident: str) -> str:
+    """'…/ukpga/1979/54/section/10' -> 's.10'; '…/schedule/1/paragraph/5' -> 'Sch. 1 para. 5'."""
+    uri = p.get("DocumentURI") or p.get("IdURI") or ""
+    parts = (
+        [x for x in uri.split(f"/{ident}/", 1)[-1].split("/") if x] if f"/{ident}/" in uri else []
+    )
+    out: list[str] = []
+    i = 0
+    while i < len(parts):
+        unit = _UNITS.get(parts[i])
+        if unit is None:
+            i += 1
+            continue
+        number = parts[i + 1] if i + 1 < len(parts) and parts[i + 1] not in _UNITS else ""
+        out.append(f"s.{number}" if parts[i] == "section" else f"{unit} {number}".strip())
+        i += 2 if number else 1
+    if out:
+        return " ".join(out)
+    number = p.findtext(f"{_LEG_NS}Pnumber") or p.get("id", "").removeprefix("section-")
+    return f"s.{number}"
+
+
+def _provision_text(p: ET.Element) -> str:
+    """The provision's words, each subsection and paragraph on its own line with its number
+    as printed: "(1) Unless …", "(a) …". The provision's own number is its locator."""
+    lines: list[list[str]] = [[]]
+
+    def walk(el: ET.Element, depth: int, quoted: bool) -> None:
+        tag = el.tag.removeprefix(_LEG_NS)
+        if tag == "Pnumber":
+            number = "".join(el.itertext()).strip()
+            if depth > 1:
+                lines.append([f"({number})"])
+            elif quoted:  # the number of a section an amendment quotes: "9 A party may …"
+                lines.append([number])
+            return
+        if tag in ("CommentaryRef", "Commentary", "Title"):
+            return
+        if tag == "BlockAmendment":  # quoted text starts on a line of its own
+            lines.append([])
+            quoted = True
+        if el.text and el.text.strip():
+            lines[-1].append(el.text)
+        level = int(tag[1]) if re.fullmatch(r"P[1-9]", tag) else depth
+        for child in el:
+            walk(child, level, quoted)
+            if child.tail and child.tail.strip():
+                lines[-1].append(child.tail)
+
+    walk(p, 1, False)
+    return "\n".join(t for line in lines if (t := " ".join(" ".join(line).split())))
+
+
+def _provision_heading(p: ET.Element, parent: dict[ET.Element, ET.Element]) -> str:
+    """The heading printed above a section ("Stipulations about time."), or the cross-heading
+    of the part of a schedule it is in."""
+    up = parent.get(p)
+    while up is not None and up.tag in (f"{_LEG_NS}P1group", f"{_LEG_NS}Pblock"):
+        title = up.find(f"{_LEG_NS}Title")
+        if title is not None:
+            return " ".join("".join(title.itertext()).split())
+        up = parent.get(up)
+    return ""
 
 
 def _neutral_display(key: str) -> str:

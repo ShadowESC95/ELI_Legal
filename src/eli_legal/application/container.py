@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from eli_legal.adapters.inference.embedding_null import NullEmbedder
 from eli_legal.adapters.inference.local import (
     NullInference,
     OpenAICompatInference,
@@ -29,9 +30,11 @@ from eli_legal.governance.holds import HoldBook
 from eli_legal.legal.framework_library import FrameworkLibrary
 from eli_legal.legal.jurisdictions import JurisdictionRegistry
 from eli_legal.legal.llm import LegalModel
+from eli_legal.legal.semantic import SemanticIndex
 from eli_legal.legal.source_registry import SourceRegistry
 from eli_legal.persistence.sqlite import Store
 from eli_legal.ports.document_parser import DocumentParserPort
+from eli_legal.ports.embedding import EmbeddingPort
 from eli_legal.ports.inference import InferencePort
 from eli_legal.ports.legal_sources import LegalSourcePort
 from eli_legal.security.authorizer import MatterAuthorizer
@@ -58,7 +61,18 @@ class AppContext:
     verifier_model: LegalModel
     holds: HoldBook
     frameworks: FrameworkLibrary
+    embedder: EmbeddingPort = field(default_factory=NullEmbedder)
     extra_connectors: dict[str, LegalSourcePort] = field(default_factory=dict)
+    _semantic: SemanticIndex | None = field(default=None, repr=False)
+
+    @property
+    def semantic(self) -> SemanticIndex | None:
+        """Searching by meaning, when an embedding model is set up."""
+        if not self.embedder.available:
+            return None
+        if self._semantic is None or self._semantic.embedder is not self.embedder:
+            self._semantic = SemanticIndex(self.store, self.embedder)
+        return self._semantic
 
     # ── identity and authorisation ───────────────────────────────────────────
     def authorizer(self) -> MatterAuthorizer:
@@ -213,6 +227,16 @@ def _inference_from_settings(settings: Settings, guard: NetworkGuard, model: str
     )
 
 
+def _embedder_from_settings(settings: Settings) -> EmbeddingPort:
+    from eli_legal.adapters.inference.embedding import from_settings
+    from eli_legal.settings import HOME
+
+    embedder: EmbeddingPort = from_settings(
+        settings.embedding_model, extra_dirs=settings.models_dirs, home=HOME
+    )
+    return embedder
+
+
 def build_context(
     settings: Settings | None = None,
     *,
@@ -220,6 +244,7 @@ def build_context(
     verifier: InferencePort | None = None,
     parser: DocumentParserPort | None = None,
     install_network_guard: bool = True,
+    embedder: EmbeddingPort | None = None,
 ) -> AppContext:
     if settings is None:
         settings = Settings()
@@ -257,6 +282,7 @@ def build_context(
         verifier_model=verifier_model,
         holds=HoldBook(store=store, audit=audit),
         frameworks=FrameworkLibrary(store),
+        embedder=embedder if embedder is not None else _embedder_from_settings(settings),
     )
     ctx.record_loads(ctx.model)
     ctx.record_loads(ctx.verifier_model)

@@ -53,3 +53,27 @@ texts with it.
 ELI Legal ships no language model. A model you run on your own machine comes under its own
 licence, which may restrict commercial or professional use. Check it before using it on a
 matter.
+
+An embedding model used for searching by meaning (nomic-embed-text, bge, e5 and others) is
+likewise one you place on your machine, under its own licence.
+
+## Legislation in the evaluation benchmark
+
+`src/eli_legal/evaluation/benchmark/legislation.jsonl.gz` holds fifteen instruments as their
+official databases published them on 9 November 2026, used only to measure legal research:
+
+- **United Kingdom** (the Sale of Goods Act 1979, the Arbitration Act 1996, the Unfair Contract
+  Terms Act 1977, the Limitation Act 1980, the Employment Rights Act 1996, the Misrepresentation
+  Act 1967, the Late Payment of Commercial Debts (Interest) Act 1998, the Supply of Goods and
+  Services Act 1982, the Contracts (Rights of Third Parties) Act 1999 and the Consumer Rights
+  Act 2015), from legislation.gov.uk. Contains public sector information licensed under the
+  Open Government Licence v3.0
+  (https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/).
+- **European Union** (Regulation (EU) 2016/679, Regulation (EC) No 593/2008, Regulation (EU)
+  No 1215/2012, Directive 2011/7/EU and Council Directive 85/374/EEC), from EUR-Lex.
+  © European Union, https://eur-lex.europa.eu/, 1998–2026. Reused under Commission Decision
+  2011/833/EU on the reuse of Commission documents. Only the Official Journal's electronic
+  edition is authentic.
+
+The texts are as published, divided into provisions; they may have changed since and are not to
+be relied on as the law.

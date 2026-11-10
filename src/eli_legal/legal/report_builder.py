@@ -59,6 +59,13 @@ _TITLES = {
 }
 
 
+def closest_in_wording(text: str, passages: Sequence[AuthorityPassage]) -> AuthorityPassage | None:
+    """The passage sharing most word stems with ``text``; None when none shares any."""
+    wanted = stems(text)
+    best = max(passages, key=lambda p: (len(stems(p.text) & wanted), -p.ordinal), default=None)
+    return best if best is not None and stems(best.text) & wanted else None
+
+
 @dataclass(slots=True)
 class ReportContext:
     matter: Matter
@@ -155,7 +162,16 @@ _LIMIT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ),
     (
         "About how it was prepared",
-        ("no_model", "model_used", "model_drafted_arguments", "human_overrides", "model_note"),
+        (
+            "no_model",
+            "model_used",
+            "research_by_words",
+            "research_by_meaning",
+            "research_partial",
+            "model_drafted_arguments",
+            "human_overrides",
+            "model_note",
+        ),
     ),
 )
 _UNVALIDATED = re.compile(
@@ -699,17 +715,22 @@ class LegalReportBuilder:
 
     @staticmethod
     def _closest_passage(claim: Claim, passages: Sequence[AuthorityPassage]) -> str:
-        """The passage of the cited authority nearest in wording to what the party says of it.
+        """The passage of the cited authority nearest in meaning (chosen during the run, with an
+        embedding model) or, failing that, in wording to what the party says of it.
 
         Shown so a person can compare the two at a glance. A figure the party states that the
         passage does not contain is pointed out; that is a prompt to look, not a finding.
         """
         if not passages:
             return "—"
-        wanted = stems(claim.text)
-        best = max(passages, key=lambda p: (len(stems(p.text) & wanted), -p.ordinal))
-        if not stems(best.text) & wanted:
-            return "no passage with similar wording was found"
+        by_meaning = [p for p in passages if p.passage_id == claim.closest_passage_id]
+        if by_meaning:
+            best, how = by_meaning[0], "closest in meaning"
+        else:
+            found = closest_in_wording(claim.text, passages)
+            if found is None:
+                return "no passage with similar wording was found"
+            best, how = found, "closest in wording"
 
         def quantities(text: str) -> set[str]:
             return {" ".join(q.lower().split()) for q in _QUANTITY.findall(text)}
@@ -720,7 +741,7 @@ class LegalReportBuilder:
             if absent
             else ""
         )
-        return f"“{best.text}” ({best.locator}){note}"
+        return f"“{best.text}” ({best.locator}; {how}){note}"
 
     @staticmethod
     def _human_support(results: Sequence[VerificationResult]) -> str:
@@ -830,6 +851,19 @@ class LegalReportBuilder:
             w.append(
                 "no_legal_sources: No legal source is approved for this matter. No legal research was done and no cited authority could be checked."
             )
+        else:
+            ranked_by = ctx.run.tool_versions.get("retrieval", "")
+            if "meaning:" in ranked_by:
+                embedder = ranked_by.split("meaning:", 1)[1].split(";", 1)[0].split("@", 1)[0]
+                w.append(
+                    f"research_by_meaning: Research found passages by their meaning as well as their words, with the embedding model {embedder} on this machine. That decides only which passages were offered and in what order: each is quoted word for word and checked like any other."
+                )
+            elif ranked_by:
+                w.append(
+                    "research_by_words: Research found passages by the words of each issue only, so a provision put in other words may have been missed."
+                )
+            if ctx.run.tool_versions.get("retrieval_note"):
+                w.append(f"research_partial: {ctx.run.tool_versions['retrieval_note']}")
         models = {k: v for k, v in ctx.run.model_versions.items() if v != "none"}
         if not models:
             w.append(

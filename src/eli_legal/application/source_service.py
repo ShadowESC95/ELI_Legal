@@ -5,8 +5,9 @@ from pathlib import Path
 
 from eli_legal.adapters.sources.local_corpus import import_corpus
 from eli_legal.application.container import AppContext
-from eli_legal.domain.errors import NotFound
+from eli_legal.domain.errors import InferenceUnavailable, NotFound
 from eli_legal.domain.models import Authority, AuthorityPassage
+from eli_legal.legal.semantic import Coverage
 from eli_legal.legal.source_registry import RegisteredSource
 from eli_legal.ports.legal_sources import ConnectorDeclaration
 from eli_legal.security import authn
@@ -70,6 +71,29 @@ class SourceService:
             },
         )
         return imported
+
+    def index(self, source_id: str, *, actor_id: str) -> Coverage:
+        """Embed a source's passages for searching by meaning now, rather than during a run."""
+        self.ctx.authorizer().require_global(actor_id, "source.manage")
+        if self.ctx.sources.get(source_id) is None:
+            raise NotFound(f"unknown source: {source_id}")
+        semantic = self.ctx.semantic
+        if semantic is None:
+            raise InferenceUnavailable(f"searching by meaning is off: {self.ctx.embedder.reason}")
+        coverage = semantic.ensure([source_id], budget=10**9)
+        self.ctx.log(
+            "source_indexed",
+            actor_id=actor_id,
+            matter_id="-",
+            action="source.manage",
+            subject_id=source_id,
+            outcome="indexed",
+            object_type="source",
+            source_ids=[source_id],
+            tool_id=semantic.model_id,
+            payload={"embedded_now": coverage.indexed_now, "passages": coverage.total},
+        )
+        return coverage
 
     def authorities(self, source_id: str, *, actor_id: str) -> _List[Authority]:
         """What an approved corpus holds. Legal sources are not matter data."""

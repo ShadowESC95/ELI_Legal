@@ -374,6 +374,12 @@ def cmd_source(args: argparse.Namespace) -> int:
         for a in imported:
             print(f"  {a.citation:36s} {a.kind.value:12s} {a.status.value}")
         print(f"imported {len(imported)} authorities into {args.source_id}")
+    elif args.source_cmd == "index":
+        coverage = sv.sources.index(args.source_id, actor_id=_actor(args))
+        print(
+            f"{args.source_id}: {coverage.total} passages searchable by meaning "
+            f"({coverage.indexed_now} embedded now) with {sv.ctx.embedder.model_id}"
+        )
     return 0
 
 
@@ -635,6 +641,62 @@ def cmd_checks(args: argparse.Namespace) -> int:
         if r.state != "ok" and r.what_to_do:
             print(f"      what to do: {r.what_to_do}")
     return 0 if run.state == "ok" else 1
+
+
+def cmd_evaluate(args: argparse.Namespace) -> int:
+    """Measure legal research and fact linking against answers fixed in advance."""
+    from eli_legal.adapters.inference.embedding import from_settings
+    from eli_legal.evaluation import linking, research
+    from eli_legal.legal.semantic import SemanticIndex
+    from eli_legal.settings import HOME
+
+    settings = Settings()
+    embedder = from_settings(
+        args.embedding or settings.embedding_model, extra_dirs=settings.models_dirs, home=HOME
+    )
+    folder = Path(settings.db_path).parent / "evaluation"
+    out: dict[str, Any] = {"embedding_model": embedder.model_id if embedder.available else ""}
+    if not embedder.available:
+        out["embedding_note"] = embedder.reason
+    if args.benchmark in ("research", "all"):
+        out["research"] = research.run(
+            folder, semantic_for=lambda store: SemanticIndex(store, embedder)
+        )
+    if args.benchmark in ("linking", "all"):
+        from eli_legal.persistence.sqlite import Store
+
+        cache = Store(folder / "linking.db")
+        out["linking"] = linking.run(SemanticIndex(cache, embedder) if embedder.available else None)
+    if args.json:
+        print(json.dumps(out, indent=2))
+        return 0
+    if not embedder.available:
+        print(f"Searching by meaning is not measured: {embedder.reason}.")
+    if "research" in out:
+        r = out["research"]
+        print(
+            f"Legal research: {r['issues']} issues over {r['corpus']['passages']} passages of "
+            f"{r['corpus']['instruments']} EU and UK instruments"
+        )
+        print(
+            "  method     recall@5  recall@10  MRR    nDCG@10  offered in point  "
+            "governing offered  closest passage in point"
+        )
+        for x in r["results"]:
+            print(
+                f"  {x['method']:9s}  {x['recall_5']:.2f}      {x['recall_10']:.2f}       "
+                f"{x['mrr']:.2f}   {x['ndcg_10']:.2f}     {x['offered_in_point']:.0%}"
+                f"               {x['governing_offered']:.0%}"
+                f"                {x['closest_passage_in_point']:.0%}"
+            )
+    if "linking" in out:
+        k = out["linking"]
+        print(f"Linking facts to issues: {k['facts']} facts in {k['disputes']} disputes")
+        print("  method                 precision  recall  F1")
+        for x in k["results"]:
+            name = "words" if x["method"] == "words" else "words and meaning"
+            print(f"  {name:21s}  {x['precision']:.2f}       {x['recall']:.2f}    {x['f1']:.2f}")
+    return 0
 
 
 def cmd_network(args: argparse.Namespace) -> int:
@@ -1052,12 +1114,15 @@ def cmd_bundle(args: argparse.Namespace) -> int:
 
     target = Path(args.into) if getattr(args, "into", None) else None
     if args.bundle_cmd == "register":
+        if getattr(args, "if_eli_v3", False) and target is None and not bundle.eli_v3_present():
+            print("ELI v3 is not on this machine; nothing registered")
+            return 0
         path = bundle.register(target)
         print(
             f"registered with ELI v3: {path}\nELI v3 will offer to open ELI Legal (its Bundles menu, or: eli --bundle legal)"
         )
     elif args.bundle_cmd == "unregister":
-        removed = bundle.unregister(target)
+        removed = bundle.unregister(target, this_copy=getattr(args, "this_copy", False))
         print("\n".join(f"removed {p}" for p in removed) or "ELI Legal was not registered")
     else:
         _out(
@@ -1354,6 +1419,9 @@ def build_parser() -> argparse.ArgumentParser:
     a = s.add_parser("import")
     a.add_argument("source_id")
     a.add_argument("directory")
+    s.add_parser(
+        "index", help="embed a source's passages for searching by meaning now, not during a run"
+    ).add_argument("source_id")
 
     p = add("matter", cmd_matter, "manage matters")
     s = p.add_subparsers(dest="matter_cmd", required=True)
@@ -1597,6 +1665,13 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("action", choices=["OA-05", "OA-12"])
     a.add_argument("--sha256", required=True)
 
+    p = add("evaluate", cmd_evaluate, "measure legal research and fact linking on benchmarks")
+    p.add_argument("benchmark", nargs="?", choices=["research", "linking", "all"], default="all")
+    p.add_argument(
+        "--embedding", default="", help="an embedding GGUF to measure; the configured one if not"
+    )
+    p.add_argument("--json", action="store_true")
+
     p = add("checks", cmd_checks, "run or show the routine checks")
     s = p.add_subparsers(dest="checks_cmd", required=True)
     a = s.add_parser("run")
@@ -1678,10 +1753,16 @@ def build_parser() -> argparse.ArgumentParser:
     p = add("bundle", cmd_bundle, "make this copy available to ELI v3 as a bundle")
     s = p.add_subparsers(dest="bundle_cmd", required=True)
     s.add_parser("show")
-    for name in ("register", "unregister"):
-        s.add_parser(name).add_argument(
-            "--into", help="ELI v3's bundles folder, if not the usual one"
-        )
+    register = s.add_parser("register")
+    register.add_argument(
+        "--if-eli-v3", action="store_true", help="only if ELI v3 is on this machine (installers)"
+    )
+    unregister = s.add_parser("unregister")
+    unregister.add_argument(
+        "--this-copy", action="store_true", help="only if ELI v3's record names this copy"
+    )
+    for one in (register, unregister):
+        one.add_argument("--into", help="ELI v3's bundles folder, if not the usual one")
 
     p = add("licence", cmd_licence, "this copy's licence: show it, activate a key, remove it")
     s = p.add_subparsers(dest="licence_cmd")
@@ -1735,6 +1816,10 @@ def main(argv: list[str] | None = None) -> int:
         reconfigure = getattr(stream, "reconfigure", None)
         if reconfigure is not None:
             reconfigure(errors="replace")
+    if args.command != "bundle":
+        from eli_legal import bundle
+
+        bundle.refresh_registration()  # ELI v3 opens the newest copy on this machine
     if args.command not in _UNLICENSED_COMMANDS:
         from eli_legal import licensing
 

@@ -1,0 +1,96 @@
+{
+  "name": "Linking facts to the issues they bear on",
+  "about": "Four disputes, each with the issues as stated at intake and the facts as the parties' papers state them. Each fact lists the issues it bears on; some bear on none (background a reviewer need not see under any issue), some on two. Written for ELI Legal's evaluation; no fact is drawn from a real matter.",
+  "disputes": [
+    {
+      "id": "supply",
+      "issues": {
+        "I1": "Whether time for delivery was of the essence of the Supply Agreement",
+        "I2": "Whether the Claimant validly terminated the Supply Agreement by its notice of 28 April 2023",
+        "I3": "Whether the Respondent is liable for the losses claimed for late delivery"
+      },
+      "facts": [
+        {"text": "Clause 4.2 provided that the turbines would be delivered to the Claimant's yard no later than 14 March 2023.", "issues": ["I1"]},
+        {"text": "The Claimant's procurement manager wrote on 2 February 2023 that the March date was critical because the vessel charter began on 20 March.", "issues": ["I1", "I3"]},
+        {"text": "The first consignment arrived on 11 April 2023, four weeks after the agreed date.", "issues": ["I1", "I3"]},
+        {"text": "On 28 April 2023 the Claimant sent a letter stating that it was bringing the agreement to an end with immediate effect.", "issues": ["I2"]},
+        {"text": "The letter of 28 April 2023 did not refer to any earlier warning or give the Respondent further time to deliver.", "issues": ["I2"]},
+        {"text": "The Respondent replied on 2 May 2023 that it regarded the letter as a repudiation and reserved its rights.", "issues": ["I2"]},
+        {"text": "The Claimant paid €84,000 to extend the vessel charter by three weeks.", "issues": ["I3"]},
+        {"text": "The Claimant also claims €212,500 for lost profit on a maintenance contract it says it could not perform.", "issues": ["I3"]},
+        {"text": "The Respondent's factory was closed for nine days in February 2023 because of a fire in the paint shop.", "issues": ["I3"]},
+        {"text": "The parties had dealt with each other since 2017 under a series of annual purchase orders.", "issues": []},
+        {"text": "The Respondent's sales director accepted in cross-examination that he knew the turbines were needed for a particular vessel.", "issues": ["I1", "I3"]},
+        {"text": "The Respondent says the Claimant did nothing to source turbines from another supplier.", "issues": ["I3"]},
+        {"text": "The Supply Agreement is governed by the law of Examplia.", "issues": []},
+        {"text": "Clause 9 allowed either party to end the agreement on 30 days' written notice for a material breach that was not remedied.", "issues": ["I2"]}
+      ]
+    },
+    {
+      "id": "employment",
+      "issues": {
+        "J1": "Whether the reason for the Claimant's dismissal was her capability",
+        "J2": "Whether the dismissal was fair in all the circumstances",
+        "J3": "Whether the Claimant was dismissed because she made protected disclosures"
+      },
+      "facts": [
+        {"text": "The Claimant's monthly sales figures fell below target in each of the six months before her dismissal.", "issues": ["J1"]},
+        {"text": "She was placed on a performance improvement plan in January 2024 with a review date of 31 March 2024.", "issues": ["J1", "J2"]},
+        {"text": "No review meeting was ever held under the improvement plan.", "issues": ["J2"]},
+        {"text": "On 12 February 2024 she emailed the finance director that invoices were being backdated to hit quarterly targets.", "issues": ["J3"]},
+        {"text": "The finance director forwarded her email to the managing director the same afternoon.", "issues": ["J3"]},
+        {"text": "She was dismissed by letter dated 4 March 2024, which gave poor performance as the reason.", "issues": ["J1", "J3"]},
+        {"text": "She was not invited to a meeting before the decision was taken and was not offered an appeal.", "issues": ["J2"]},
+        {"text": "The managing director told a colleague that she had become a problem after the February email.", "issues": ["J3"]},
+        {"text": "The Respondent employs about 40 people and has no human resources department.", "issues": ["J2"]},
+        {"text": "The Claimant had worked for the Respondent for six years and had never been warned.", "issues": ["J2"]},
+        {"text": "Her contract provided for a car allowance of £450 a month.", "issues": []},
+        {"text": "Two other sales staff with lower figures kept their jobs.", "issues": ["J1", "J2"]},
+        {"text": "The Claimant started a new job on 1 August 2024 at a lower salary.", "issues": []}
+      ]
+    },
+    {
+      "id": "data",
+      "issues": {
+        "K1": "Whether the Respondent was obliged to erase the Claimant's personal data when he asked",
+        "K2": "Whether the Respondent notified the personal data breach in time",
+        "K3": "Whether the Claimant is entitled to compensation for distress"
+      },
+      "facts": [
+        {"text": "On 3 May 2024 the Claimant asked the Respondent in writing to delete everything it held about him.", "issues": ["K1"]},
+        {"text": "The Respondent replied that it had to keep his account history for seven years for tax purposes.", "issues": ["K1"]},
+        {"text": "His marketing profile and browsing history were still held on 1 October 2024.", "issues": ["K1"]},
+        {"text": "On 9 June 2024 an employee's laptop holding an unencrypted copy of the customer database was stolen from a car.", "issues": ["K2"]},
+        {"text": "The Respondent's IT manager learned of the theft on 10 June 2024.", "issues": ["K2"]},
+        {"text": "The Respondent informed the regulator of the incident on 19 June 2024.", "issues": ["K2"]},
+        {"text": "Customers were told about the theft by email on 2 July 2024.", "issues": ["K2"]},
+        {"text": "The Claimant says he received phishing messages using his name and order history in July 2024.", "issues": ["K3"]},
+        {"text": "His doctor recorded that he was suffering from anxiety and poor sleep.", "issues": ["K3"]},
+        {"text": "The Respondent has 1.2 million customers in twelve countries.", "issues": []},
+        {"text": "The Respondent offered the Claimant a €50 voucher by way of apology.", "issues": ["K3"]},
+        {"text": "The Claimant had agreed to receive marketing emails when he opened his account in 2019.", "issues": ["K1"]}
+      ]
+    },
+    {
+      "id": "arbitration",
+      "issues": {
+        "L1": "Whether the tribunal had jurisdiction over the claim under the second contract",
+        "L2": "Whether the tribunal failed to deal with the Applicant's limitation defence",
+        "L3": "Whether the Applicant lost its right to object by taking part in the arbitration"
+      },
+      "facts": [
+        {"text": "The first contract contained an arbitration clause; the second contract, signed in 2021, gave the courts of Examplia exclusive jurisdiction.", "issues": ["L1"]},
+        {"text": "The Respondent's notice of arbitration referred to both contracts.", "issues": ["L1"]},
+        {"text": "In its statement of defence the Applicant argued that the claim was brought more than six years after the cause of action accrued.", "issues": ["L2"]},
+        {"text": "The award does not mention the time bar argument.", "issues": ["L2"]},
+        {"text": "The Applicant filed its defence and attended the hearing without saying that the tribunal lacked power over the second contract.", "issues": ["L1", "L3"]},
+        {"text": "The Applicant first raised the point about the second contract in its closing submissions.", "issues": ["L1", "L3"]},
+        {"text": "The hearing lasted four days in Examplia City in March 2025.", "issues": []},
+        {"text": "The tribunal awarded the Respondent €1.9 million plus interest.", "issues": []},
+        {"text": "Procedural Order No. 2 directed that every objection to jurisdiction be raised in the statement of defence.", "issues": ["L3"]},
+        {"text": "The presiding arbitrator had sat with the Respondent's counsel in two unrelated cases.", "issues": []},
+        {"text": "The tribunal's reasons on the second contract run to one paragraph.", "issues": ["L1"]}
+      ]
+    }
+  ]
+}
