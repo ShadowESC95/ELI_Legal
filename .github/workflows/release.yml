@@ -138,7 +138,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python -m pip install -e ".[all,build]"
+      # cryptography (for the licence check) as a published wheel, which carries its own OpenSSL.
+      # From 49 there is none for Intel Macs: built here it links the runner's OpenSSL, which the
+      # bundle does not carry, and the program cannot check its licence (0.8.0).
+      - run: python -m pip install -e ".[all,build]" "cryptography<49" --only-binary cryptography
       # GGUF support. Built for any x86-64 or ARM processor of its kind, not just this runner's,
       # and left out (with a note in the build log) if it will not build here.
       - run: python -m pip install "llama-cpp-python==$(python scripts/fetch_gpu_pack.py --version)" || echo "::warning::llama.cpp did not build; this installer will not run GGUF models"
