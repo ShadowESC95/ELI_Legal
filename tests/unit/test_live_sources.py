@@ -538,3 +538,53 @@ def test_a_consolidated_eu_text_keeps_its_recitals_and_no_version_outlives_the_a
     then, detail = _assess(eu, act, date(2017, 6, 1))
     assert then is V.VERIFIED and "now repealed" in detail
     assert _assess(eu, act, date(2019, 1, 1))[0] is V.FAILED
+
+
+EARLY_ACT = _sparql(
+    [{"celex": "32020R0100", "date": "2020-03-01", "inforce": "1", "start": "2021-01-01",
+      "end": "9999-12-31", "title": "Regulation (EU) 2020/100 of the European Parliament and of the Council"}]
+)  # fmt: skip
+EARLY_CONSOLIDATED = _sparql(
+    [{"celex": "02020R0100-20200601"}, {"celex": "02020R0100-20201201"}, {"celex": "02020R0100-20220101"}]
+)  # fmt: skip
+EARLY_TEXTS = {
+    f"resource/celex/{celex}": f"<html><body><p>Article 1</p><p>1. The text of {when}.</p></body></html>".encode()
+    for celex, when in (("32020R0100", "publication"), ("02020R0100-20200601", "June 2020"),
+                        ("02020R0100-20201201", "December 2020"), ("02020R0100-20220101", "2022"))
+}  # fmt: skip
+
+
+class Early(Recorded):
+    """An act amended twice before it began to apply, and once after."""
+
+    def __call__(self, url: str, accept: str) -> bytes:
+        if "sparql" in url:
+            from urllib.parse import parse_qs, urlsplit
+
+            query = parse_qs(urlsplit(url).query)["query"][0]
+            for marker, body in (
+                ("resource_legal_amends", AMENDERS),
+                ("02020R0100-", EARLY_CONSOLIDATED),
+                ("32020R0100", EARLY_ACT),
+            ):
+                if marker in query:
+                    self.calls.append(url)
+                    return body
+        for key, body in EARLY_TEXTS.items():
+            if url.endswith(key):
+                self.calls.append(url)
+                return body
+        return super().__call__(url, accept)
+
+
+def test_versions_made_before_an_act_applied_start_when_it_did_and_the_later_text_is_the_one(store):
+    """Two consolidated versions dated before the act began to apply would both start on that
+    day; the later of them is the text in force then, and it runs until the next version."""
+    eu = _connector(store, "eu_cellar", as_of=date(2021, 6, 1), fetch=Early())
+    versions = eu.resolve(citation_key="regulation (eu) 2020/100")
+    [then] = [v for v in versions if applicable_on(v, date(2021, 6, 1))]
+    assert (then.effective_from, then.effective_to) == (date(2021, 1, 1), date(2021, 12, 31))
+    held = {p.locator: p.text for p in eu.passages(authority_id=then.authority_id)}
+    assert "December 2020" in held["Art. 1(1)"]
+    for version in versions:
+        assert version.effective_to is None or version.effective_from <= version.effective_to

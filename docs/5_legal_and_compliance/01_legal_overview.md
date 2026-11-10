@@ -69,6 +69,17 @@ Secondary reports were used to confirm dates and recent changes; the primary tex
 - Directive (EU) 2024/2853 (Product Liability), products placed on the market after 9 December
   2026: [Gibson Dunn](https://www.gibsondunn.com/eu-product-liability-directive-responding-to-software-ai-and-complex-supply-chains),
   [A&L Goodbody](https://www.algoodbody.com/insights-publications/eu-revised-product-liability-directive-what-you-need-to-know)
+- Directive (EU) 2022/2555 (NIS2), Art. 6(35), and Regulation (EU) 2024/1689, Art. 74(8):
+  read in the Official Journal texts, retrieved from the Publications Office in November 2026
+- Ireland, Regulation of Artificial Intelligence Bill 2026:
+  [Department of Enterprise, Tourism and Employment](https://enterprise.gov.ie/en/news-and-events/department-news/2026/june/20260617.html),
+  [AI Office of Ireland established](https://enterprise.gov.ie/en/news-and-events/department-news/2026/july/20260730.html),
+  [William Fry](https://www.williamfry.com/knowledge/irish-ai-office-loses-market-surveillance-role/)
+- United Kingdom, Articles 22A to 22D UK GDPR from 5 February 2026:
+  [S.I. 2026/82](https://www.legislation.gov.uk/uksi/2026/82),
+  [Data (Use and Access) Act 2025, section 80](https://www.legislation.gov.uk/ukpga/2025/18/section/80/enacted);
+  the judiciary's position statement of 9 October 2026:
+  [LexisNexis](https://www.lexisnexis.co.uk/legal/news/hmcts-publishes-position-statement-on-judicial-use-of-ai)
 - Council of Europe Framework Convention on AI (CETS 225): the sources found in November 2026
   do not show it in force (five ratifications, three of them member states, are needed); check
   the [Council of Europe's page](https://www.coe.int/en/web/artificial-intelligence/the-framework-convention-on-artificial-intelligence)

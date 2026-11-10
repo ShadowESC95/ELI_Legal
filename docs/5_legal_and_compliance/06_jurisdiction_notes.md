@@ -16,10 +16,11 @@ the law. Items marked *(reported)* were confirmed from secondary sources only.
 | Regulation (EU) 2024/1689 (AI Act), as amended by Regulation (EU) 2026/1744 | High-risk classification under Annex III 8(a); requirements, provider and deployer duties, conformity, monitoring | [EU AI Act](02_eu_ai_act.md) |
 | Regulation (EU) 2016/679 (GDPR) | Personal data in case papers | [Data protection](03_data_protection.md) |
 | Directive (EU) 2016/680 | Processing by competent authorities in criminal justice, in place of the GDPR | [Data protection](03_data_protection.md) |
-| Regulation (EU) 2024/2847 (Cyber Resilience Act) | Security duties for commercial software | [Liability, IP and licensing](05_liability_ip_and_licensing.md) |
+| Regulation (EU) 2024/2847 (Cyber Resilience Act) | Security duties for commercial software; reporting of exploited vulnerabilities and severe incidents since 11 September 2026 | [Liability, IP and licensing](05_liability_ip_and_licensing.md); [Legal overview](01_legal_overview.md), row 13 |
+| Directive (EU) 2022/2555 (NIS2) | Cybersecurity duties of essential and important entities. It does not reach courts: a "public administration entity" excludes the judiciary (Art. 6(35)); law firms and software installed on the user's own machines are not among its sectors. A deployer that is itself such an entity (a government department, for example) treats the tool as part of its own risk management | Here |
 | Directive (EU) 2024/2853 (Product Liability) | Software as a product | [Liability, IP and licensing](05_liability_ip_and_licensing.md) |
 | Directive 2008/52/EC (Mediation) | Confidentiality of mediation in cross-border disputes | [Professional and judicial duties](04_professional_and_judicial_duties.md) |
-| Directive (EU) 2016/2102 (web accessibility of public bodies) | A court's browser application | [Liability, IP and licensing](05_liability_ip_and_licensing.md) |
+| Directive (EU) 2016/2102 (web accessibility of public bodies); Directive (EU) 2019/882 (European Accessibility Act) | A court's browser application; the AI Act requires a high-risk system to meet both (Art. 16(l)) | [EU AI Act](02_eu_ai_act.md), section 5 |
 | ISO/IEC 42001:2023 | The management-system standard chosen in the use case | [ISO/IEC 42001](09_iso_iec_42001.md) |
 | CCBE guidance on generative AI for lawyers (2025) *(reported)*; CEPEJ European Ethical Charter (2018) | European bars' and the Council of Europe's positions | |
 
@@ -38,7 +39,8 @@ identify each:
 
 | National layer | Why it matters |
 |---|---|
-| The market surveillance authority designated under the AI Act | Where serious incidents are reported (Art. 73) and who supervises |
+| The market surveillance authority designated under the AI Act | Where serious incidents are reported (Art. 73) and who supervises. For Annex III point 8 systems it must be the data protection supervisory authority or an authority equally independent, and its work may not interfere with courts acting in their judicial capacity (Art. 74(8)) |
+| The CSIRT designated as coordinator under the Cyber Resilience Act | Where the provider's reports go, through ENISA's single reporting platform: the CSIRT of the member state of the provider's main establishment |
 | Rules or practice directions of the courts and tribunals on the use of AI | Verification, disclosure and declarations, with sanctions |
 | Guidance of the bar and the law society, and of the judiciary | Professional and judicial duties |
 | The act implementing the GDPR | Criminal-offence data, restrictions in legal proceedings, privilege, supervision of courts |
@@ -59,6 +61,8 @@ there, as an example of what the table above produces for one member state.
 | Guidelines for judges issued through the Judicial Council *(reported)* | Use of AI by the judiciary |
 | A Court of Appeal decision reported as pointing to an obligation on parties to disclose AI use | Identify and read it before relying on the point |
 | Data Protection Act 2018 | Sections 55 (criminal-offence data), 60 and 162 (restrictions; privilege), and the provisions on supervision of courts acting judicially |
+| Regulation of Artificial Intelligence Act 2026 (Bill published 17 June 2026; reported enacted in July 2026) *(reported)* | Ireland's arrangements for the AI Act: the AI Office of Ireland, established in July 2026, is the single point of contact and coordinates; market surveillance is spread among existing regulators, and the published Bill dropped the AI Office's own market surveillance role. Identify which authority it designates for Annex III point 8 (see Art. 74(8) above) |
+| National Cyber Security Centre (NCSC) | Ireland's CSIRT: the coordinator for Cyber Resilience Act reports of a provider established in Ireland |
 | Mediation Act 2017 | Confidentiality of mediation |
 | Legal Services Regulation Act 2015; Solicitors Acts | Who may practise; the regulator |
 
@@ -85,7 +89,8 @@ in the Union, wherever the provider is.
 | *Ayinde v London Borough of Haringey* [2025] EWHC 1383 (Admin) | The court's response to false citations: professional consequences up to contempt |
 | Solicitors Regulation Authority; Bar Standards Board; Law Society and Bar Council guidance on generative AI | Professional duties |
 | Civil Justice Council work on AI in preparing court documents | Check its current output |
-| UK GDPR; Data Protection Act 2018; Data (Use and Access) Act 2025 | Data protection |
+| UK GDPR; Data Protection Act 2018; Data (Use and Access) Act 2025 | Data protection. Articles 22A to 22D replaced Article 22 on 5 February 2026 (S.I. 2026/82); see [Data protection](03_data_protection.md), section 11 |
+| Senior judiciary, *Position Statement on Judicial Use of AI* (9 October 2026) *(reported)* | Judges remain accountable for reviewing, verifying and approving AI output; only approved tools, with UK data residency, enterprise data protection and no web access, may be used. Read it beside the guidance above |
 | Legal Services Act 2007 | Reserved legal activities |
 | Copyright, Designs and Patents Act 1988, section 29A | Text and data mining only for non-commercial research |
 

@@ -125,8 +125,18 @@ of unlawful training), and whether the model's licence permits the use.
 ## 11. United Kingdom
 
 The UK GDPR and Data Protection Act 2018 follow the same structure. The Data (Use and Access)
-Act 2025 changed the rules on automated decision-making and other points; check the provisions
-in force. The Information Commissioner's guidance on AI and data protection applies.
+Act 2025 changed the rules on automated decision-making: from 5 February 2026 (S.I. 2026/82)
+Articles 22A to 22D replace Article 22. A significant decision based solely on automated
+processing, meaning one with no meaningful human involvement, is allowed with safeguards: the
+person is told, may make representations, may obtain human intervention and may contest it.
+Special-category data stays under a stricter rule. Decisions taken before that date stay under
+the old Article 22.
+
+ELI Legal takes no decision, and a named person must read and approve what it prepares, so it
+is not used for a decision based solely on automated processing. That holds only while the
+review is meaningful in fact: a reviewer who approves without reading turns the system's
+output into the decision. The Information Commissioner's guidance on AI and data protection
+applies.
 
 ## 12. Records the deployer should hold
 

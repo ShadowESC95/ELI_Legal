@@ -135,7 +135,7 @@ documents. If a report or an extract is passed on, the labels go with it.
 | Provision | What it requires | State |
 |---|---|---|
 | **Art. 72** Post-market monitoring | A plan, running continuously, that feeds the risk management file | **Partly.** Each installation computes monitoring from control evidence. A provider-side plan and a channel for deployers to report are not set up |
-| **Art. 73** Serious incidents | Report to the market surveillance authority of the member state where it occurred | **Partly.** An incident can be marked serious for a person to assess. No reporting procedure exists |
+| **Art. 73** Serious incidents | Report to the market surveillance authority of the member state where it occurred. For Annex III point 8 that is the data protection supervisory authority or an authority equally independent (Art. 74(8)) | **Partly.** An incident can be marked serious for a person to assess. No reporting procedure exists |
 
 ## 10. What a deployment hands an assessor
 
