@@ -60,7 +60,7 @@
       }
       return tr;
     });
-    return h('div', { class: 'scroll' }, h('table', null, h('thead', null, h('tr', null, cols.map(([t]) => h('th', { scope: 'col' }, t)))), h('tbody', null, body)));
+    return h('div', { class: 'scroll' }, h('table', null, h('thead', null, h('tr', null, cols.map(([t]) => h('th', { scope: 'col', title: explain(t) }, t)))), h('tbody', null, body)));
   }
 
   function note(message, kind = 'bad') {
@@ -234,8 +234,17 @@
   }
 
   // ── frame ──────────────────────────────────────────────────────────────────
-  const TABS = [['home', '🏠 Home'], ['matter', '📁 Matter'], ['evidence', '📄 Evidence'], ['chat', '💬 Chat'], ['dag', '🕸 DAG'], ['agents', '🤖 Agents'],
-    ['findings', '🔎 Findings'], ['review', '⚖ Review'], ['audit', '🧾 Audit Trail'], ['governance', '🛡 Governance'], ['sources', '📚 Sources'], ['laws', '📜 Laws & Standards'], ['settings', '⚙ Settings']];
+  // The pages, in plain words, as the desktop application names them (GET /v1/words, how_to.pages).
+  const TAB_KEYS = ['help', 'home', 'matter', 'evidence', 'chat', 'dag', 'agents', 'findings', 'review', 'audit', 'governance', 'sources', 'laws', 'settings'];
+  const pageOf = (id) => ((S.w && S.w.how_to && S.w.how_to.pages) || {})[id === 'dag' ? 'workflow' : id] || { name: id, about: '' };
+  const TABS = () => TAB_KEYS.map((id) => [id, pageOf(id).name, pageOf(id).about]);
+  // What a word means, for the pointer to rest on: column headings, and anything given a title.
+  const explain = (word) => {
+    const terms = (S.w && S.w.glossary) || {};
+    const want = String(word || '').trim().toLowerCase();
+    const key = Object.keys(terms).find((k) => k.toLowerCase() === want || k.toLowerCase() === want.replace(/s$/, ''));
+    return key ? terms[key] : null;
+  };
   const VIEWS = {};
 
   function render() {
@@ -248,7 +257,7 @@
     const profile = S.matter ? S.sys.profiles.find((p) => p.profile === S.matter.profile) : null;
     const model = S.sys.model.active_model_id;
     fill(root, 
-      h('header', { class: 'top' }, h('span', { class: 'brand' }, 'ELI Legal'), h('span', { class: 'muted' }, 'Matter'), pick,
+      h('header', { class: 'top' }, h('span', { class: 'brand' }, 'ELI Legal'), h('span', { class: 'muted' }, 'Case'), pick,
         h('span', { class: 'muted' }, profile ? profile.label : ''), h('span', { class: 'spacer' }),
         h('span', { class: `chip ${S.sys.audit.ok ? 'good' : 'bad'}` }, S.sys.audit.ok ? `Audit verified · ${S.sys.audit.events} events` : 'AUDIT CHAIN INVALID'),
         S.sys.network && S.sys.network.hard_offline
@@ -256,7 +265,7 @@
           : h('span', { class: 'chip good' }, `Network ${S.sys.network_default} by default`),
         h('span', { class: `chip ${model && model !== 'none' ? 'good' : ''}` }, model && model !== 'none' ? `Model ${model}` : 'No model'),
         h('span', { class: 'chip human' }, `${S.user.display_name} · ${S.user.roles.map(roleName).join(', ')}`), btn('Sign out', signOut)),
-      h('nav', { class: 'tabs', role: 'tablist' }, TABS.map(([id, text]) => h('button', { class: 'tab', role: 'tab', id: `tab-${id}`, 'aria-selected': String(S.tab === id), onclick: () => { S.tab = id; render(); } }, text))),
+      h('nav', { class: 'tabs', role: 'tablist' }, TABS().map(([id, text, about]) => h('button', { class: 'tab', role: 'tab', id: `tab-${id}`, title: about || null, 'aria-selected': String(S.tab === id), onclick: () => { S.tab = id; render(); } }, text))),
       h('main', { id: 'view', role: 'tabpanel' }),
       h('footer', { class: 'note' }, 'Decision support only. Nothing here may be relied on until a named reviewer has approved it.'));
     show();
@@ -280,10 +289,31 @@
 
   // ── Home ───────────────────────────────────────────────────────────────────
   const PAGE_TAB = { matter: 'matter', evidence: 'evidence', workflow: 'dag', review: 'review', findings: 'findings', governance: 'governance', settings: 'settings', laws: 'laws' };
-  const PAGE_NAME = { matter: 'Matter', evidence: 'Evidence', workflow: 'DAG', review: 'Review', findings: 'Findings', governance: 'Governance', settings: 'Settings', laws: 'Laws & Standards' };
+  const PAGE_NAME = new Proxy({}, { get: (_t, page) => pageOf(page).name });
   const goTo = (page) => { S.tab = PAGE_TAB[page] || page; render(); };
   const MARK = { ok: '✓', attention: '!', failed: '✗', could_not_run: '?' };
   const checkTone = (state) => (state === 'ok' ? 'good' : state === 'attention' ? 'warn' : 'bad');
+  // ── How to use ─────────────────────────────────────────────────────────────
+  VIEWS.help = async () => {
+    const guide = (S.w && S.w.how_to) || { intro: '', reading: '', steps: [] };
+    const words = h('div', { class: 'glossary' });
+    const showWords = (wanted) => {
+      const terms = Object.entries((S.w && S.w.glossary) || {}).sort(([a], [b]) => a.localeCompare(b));
+      const want = (wanted || '').trim().toLowerCase();
+      const shown = terms.filter(([t, m]) => !want || t.toLowerCase().includes(want) || m.toLowerCase().includes(want));
+      fill(words, shown.length ? h('dl', null, ...shown.flatMap(([t, m]) => [h('dt', null, t), h('dd', null, m)])) : h('p', { class: 'muted' }, 'No word matches. Try fewer letters.'));
+    };
+    showWords('');
+    return h('div', null,
+      card('How to use ELI Legal', h('p', null, guide.intro), h('p', { class: 'muted' }, guide.reading)),
+      ...guide.steps.map((step, i) => card(`${i + 1}. ${step.what}`,
+        h('p', null, h('b', null, 'Who: '), step.who), h('p', null, step.how),
+        h('div', { class: 'row' }, btn(step.button, () => goTo(step.page === 'new_matter' ? 'matter' : step.page), 'go')))),
+      card('What the words mean',
+        h('input', { type: 'search', placeholder: 'Look up a word: matter, authority, held, provider …', 'aria-label': 'Look up a word', oninput: (e) => showWords(e.target.value) }),
+        words));
+  };
+
   VIEWS.home = async () => {
     const home = await api('GET', '/v1/home');
     const guide = S.matter ? await api('GET', `${M()}/guide`) : null;

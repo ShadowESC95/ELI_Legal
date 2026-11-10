@@ -24,16 +24,20 @@ an administrator unlocks it. Sign out when you leave the machine.
 
 | Screen | You use it to |
 |---|---|
+| How to use | Learn the steps of a case and what any word means |
 | Home | See where the open matter stands, your role on it, what to do next (with a button that takes you there, or who can do it if you cannot), what is waiting for you on your other matters, and the routine checks |
-| Matter | Open a matter; see parties, issues, relevant date; decide who has access, who reviews, which sources apply |
-| Evidence | File documents; read any document as numbered passages; see what was not read and what was flagged |
-| Chat | Ask about the matter and get its own passages back, with where each comes from |
-| DAG | Start, stop or restart a run; see what each step did |
-| Agents | See what each step is allowed to read, write and never do |
+| Case details | Open a case; see parties, issues, relevant date; decide who has access, who reviews, which sources apply |
+| Documents | File documents; read any document as numbered passages; see what was not read and what was flagged |
+| Ask about the case | Ask about the case and get its own passages back, with where each comes from |
+| Progress | Start, stop or restart a run; see what each step did |
+| Who does each step | See what each step is allowed to read, write and never do |
 | Findings | See every finding with its source passage and checks |
-| Review | Deal with holds and checks; read the report; decide; release |
-| Audit Trail | See everything that happened, verify it, export it |
-| Governance, Sources, Settings | Oversight and administration |
+| Review and approve | Deal with holds and checks; read the report; decide; release |
+| Record of actions | See everything that happened, verify it, export it |
+| Compliance, Legal sources, Laws and standards, Settings | Oversight and administration |
+
+Everything can be made larger with Ctrl and + (Ctrl and − smaller, Ctrl and 0 normal size), and
+resting the pointer on a heading or a field explains it.
 
 ## Step by step
 
@@ -164,7 +168,7 @@ means. The system sends nothing.
 
 - "Verified" means matched to an approved source. **It is not your verification.** Before
   anything goes to a court, open each authority and check it yourself. Courts require it.
-- Know what your court requires about disclosing AI use. The Audit Trail and evidence pack
+- Know what your court requires about disclosing AI use. The Record of actions and the evidence pack
   record exactly what the tool did, which is what an accurate disclosure needs.
 - Do not use any AI tool to produce the substance of an affidavit or witness statement.
 - The memorandum is privileged. Keep it within the team.

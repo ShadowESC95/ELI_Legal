@@ -7,6 +7,7 @@ import secrets
 import sys
 from pathlib import Path
 
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QApplication,
@@ -135,12 +136,19 @@ class SignInDialog(QDialog):
 
 
 def create_application(argv: list[str] | None = None) -> QApplication:
+    if QApplication.instance() is None:
+        # Let a font set on a window reach every widget in it, as it does without a stylesheet:
+        # zooming (gui/zoom.py) relies on it. Only possible before the application exists.
+        QApplication.setAttribute(Qt.ApplicationAttribute.AA_UseStyleSheetPropagationInWidgetStyles)
     app = QApplication.instance() or QApplication(argv if argv is not None else sys.argv)
     assert isinstance(app, QApplication)
     app.setApplicationName("ELI Legal")
     app.setApplicationVersion(__version__)
     app.setStyle("Fusion")
     app.setStyleSheet(theme.STYLESHEET)
+    from eli_legal.gui import zoom
+
+    zoom.install(app)  # Ctrl and + or - make everything larger or smaller
     icon = Path(__file__).resolve().parent / "assets" / "eli_legal_256.png"
     if icon.is_file():
         app.setWindowIcon(QIcon(str(icon)))

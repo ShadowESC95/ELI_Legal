@@ -128,7 +128,7 @@ Create the first administrator before starting it:
 | It sends the protections | `curl -kI https://server:8443/` shows `content-security-policy`, `strict-transport-security`, `x-frame-options: DENY` |
 | Nothing answers without sign-in | `curl -k https://server:8443/v1/matters` returns 401 |
 | The certificate is the one you installed | Compare the fingerprint in the start-up output with the browser's |
-| The audit chain verifies | Audit Trail, "Verify the chain", or `eli-legal audit verify` |
+| The audit chain verifies | Record of actions, "Verify the chain", or `eli-legal audit verify` |
 
 ## Reporting a weakness
 

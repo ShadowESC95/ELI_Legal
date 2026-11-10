@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 
 from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPainterPath, QPen
+from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPainterPath, QPen, QTransform
 from PySide6.QtWidgets import (
     QComboBox,
     QGraphicsItem,
@@ -94,6 +94,11 @@ class DagView(QGraphicsView):
         self.setScene(self._scene)
         self.setRenderHint(QPainter.RenderHint.Antialiasing)
         self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
+        # The map grows and shrinks with the rest of the application (gui/zoom.py).
+        self.setProperty("zooms", True)
+        from eli_legal.gui import zoom
+
+        self.setTransform(QTransform.fromScale(zoom.level(), zoom.level()))
         self.nodes: dict[str, _Node] = {}
         self._scene.selectionChanged.connect(self._selection)
 

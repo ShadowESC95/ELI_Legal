@@ -35,6 +35,11 @@ def label(
     widget = QLabel(text)
     if role:
         widget.setProperty("role", role)
+        from eli_legal.gui import zoom
+
+        control = zoom.current()
+        if control is not None:
+            control.size_role(widget)  # a title or sidebar label, at the current zoom
     widget.setWordWrap(wrap)
     if selectable:
         widget.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
@@ -82,7 +87,18 @@ def table(headers: Sequence[str], *, stretch: int = -1) -> QTableWidget:
     widget.setAlternatingRowColors(True)
     widget.setWordWrap(False)
     widget.verticalHeader().setVisible(False)
-    widget.verticalHeader().setDefaultSectionSize(26)
+    from eli_legal.gui import zoom
+
+    widget.verticalHeader().setDefaultSectionSize(round(zoom.ROW_HEIGHT * zoom.level()))
+    # Every heading that names a term explains it when the pointer rests on it.
+    from eli_legal.domain import glossary
+
+    for column, heading in enumerate(headers):
+        tip = glossary.tooltip(heading)
+        if tip:
+            header_item = widget.horizontalHeaderItem(column)
+            if header_item is not None:
+                header_item.setToolTip(tip)
     header = widget.horizontalHeader()
     header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
     header.setStretchLastSection(stretch < 0)
@@ -131,9 +147,13 @@ def selected_id(widget: QTableWidget) -> str:
 
 
 def fit(widget: QTableWidget, widths: Sequence[int]) -> None:
+    """Column widths at normal size; they grow and shrink with the zoom."""
+    from eli_legal.gui import zoom
+
+    widget.setProperty("fitWidths", list(widths))
     for column, width in enumerate(widths):
         if width:
-            widget.setColumnWidth(column, width)
+            widget.setColumnWidth(column, round(width * zoom.level()))
 
 
 class ReasonDialog(QDialog):

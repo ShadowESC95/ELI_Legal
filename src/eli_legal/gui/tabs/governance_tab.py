@@ -18,6 +18,8 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFormLayout,
+    QFrame,
+    QHBoxLayout,
     QLineEdit,
     QMessageBox,
     QPlainTextEdit,
@@ -30,7 +32,7 @@ from PySide6.QtWidgets import (
 )
 
 from eli_legal.application.incident_service import REPORTING_DAYS, reporting_deadline
-from eli_legal.domain import plain
+from eli_legal.domain import glossary, plain
 from eli_legal.domain.enums import IncidentSeverity
 from eli_legal.governance.compliance import (
     MIN_AUDIT_RETENTION_DAYS,
@@ -54,6 +56,20 @@ from eli_legal.gui.widgets import (
 from eli_legal.security import authn
 
 _WHO = {"provider": "Provider", "deployer": "Deployer", "both": "Both"}
+# Who does what, in words rather than the letters of a RACI chart.
+_DUTY = {
+    "R": "Does it",
+    "A": "Answers for it",
+    "C": "Is asked first",
+    "I": "Is kept informed",
+}
+_DUTY_KEY = (
+    "<b>Provider</b> is whoever makes ELI Legal and puts it on the market. <b>Deployer</b> is "
+    "your organisation, which uses it. For each thing that has to be done: <b>Does it</b> means "
+    "that party does the work; <b>Answers for it</b>, it is answerable for it being done; "
+    "<b>Is asked first</b>, it is consulted before it is done; <b>Is kept informed</b>, it is "
+    "told once it is done."
+)
 _ACTION_STATE = {
     "done": "Done",
     "waiting": plain.state("to_do"),
@@ -101,6 +117,12 @@ class GovernanceTab(Tab):
         self.inner = QTabWidget()
         self.headline = label("", wrap=True)
         self.root.addWidget(self.headline)
+        self.waiting_note = label("", wrap=True)
+        self.to_record = button("Show what to record", self._show_actions, kind="primary")
+        waiting_line = QHBoxLayout()
+        waiting_line.addWidget(self.waiting_note, 1)
+        waiting_line.addWidget(self.to_record, 0)
+        self.root.addLayout(waiting_line)
         self.root.addWidget(
             label(
                 "Working aids to check against the official texts: not legal advice, and not a "
@@ -117,20 +139,27 @@ class GovernanceTab(Tab):
         self.requirements = table(
             [
                 "Ref",
-                "Instrument",
-                "Provision",
-                "Requirement, in plain words",
+                "Law or standard",
+                "Article or section",
+                "What it requires, in plain words",
                 "Who does it",
                 "Status",
-                "How it is met, and what remains",
+                "What your organisation still has to record",
+                "How the software meets it",
             ]  # fmt: skip
         )
         self.requirements.itemSelectionChanged.connect(self._requirement_chosen)
         self.requirement_detail = label("", wrap=True, selectable=True)
+        self.record_needed = button("Go to what it needs", self._record_needed, kind="primary")
+        detail = QScrollArea()
+        detail.setWidget(self.requirement_detail)
+        detail.setWidgetResizable(True)
+        detail.setFrameShape(QFrame.Shape.NoFrame)
+        self.requirement_detail.setAlignment(Qt.AlignmentFlag.AlignTop)
         split = QSplitter(Qt.Orientation.Vertical)
         split.addWidget(self.requirements)
-        split.addWidget(card("What this requirement needs", self.requirement_detail))
-        split.setSizes([520, 160])
+        split.addWidget(card("What this requirement needs", detail, row(self.record_needed, None)))
+        split.setSizes([420, 320])
         self.inner.addTab(split, "Requirements")
 
         # the organisation's actions
@@ -208,14 +237,21 @@ class GovernanceTab(Tab):
             ]  # fmt: skip
         )
         self.matrix = table(
-            ["Responsibility", "Provider", "Deployer", "Technical / security owner"], stretch=0
+            [
+                "What has to be done",
+                "Provider (the maker of ELI Legal)",
+                "Deployer (your organisation)",
+                "Your IT and security staff",
+            ],
+            stretch=0,
         )
-        for widget, name in (
-            (self.controls, "Controls"),
-            (self.risks, "Risks"),
-            (self.matrix, "Who is responsible"),
-        ):
+        for widget, name in ((self.controls, "Controls"), (self.risks, "Risks")):
             self.inner.addTab(widget, name)
+        page = QWidget()
+        box = QVBoxLayout(page)
+        box.addWidget(label(_DUTY_KEY, "muted", wrap=True))
+        box.addWidget(self.matrix, 1)
+        self.inner.addTab(page, "Who is responsible")
 
         self.alerts = table(["What needs attention"])
         self.metrics = table(["Measure", "Value"], stretch=1)
@@ -320,10 +356,17 @@ class GovernanceTab(Tab):
         fill(
             self.matrix,
             [
-                [m["responsibility"], m["provider"], m["deployer"], m["technical_security_owner"]]
+                [
+                    m["responsibility"],
+                    *(
+                        _DUTY.get(m[k].strip(), m[k])
+                        for k in ("provider", "deployer", "technical_security_owner")
+                    ),
+                ]
                 for m in load_register("responsibilities")
             ],
         )
+        fit(self.matrix, [0, 250, 230, 210])
         self.inner.setTabText(self.inner.indexOf(self.controls), f"Controls ({len(controls)})")
         self.inner.setTabText(self.inner.indexOf(self.risks), f"Risks ({len(risks)})")
 
@@ -334,7 +377,19 @@ class GovernanceTab(Tab):
         if overview is None:
             return
         self._overview = overview
-        self.headline.setText(f"<b>{overview.headline}</b>")
+        total = len(overview.requirements)
+        met = overview.count("met") + overview.count("software")
+        waiting = overview.count("waiting") + overview.count("review_due")
+        records = sum(1 for a in overview.actions if a.state in ("waiting", "review_due"))
+        self.headline.setText(f"<b>{met} of {total} requirements are met.</b>")
+        self.waiting_note.setText(
+            f"The other {waiting} need something only your organisation can do, as well as what "
+            f"the software does: {records} record(s) in all, such as a classification, an "
+            "assessment or training. Each requirement turns to met once its records are made."
+            if waiting
+            else "Nothing is waiting for your organisation."
+        )
+        self.to_record.setVisible(bool(waiting))
         fill(
             self.requirements,
             [
@@ -345,6 +400,7 @@ class GovernanceTab(Tab):
                     r.requirement,
                     r.who,
                     plain.state(r.state),
+                    "; ".join(a.action.title for a in r.outstanding) or "Nothing",
                     r.how_met,
                 ]
                 for r in overview.requirements
@@ -352,7 +408,16 @@ class GovernanceTab(Tab):
             ids=[r.requirement_id for r in overview.requirements],
             state_columns=[5],
         )
-        fit(self.requirements, [72, 90, 150, 340, 230, 215, 0])
+        fit(self.requirements, [72, 140, 170, 340, 220, 210, 340, 0])
+        for r in range(self.requirements.rowCount()):
+            item = self.requirements.item(r, 5)
+            if item is not None:
+                item.setToolTip(glossary.tooltip(item.text()))
+        if not self.requirements.selectedItems() and self.requirements.rowCount():
+            first_waiting = next(
+                (i for i, r in enumerate(overview.requirements) if r.outstanding), 0
+            )
+            self.requirements.selectRow(first_waiting)
         self._actions = {a.action.action_id: a.action for a in overview.actions}
         fill(
             self.org_actions,
@@ -389,22 +454,49 @@ class GovernanceTab(Tab):
             (r for r in (overview.requirements if overview else []) if r.requirement_id == rid),
             None,
         )
+        self._needed = ""
         if found is None:
             self.requirement_detail.setText(
-                "Select a requirement to see what the software does about it and what your "
-                "organisation still has to record."
+                "Click a requirement above to see what it asks for, what the software already "
+                "does about it, and what your organisation still has to record."
             )
+            self.record_needed.setVisible(False)
             return
-        controls = ", ".join(found.controls) or "none"
-        actions = "".join(
-            f"<li><b>{a.action.action_id} {a.action.title}</b>: {a.detail}</li>"
-            for a in found.actions
+        outstanding = found.outstanding
+        self._needed = outstanding[0].action.action_id if outstanding else ""
+        self.record_needed.setVisible(bool(outstanding))
+        to_do = "".join(
+            f"<li><b>{a.action.title}</b> ({a.action.action_id}): {a.action.what_to_do}</li>"
+            for a in outstanding
+        )
+        done = "".join(
+            f"<li>{a.action.title}: {a.detail}</li>" for a in found.actions if a not in outstanding
         )
         self.requirement_detail.setText(
-            f"<b>{found.requirement_id}</b> ({found.reference}): {found.requirement}<br>"
-            f"<b>The software:</b> controls {controls}. {found.how_met}"
-            + (f"<br><b>Your organisation:</b><ul>{actions}</ul>" if actions else "")
+            f"<b>{found.instrument}, {found.reference}.</b> {found.requirement}<br><br>"
+            f"<b>What the software does:</b> {found.how_met}"
+            + (
+                f"<br><br><b>Still to be recorded by your organisation:</b><ul>{to_do}</ul>"
+                if to_do
+                else "<br><br><b>Nothing more is needed from your organisation.</b>"
+            )
+            + (f"<b>Already recorded:</b><ul>{done}</ul>" if done else "")
         )
+
+    def _show_actions(self) -> None:
+        self.inner.setCurrentWidget(self._actions_page)
+
+    def _record_needed(self) -> None:
+        """Take the person to the record this requirement is waiting for, selected."""
+        if not getattr(self, "_needed", ""):
+            return
+        self._show_actions()
+        for r in range(self.org_actions.rowCount()):
+            item = self.org_actions.item(r, 0)
+            if item is not None and item.data(Qt.ItemDataRole.UserRole) == self._needed:
+                self.org_actions.selectRow(r)
+                self.org_actions.scrollToItem(item)
+                return
 
     def _fill_checks(self) -> None:
         latest = self.sv.checks.latest()

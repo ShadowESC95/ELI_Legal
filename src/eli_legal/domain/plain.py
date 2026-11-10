@@ -219,19 +219,21 @@ _HOLD_REASONS: dict[str, Explanation] = {
         "No reviewer is named",
         "Nothing can be relied on until a named person with a reviewing role approves it, so "
         "the work does not start without one.",
-        ("On the Matter page, name at least one reviewer, then start the run again.",),
+        ("On the Case details page, name at least one reviewer, then start the run again.",),
     ),
     "unapproved_source": Explanation(
         "A legal source is not approved",
         "The matter lists a legal source that is no longer approved, and the system reads only "
         "approved sources.",
-        ("Choose approved sources on the Matter page, or ask for the source to be approved.",),
+        (
+            "Choose approved sources on the Case details page, or ask for the source to be approved.",
+        ),
     ),
     "framework_unusable": Explanation(
         "A law or standards package cannot be used",
         "A package chosen for the matter is withdrawn, changed since it was approved, or not "
         "yet approved.",
-        ("Approve the package in Laws & Standards, or take it off the matter.",),
+        ("Approve the package in Laws and standards, or take it off the case.",),
     ),
     "jurisdiction_pack_unvalidated": Explanation(
         "A legal system's pack is not validated",

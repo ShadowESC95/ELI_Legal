@@ -41,7 +41,7 @@ Start the desktop application (`eli-legal-gui`) or the server (`eli-legal serve`
 9. **Review.** Read the report. Tick each stated limit, give your reasons, approve.
 10. **Review, Release.** Name a recipient, confirm them, release. The report is staged in the
     outbox; nothing is sent.
-11. **Audit Trail.** Verify the chain. Every step you took is there, with how you proved who you
+11. **Record of actions.** Verify the chain. Every step you took is there, with how you proved who you
     were.
 
 ## 3. What to notice

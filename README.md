@@ -98,9 +98,10 @@ eli-legal serve                     # the server and browser application, on thi
 | Server and browser application | `eli-legal serve` | A chambers, firm or tribunal, over HTTPS |
 | Command line | `eli-legal` | Administration and scripted use |
 
-All three show the same screens or commands over the same services: **Home · Matter · Evidence ·
-Chat · DAG · Agents · Findings · Review · Audit Trail · Governance · Sources · Laws & Standards ·
-Settings**. Home says where the open matter stands, what to do next and who can do it; a new
+All three show the same screens or commands over the same services: **How to use · Home · Case
+details · Documents · Ask about the case · Progress · Who does each step · Findings · Review and
+approve · Record of actions · Compliance · Legal sources · Laws and standards · Settings**. Every
+word is explained when the pointer rests on it, and everything can be made larger with Ctrl and +. Home says where the open matter stands, what to do next and who can do it; a new
 matter is opened step by step, with its team, reviewers, sources and laws; everything a person
 reads is in plain words. There is no general assistant, no shell and no web access in any of them.
 

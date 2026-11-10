@@ -129,9 +129,10 @@ def test_the_application_has_the_specialised_tabs_and_nothing_else(desk):
         "Sources",
         "Laws & Standards",
         "Settings",
+        "How to use",
     ):
         assert any(wanted in t for t in titles), wanted
-    assert len(titles) == 13
+    assert len(titles) == 14
     for unwanted in (
         "Images",
         "Screen",
@@ -517,3 +518,113 @@ def test_documents_are_taken_in_file_by_file_and_the_outcome_is_said_plainly(
     stored = {doc.filename: doc for doc in d.sv.matters.documents(d.mid, ARBITRATOR)}
     assert stored["without_prejudice.txt"].access_scope is AccessScope.PARTY_CONFIDENTIAL
     assert stored["scan.jpg"].access_scope is AccessScope.ALL_PARTIES
+
+
+def test_everyone_can_make_everything_larger_and_back(desk, qt):
+    """Ctrl and + or -, or Ctrl and the mouse wheel, anywhere: text, tables, sidebar, the map."""
+    from PySide6.QtCore import QPoint, QPointF
+    from PySide6.QtGui import QWheelEvent
+
+    from eli_legal.gui import zoom
+
+    d = desk()
+    control = zoom.current()
+    assert control is not None and control.level == 1.0
+    findings = d.page(FindingsTab)
+    table = findings.findChildren(QtWidgets.QTableWidget)[0]
+    row_before = table.verticalHeader().defaultSectionSize()
+    nav_before = d.window.nav.width()
+    try:
+        control.zoom_in()
+        control.zoom_in()
+        qt.processEvents()
+        assert control.level == 1.2
+        assert qt.font().pointSizeF() == pytest.approx(12.0), "every widget's text"
+        assert table.font().pointSizeF() == pytest.approx(12.0), "in windows already open"
+        assert d.window.statusBar().font().pointSizeF() == pytest.approx(12.0)
+        title = next(w for w in qt.allWidgets() if w.property("role") == "title")
+        assert title.font().pointSizeF() == pytest.approx(18.0), "titles stay larger"
+        assert table.verticalHeader().defaultSectionSize() > row_before, "table rows"
+        assert d.window.nav.width() > nav_before, "the sidebar"
+        dag = d.page(WorkflowTab).findChild(QtWidgets.QGraphicsView)
+        assert dag.transform().m11() == pytest.approx(1.2), "the map of the steps"
+        wheel = QWheelEvent(
+            QPointF(5, 5), QPointF(5, 5), QPoint(0, 0), QPoint(0, -120),
+            QtCore.Qt.MouseButton.NoButton, QtCore.Qt.KeyboardModifier.ControlModifier,
+            QtCore.Qt.ScrollPhase.NoScrollPhase, False,
+        )  # fmt: skip
+        qt.sendEvent(table.viewport(), wheel)
+        assert control.level == 1.1, "Ctrl and the wheel, over a table"
+        assert QtCore.QSettings("ELI", "ELI Legal").value("view/zoom") in (1.1, "1.1")
+        control.set(9.0)
+        assert control.level == 2.5, "never larger than this"
+    finally:
+        control.reset()
+    assert control.level == 1.0 and qt.font().pointSizeF() == pytest.approx(10.0)
+
+
+def test_pages_have_plain_names_and_the_words_explain_themselves(desk):
+    d = desk()
+    names = [d.window.page_name(p) for p in d.window.pages]
+    for wanted in ("How to use", "Case details", "Documents", "Progress", "Compliance",
+                   "Record of actions", "Legal sources"):  # fmt: skip
+        assert wanted in names, wanted
+    tips = [d.window.nav.item(i).toolTip() for i in range(d.window.nav.count())]
+    assert any("analysis" in t for t in tips), "each page says what it is for"
+    assert "cannot reach the internet" in d.window.chips["network"].toolTip()
+    table = d.page(FindingsTab).list
+    headings = [table.horizontalHeaderItem(i) for i in range(table.columnCount())]
+    assert any(h is not None and h.toolTip() for h in headings), "column headings explain terms"
+    from eli_legal.gui.tabs.help_tab import HelpTab
+
+    help_page = d.page(HelpTab)
+    help_page.search.setText("deployer")
+    assert "your organisation" in help_page.words.toPlainText()
+    starts = [
+        b for b in help_page.findChildren(QtWidgets.QPushButton) if b.text() == "Start a new case"
+    ]
+    assert starts, "the guide starts a case"
+
+
+def test_compliance_says_what_your_organisation_must_record_and_who_does_what_in_words(desk):
+    d = desk(ADMIN)
+    governance = d.page(GovernanceTab)
+    governance.refresh()
+    assert "need something only your organisation can do" in governance.waiting_note.text()
+    headers = [
+        governance.requirements.horizontalHeaderItem(i).text()
+        for i in range(governance.requirements.columnCount())
+    ]
+    column = headers.index("What your organisation still has to record")
+    row = governance.requirements.currentRow()
+    assert row >= 0, "a requirement is selected, so the panel below is never empty"
+    assert governance.requirements.item(row, column).text() not in ("", "Nothing")
+    assert "Still to be recorded by your organisation" in governance.requirement_detail.text()
+    governance._record_needed()
+    assert governance.inner.currentWidget() is governance._actions_page
+    assert governance.org_actions.selectedItems(), "the action it needs is selected"
+    cells = {
+        governance.matrix.item(r, c).text()
+        for r in range(governance.matrix.rowCount())
+        for c in range(1, governance.matrix.columnCount())
+    }
+    assert cells <= {"Does it", "Answers for it", "Is asked first", "Is kept informed"}, cells
+
+
+def test_an_official_database_is_added_by_reading_its_licence(desk, monkeypatch):
+    from eli_legal.gui.tabs import sources_tab
+
+    d = desk(ADMIN)
+    page = d.page(sources_tab.SourcesTab)
+
+    def accept(dialog):
+        dialog.choice.setCurrentIndex(dialog.choice.findData("uk_open"))
+        assert "Open Government Licence" in dialog.about.text()
+        dialog.read.setChecked(True)
+        return QtWidgets.QDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(sources_tab._OfficialDialog, "exec", accept)
+    page._official()
+    d.settle()
+    source = d.sv.ctx.sources.get("uk_open")
+    assert source is not None and source.terms_reviewed and not source.approved

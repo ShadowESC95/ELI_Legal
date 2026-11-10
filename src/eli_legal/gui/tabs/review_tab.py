@@ -182,7 +182,7 @@ class ReviewTab(Tab):
             self.report_info.setText("No run is open.")
             self.limits.clear()
             self.recipients.clear()
-            self.decision_note.setText("Start a run from the DAG tab.")
+            self.decision_note.setText("Start a run on the Progress page.")
             return
         summary = self.session.attempt(
             self, lambda: self.sv.runs.summary(self.mid, self.rid, actor_id=self.actor), quiet=True

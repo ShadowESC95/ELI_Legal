@@ -512,7 +512,7 @@ class ChecksService:
             "Law and standards up to date",
             "attention",
             f"{plain.count(len(items), 'point')} about the law and standards in use.",
-            "Check each package against its official text (Laws & Standards → the package → "
+            "Check each package against its official text (Laws and standards → the package → "
             "'Confirm checked against the official text'), and update it if the law has changed.",
             items,
         )

@@ -148,12 +148,24 @@ def test_a_person_can_sign_in_read_the_matter_and_take_a_decision_in_the_browser
         )
     )
     assert (
-        len(tabs) == 13
-        and "Home" in tabs[0]
+        len(tabs) == 14
+        and "How to use" in tabs[0]
+        and "Home" in tabs[1]
         and all(
-            any(w in t for t in tabs) for w in ("Chat", "DAG", "Agents", "Audit Trail", "Settings")
+            any(w in t for t in tabs)
+            for w in ("Ask about the case", "Progress", "Who does each step", "Record of actions",
+                      "Compliance", "Settings")
         )
+    ), tabs  # fmt: skip
+    # How to use: the steps from start to finish, and every word explained.
+    page.tab("help")
+    assert page.until("document.querySelectorAll('#view .glossary dt').length > 40"), page.text(
+        "#view"
+    )[:300]
+    assert "Start a new case" in page.text("#view") and "your organisation" in page.text(
+        "#view .glossary"
     )
+    page.tab("home")
     # Home opens first: where the matter stands and the next thing to do.
     assert page.until("document.querySelectorAll('#view .stage').length === 6"), page.text("#view")[
         :300

@@ -63,7 +63,7 @@ Three things decide what someone may do on a matter, and all three must agree:
 | Auditor | Reads and verifies the matter's audit trail; exports its evidence pack | No document content or findings |
 
 Someone who **acts for a party** never sees what another party gave in confidence. The lead may
-widen or narrow anyone's clearance (`eli-legal matter role M USER --reads …`, or the Matter page).
+widen or narrow anyone's clearance (`eli-legal matter role M USER --reads …`, or the Case details page).
 Whatever a person is not cleared for is withheld everywhere it could appear (lists, passages,
 findings, chat, the report, warnings, the evidence pack), with the reason, never the content, and
 every attempt to read it is recorded. A named reviewer must hold a role on the matter that can
@@ -218,7 +218,7 @@ Back up, together and while the program is stopped or idle:
 Keep one copy of the audit key separately from the databases. Someone who holds both the ledger
 and the key can rewrite history; someone who holds neither cannot run the system.
 
-**Checkpoints.** Audit Trail, Download a checkpoint (or `eli-legal audit checkpoint --out <file>`)
+**Checkpoints.** Record of actions, Download a checkpoint (or `eli-legal audit checkpoint --out <file>`)
 writes a signed statement of where the ledger stands. Keep it off the machine. Verifying against
 it later (`eli-legal audit verify --against <file>`) detects a restore from an older backup, which
 the chain alone cannot. Take one at least weekly and after every approval.

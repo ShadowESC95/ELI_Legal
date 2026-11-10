@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QSize, Qt, QTimer
 from PySide6.QtGui import QAction, QCloseEvent
 from PySide6.QtWidgets import (
     QComboBox,
@@ -16,9 +16,9 @@ from PySide6.QtWidgets import (
 )
 
 from eli_legal import __version__
-from eli_legal.domain import plain
+from eli_legal.domain import glossary, how_to, plain
 from eli_legal.domain.profiles import profile_spec
-from eli_legal.gui import theme
+from eli_legal.gui import theme, zoom
 from eli_legal.gui.session import Session
 from eli_legal.gui.tabs.agents_tab import AgentsTab
 from eli_legal.gui.tabs.audit_tab import AuditTab
@@ -28,6 +28,7 @@ from eli_legal.gui.tabs.documents_tab import DocumentsTab
 from eli_legal.gui.tabs.findings_tab import FindingsTab
 from eli_legal.gui.tabs.frameworks_tab import FrameworksTab
 from eli_legal.gui.tabs.governance_tab import GovernanceTab
+from eli_legal.gui.tabs.help_tab import HelpTab
 from eli_legal.gui.tabs.home_tab import HomeTab
 from eli_legal.gui.tabs.matter_tab import MatterTab
 from eli_legal.gui.tabs.review_tab import ReviewTab
@@ -61,6 +62,7 @@ class MainWindow(QMainWindow):
         self.matter_box = QComboBox()
         self.matter_box.setMinimumWidth(360)
         self.matter_box.activated.connect(self._matter_chosen)
+        self.matter_box.setToolTip(glossary.tooltip("Matter", "Choose the case to work on."))
         self.profile = label("", "muted")
         self.chips = {name: chip("") for name in ("checks", "audit", "network", "model", "user")}
         header = QFrame()
@@ -70,7 +72,7 @@ class MainWindow(QMainWindow):
         title = label("ELI Legal", "title")
         line.addWidget(title)
         line.addSpacing(14)
-        line.addWidget(label("Matter"))
+        line.addWidget(label("Case"))
         line.addWidget(self.matter_box)
         line.addWidget(self.profile)
         line.addStretch(1)
@@ -93,6 +95,7 @@ class MainWindow(QMainWindow):
             SourcesTab(session),
             FrameworksTab(session),
             SettingsTab(session, self.sign_out),
+            HelpTab(session, self.go),
         ]
         for page in self.pages:
             self.tabs.addTab(page, page.title)
@@ -127,15 +130,19 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(3000, self.scheduled_checks)
 
     # ── navigation ───────────────────────────────────────────────────────────
+    # Each page in plain words: its name in the sidebar and what it is for.
     _SECTIONS = (
+        ("START HERE", ("HelpTab", "HomeTab")),
         (
-            "THIS MATTER",
-            ("Home", "Matter", "Evidence", "Chat", "DAG", "Agents", "Findings", "Review"),
+            "THIS CASE",
+            ("MatterTab", "DocumentsTab", "ChatTab", "WorkflowTab", "AgentsTab", "FindingsTab",
+             "ReviewTab"),
         ),
-        ("OVERSIGHT", ("Audit Trail", "Governance")),
-        ("LIBRARY AND SETTINGS", ("Sources", "Laws & Standards", "Settings")),
-    )
+        ("CHECKING AND RECORDS", ("AuditTab", "GovernanceTab")),
+        ("SET-UP", ("SourcesTab", "FrameworksTab", "SettingsTab")),
+    )  # fmt: skip
     _PAGE_KEYS = {
+        "help": "HelpTab",
         "home": "HomeTab",
         "matter": "MatterTab",
         "evidence": "DocumentsTab",
@@ -150,24 +157,67 @@ class MainWindow(QMainWindow):
         "laws": "FrameworksTab",
         "settings": "SettingsTab",
     }
+    _NAV_WIDTH = 270
+
+    @property
+    def _NAV(self) -> dict[str, tuple[str, str]]:  # noqa: N802 - read as a table
+        """Each page in plain words, by its class: its name and what it is for."""
+        return {cls: how_to.PAGES[key] for key, cls in self._PAGE_KEYS.items()}
+
+    def page_name(self, page: Tab) -> str:
+        """A page's name as the sidebar shows it."""
+        return self._NAV.get(type(page).__name__, (page.title, ""))[0]
 
     def _sidebar(self) -> QListWidget:
         nav = QListWidget()
         nav.setObjectName("nav")
-        nav.setFixedWidth(196)
-        for heading, titles in self._SECTIONS:
+        nav.setFixedWidth(round(self._NAV_WIDTH * zoom.level()))
+        nav.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
+        nav.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        by_class = {type(page).__name__: i for i, page in enumerate(self.pages)}
+        for heading, classes in self._SECTIONS:
             head = QListWidgetItem(heading)
             head.setFlags(Qt.ItemFlag.NoItemFlags)
             head.setForeground(Qt.GlobalColor.gray)
             nav.addItem(head)
-            for wanted in titles:
-                index = next(i for i, page in enumerate(self.pages) if page.title.endswith(wanted))
-                item = QListWidgetItem(self.pages[index].title.replace("&&", "&"))
+            for name in classes:
+                index = by_class[name]
+                title, about = self._NAV[name]
+                item = QListWidgetItem()
                 item.setData(Qt.ItemDataRole.UserRole, index)
+                item.setToolTip(glossary.tooltip(title, about))
                 nav.addItem(item)
+                holder = QWidget()
+                holder.setObjectName("navitem")
+                inner = QVBoxLayout(holder)
+                inner.setContentsMargins(8, 3, 8, 4)
+                inner.setSpacing(1)
+                inner.addWidget(label(title, "navname"))
+                inner.addWidget(label(about, "navabout", wrap=True))
+                nav.setItemWidget(item, holder)
         nav.currentItemChanged.connect(self._nav_chosen)
         self.tabs.currentChanged.connect(self._sync_nav)
+        zoom_control = zoom.current()
+        if zoom_control is not None:
+            zoom_control.changed.connect(self._nav_zoomed)
+        QTimer.singleShot(0, lambda: self._nav_zoomed(zoom.level()))
+        self._size_nav_items(nav)
         return nav
+
+    def _size_nav_items(self, nav: QListWidget) -> None:
+        """Each entry as tall as its words need at the sidebar's width, so none is cut off."""
+        width = nav.width() - nav.verticalScrollBar().sizeHint().width() - 12
+        for row in range(nav.count()):
+            item = nav.item(row)
+            holder = nav.itemWidget(item)
+            layout = holder.layout() if holder is not None else None
+            if holder is not None and layout is not None:
+                holder.setFixedWidth(width)
+                item.setSizeHint(QSize(width, layout.totalHeightForWidth(width)))
+
+    def _nav_zoomed(self, level: float) -> None:
+        self.nav.setFixedWidth(round(self._NAV_WIDTH * level))
+        self._size_nav_items(self.nav)
 
     def _nav_chosen(self, item: QListWidgetItem | None, _old: QListWidgetItem | None) -> None:
         index = item.data(Qt.ItemDataRole.UserRole) if item is not None else None
@@ -219,14 +269,23 @@ class MainWindow(QMainWindow):
         add(file_menu, "Quit", self.close, "Ctrl+Q")
         view = self.menuBar().addMenu("&View")
         add(view, "Refresh", self.refresh, "F5")
+        control = zoom.current()
+        if control is not None:
+            # Shortcuts are the zoom's own, so they work in every window; the menu shows them.
+            control.keys(self)
+            add(view, "Larger (Ctrl and +)", control.zoom_in)
+            add(view, "Smaller (Ctrl and −)", control.zoom_out)
+            add(view, "Normal size (Ctrl and 0)", control.reset)
+        view.addSeparator()
         for index, page in enumerate(self.pages):
             add(
                 view,
-                page.title,
+                self.page_name(page),
                 lambda i=index: self.tabs.setCurrentIndex(i),
                 f"Ctrl+{index + 1}" if index < 9 else "",
             )
         help_menu = self.menuBar().addMenu("&Help")
+        add(help_menu, "How to use ELI Legal", lambda: self.go("help"), "F1")
         add(
             help_menu,
             "What this system does and does not do",
@@ -254,6 +313,9 @@ class MainWindow(QMainWindow):
         page = self.tabs.currentWidget()
         if isinstance(page, Tab) and self.session.user_id:
             page.refresh()
+        control = zoom.current()
+        if control is not None:
+            control.watch_new()  # what the page just built answers to Ctrl and the wheel too
 
     def refresh(self) -> None:
         session = self.session
@@ -322,6 +384,37 @@ class MainWindow(QMainWindow):
         set_chip(
             self.chips["user"], f"👤 {user.display_name if user else ''} · {roles}", theme.TEXT
         )
+        # What each indicator means, for the pointer to rest on.
+        self.chips["checks"].setToolTip(
+            glossary.tooltip(
+                "Checks",
+                "The Compliance page, under Routine checks, says what "
+                "needs attention and what to do.",
+            )
+        )
+        self.chips["audit"].setToolTip(
+            glossary.tooltip(
+                "Audit verified" if chain.ok else "Audit trail",
+                f"{chain.count} entries so far. The Record of actions page shows them.",
+            )
+        )
+        self.chips["network"].setToolTip(
+            glossary.tooltip(
+                "Hard offline" if offline["hard_offline"] else "Network denied by default"
+            )
+        )
+        self.chips["model"].setToolTip(
+            glossary.tooltip(
+                "Model",
+                f"In use: {model.model_id}."
+                if model.available
+                else "None is in use; choose one in Settings if you want drafting.",
+            )
+        )
+        self.chips["user"].setToolTip(
+            glossary.tooltip("Role", f"You are signed in as {user.display_name if user else ''}. "
+                             f"Your account's roles: {roles}.")
+        )  # fmt: skip
         self._refresh_page()
 
     def _matter_chosen(self) -> None:
@@ -344,7 +437,7 @@ class MainWindow(QMainWindow):
             QMessageBox.information(
                 self,
                 "Still working",
-                "Work is in progress (a run, or the routine checks). Stop a run from the DAG page, or wait for it to finish.",
+                "Work is in progress (a run, or the routine checks). Stop a run on the Progress page, or wait for it to finish.",
             )
             event.ignore()
             self.signing_out = False

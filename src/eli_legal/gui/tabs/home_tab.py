@@ -156,8 +156,8 @@ class HomeTab(Tab):
         )
         for number, stage in enumerate(guide.stages, start=1):
             box = QLabel(
-                f"<b>{number}. {stage.title}</b><br><span style='font-size:9pt'>"
-                f"{plain.state(stage.state) if stage.state != 'current' else 'Now'}</span>"
+                f"<b>{number}. {stage.title}</b><br><small>"
+                f"{plain.state(stage.state) if stage.state != 'current' else 'Now'}</small>"
             )
             box.setToolTip(stage.detail)
             box.setAlignment(Qt.AlignmentFlag.AlignCenter)

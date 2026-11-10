@@ -12,7 +12,7 @@ from typing import Annotated, Any
 from fastapi import Depends, FastAPI
 
 from eli_legal.application.services import Services
-from eli_legal.domain import plain
+from eli_legal.domain import glossary, how_to, plain
 from eli_legal.persistence import codec
 from eli_legal.security import access as matter_access
 
@@ -38,6 +38,9 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
             }
             for code, r in matter_access.MATTER_ROLES.items()
         }
+        # What each word means and how to use the system, as the desktop application says it.
+        out["glossary"] = dict(glossary.TERMS)
+        out["how_to"] = how_to.as_dict()
         return out
 
     # ── guidance ─────────────────────────────────────────────────────────────

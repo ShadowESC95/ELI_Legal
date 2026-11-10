@@ -34,6 +34,11 @@ header.top select { width: auto; min-width: 260px; }
 .chip::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--idle); }
 .chip.good::before { background: var(--good); } .chip.warn::before { background: var(--warn); } .chip.bad::before { background: var(--bad); } .chip.human::before { background: var(--human); }
 nav.tabs { display: flex; gap: 2px; padding: 6px 12px 0; border-bottom: 1px solid var(--line); background: var(--panel); overflow-x: auto; }
+nav.tabs { flex-wrap: wrap; overflow-x: visible; }
+nav.tabs .tab { font-size: 1.05rem; padding: 8px 14px; }
+th[title] { cursor: help; text-decoration: underline dotted; text-underline-offset: 3px; }
+.glossary dt { font-weight: bold; margin-top: 8px; }
+.glossary dd { margin: 2px 0 0 0; color: var(--muted, #94a8c6); }
 .tab { border: 1px solid transparent; border-bottom: none; border-radius: 8px 8px 0 0; background: transparent; padding: 7px 13px; color: var(--mut); white-space: nowrap; }
 .tab[aria-selected=true] { background: var(--bg); color: var(--fg); border-color: var(--line); }
 main { padding: 14px 16px 56px; }
