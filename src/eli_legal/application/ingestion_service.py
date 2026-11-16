@@ -14,8 +14,14 @@ from eli_legal.legal.legal_document_processor import build_chunks, classify_docu
 
 # The reader's version. "pages/1": every page of a PDF is accounted for, image pages read by OCR
 # or reported unread (0.8.4). A PDF read by anything earlier may have lost a page silently.
-READER_VERSION = "pages/1"
+READER_VERSION = "pages/2"
+# "pages/2": images beside a page's text are read too, where OCR is available (0.8.6).
+IMAGE_TEXT_WORDS = 12
 _PAGED = ("application/pdf",)
+
+
+def _words(text: str) -> set[str]:
+    return {w.strip(".,:;()-–—").lower() for w in text.split() if w.strip(".,:;()-–—")}
 
 
 def read_by_older_reader(document: Document) -> bool:
@@ -183,9 +189,14 @@ class IngestionService:
         document.blank_pages = list(parsed.blank_pages)
         document.pictured_pages = list(parsed.pictured_pages)
         wanted = parsed.image_pages
-        if not wanted:
-            return parsed
+        pictured = parsed.pictured_pages
         ocr = self.ctx.ocr
+        if not wanted and not (pictured and ocr.available):
+            return parsed
+        by_page: dict[int, list[Segment]] = {}
+        for segment in parsed.segments:
+            number = int(segment.locator.split()[0][2:]) if segment.locator.startswith("p.") else 0
+            by_page.setdefault(number, []).append(segment)
         read: dict[int, list[Segment]] = {}
         if ocr.available:
             document.ocr_engine = ocr.version
@@ -196,6 +207,24 @@ class IngestionService:
                         Segment(f"p.{page.number} (OCR) ¶{i}", text)
                         for i, text in enumerate(page.paragraphs, start=1)
                     ]
+            # A page with text and an image: the image may be an exhibit (an invoice pasted
+            # under its caption). The page is read whole, and what the text layer lacks is
+            # added, marked as read from the image; a logo or a signature adds nothing.
+            for page in ocr.read_pdf_pages(raw, pictured):
+                layer = _words(" ".join(s.text for s in by_page.get(page.number, [])))
+                # A paragraph the text layer already holds (most of its words there) is not
+                # read twice; anything else on the page came from the image.
+                extra = [
+                    t for t in page.paragraphs
+                    if len(_words(t) & layer) < 0.8 * max(1, len(_words(t)))
+                ]  # fmt: skip
+                if sum(len(t.split()) for t in extra) >= IMAGE_TEXT_WORDS:
+                    document.ocr_pages[str(page.number)] = page.confidence
+                    document.pictured_pages.remove(page.number)
+                    read[page.number] = by_page.get(page.number, []) + [
+                        Segment(f"p.{page.number} (OCR, image) ¶{i}", text)
+                        for i, text in enumerate(extra, start=1)
+                    ]
         document.unread_pages = [n for n in wanted if n not in read]
         if not read:
             if not parsed.segments:
@@ -205,10 +234,6 @@ class IngestionService:
                 )
             return parsed
         # Keep the pages in order: the text layer's pages and OCR's in one sequence.
-        by_page: dict[int, list[Segment]] = {}
-        for segment in parsed.segments:
-            number = int(segment.locator.split()[0][2:]) if segment.locator.startswith("p.") else 0
-            by_page.setdefault(number, []).append(segment)
         by_page.update(read)
         ordered = tuple(s for n in sorted(by_page) for s in by_page[n])
         return replace(parsed, segments=ordered)

@@ -9,6 +9,7 @@ from typing import Annotated, Any
 from fastapi import Depends, FastAPI, Response
 from fastapi.responses import PlainTextResponse
 
+from eli_legal.application.reliance_service import standing_line
 from eli_legal.application.services import Services
 from eli_legal.domain.enums import IncidentSeverity, ReviewDecision, VerificationStatus
 from eli_legal.domain.errors import NotFound
@@ -153,6 +154,7 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
         """The report text, its SHA-256, its release state and the limits a reviewer must acknowledge."""
         text, current = report_of(matter_id, run_id, actor)
         return {
+            "standing": sv.reliance.standing(matter_id, run_id, actor_id=actor),
             "text": text,
             "sha256": current["sha256"],
             "version": current["version"],
@@ -165,13 +167,21 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
     def report_file(matter_id: str, run_id: str, actor: Actor) -> PlainTextResponse:
         """The report as a Markdown file."""
         text, current = report_of(matter_id, run_id, actor)
+        st = sv.reliance.standing(matter_id, run_id, actor_id=actor)
+        # The report below is exactly the file that was hashed and approved; what it cannot say
+        # about itself (a suspension since, when the law was last checked) is put above it.
+        notice = (
+            f"<!-- Added when this copy was downloaded; not part of the approved report "
+            f"(SHA-256 {current['sha256']}). -->\n> **{standing_line(st)}**\n\n"
+        )
         return PlainTextResponse(
-            text,
+            notice + text,
             media_type="text/markdown",
             headers={
                 "Content-Disposition": f'attachment; filename="report_{run_id}.md"',
                 "X-Report-SHA256": current["sha256"],
                 "X-Release-Status": current["release_status"],
+                "X-Reliance-Status": st["state"],
             },
         )
 

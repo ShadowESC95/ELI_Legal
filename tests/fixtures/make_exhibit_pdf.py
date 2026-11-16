@@ -99,6 +99,25 @@ def main() -> None:
     )
     (HERE / "exhibit_scan.pdf").write_bytes(pdf)
     print(f"exhibit_scan.pdf: {len(pdf)} bytes, page 2 an image {width}x{height}")
+    # One page: a caption in the text layer, and the invoice beneath it as an image.
+    caption = b"BT /F1 14 Tf 72 740 Td (Exhibit C: the invoice, as received by email.) Tj ET\n"
+    beside = _pdf(
+        [
+            b"<< /Type /Catalog /Pages 2 0 R >>",
+            b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+            b"/Resources << /Font << /F1 4 0 R >> /XObject << /Im1 6 0 R >> >> /Contents 5 0 R >>",
+            b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+            _stream(caption + b"q 612 0 0 792 0 -60 cm /Im1 Do Q"),
+            _stream(
+                image,
+                f"/Type /XObject /Subtype /Image /Width {width} /Height {height} "
+                "/ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode ",
+            ),
+        ]
+    )
+    (HERE / "exhibit_beside_caption.pdf").write_bytes(beside)
+    print(f"exhibit_beside_caption.pdf: {len(beside)} bytes")
 
 
 if __name__ == "__main__":

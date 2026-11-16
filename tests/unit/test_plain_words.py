@@ -29,7 +29,7 @@ def test_every_state_a_person_is_shown_has_plain_words_and_a_tone():
 
 def test_every_hold_reason_the_gates_raise_is_explained_with_what_to_do():
     for code in [*_REASON_BY_STATUS.values(), "prompt_injection_detected", "coverage_gap",
-                 "pages_not_read", "ocr_low_confidence",
+                 "pages_not_read", "ocr_low_confidence", "image_text_unread",
                  "dependency_held", "step_failed", "missing_reviewer", "unapproved_source",
                  "framework_unusable"]:  # fmt: skip
         explained = plain.hold_explanation(code)

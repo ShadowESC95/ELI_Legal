@@ -25,6 +25,7 @@ import json
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from datetime import date
+from pathlib import Path
 
 from eli_legal import __version__
 from eli_legal.application.container import AppContext
@@ -52,12 +53,36 @@ class NotAuthorised(PolicyDenied):
     """A real matter's work was asked for without a deployment authorisation that covers it."""
 
 
+def _digest(obj: object) -> str:
+    return hashlib.sha256(json.dumps(obj, sort_keys=True, default=str).encode()).hexdigest()[:16]
+
+
 def pinned_now(ctx: AppContext) -> dict[str, str]:
-    """The software version, policy and model in use, as an authorisation pins them."""
+    """Everything an authorisation is approved for, as it is in use now: the software version,
+    the policy, the model and the embedding model, the workflow, the legal-system packs (with
+    who validated them) and the approved legal sources (with their licence and terms review).
+    A change to any of them voids the authorisation until it is approved again."""
     policy = asdict(ctx.policy)
     policy = {k: sorted(v) if isinstance(v, (set, frozenset)) else v for k, v in policy.items()}
-    digest = hashlib.sha256(json.dumps(policy, sort_keys=True, default=str).encode()).hexdigest()
-    return {"version": __version__, "policy": digest[:16], "model": ctx.model.model_id}
+    packs = {
+        code: _digest(asdict(p)) for code in ctx.jurisdictions.codes()
+        if (p := ctx.jurisdictions.get(code)) is not None
+    }  # fmt: skip
+    sources = {
+        s.source_id: [s.name, getattr(s, "licence", ""), bool(s.terms_reviewed)]
+        for s in ctx.sources.list()
+        if s.approved
+    }
+    workflow = [(s.id, sorted(s.depends_on)) for s in ctx.workflow.steps]
+    return {
+        "version": __version__,
+        "policy": _digest(policy),
+        "model": ctx.model.model_id,
+        "embedding_model": ctx.embedder.model_id,
+        "workflow": _digest(workflow),
+        "jurisdiction_packs": _digest(packs),
+        "sources": _digest(sources),
+    }
 
 
 def _in_force(a: DeploymentAuthorisation, today: date) -> bool:
@@ -83,7 +108,7 @@ def why_not(ctx: AppContext, matter: Matter, *, reviewer_id: str = "",
             missing.append(f"the legal system {matter.jurisdiction} is not among those approved")
         if matter.profile.value not in a.profiles:
             missing.append(f"matters for {matter.profile.value} are not among those approved")
-        changed = [k for k in ("version", "policy", "model") if a.pinned.get(k) != now[k]]
+        changed = [k for k in now if a.pinned.get(k) != now[k]]
         if changed:
             missing.append(
                 "approved for a different " + " and ".join(changed) + f" (approved {a.pinned}, "
@@ -194,8 +219,15 @@ class DeploymentService:
         missing = [k for k in EVIDENCE if not evidence.get(k, "").strip()]
         if missing:
             raise InvalidInput(
-                "an authorisation rests on evidence; still to name: "
+                "an authorisation rests on evidence; still to provide: "
                 + "; ".join(EVIDENCE[k] for k in missing)
+            )
+        files = {k: Path(evidence[k]).expanduser() for k in EVIDENCE}
+        absent = [EVIDENCE[k] for k, f in files.items() if not f.is_file()]
+        if absent:
+            raise InvalidInput(
+                "each piece of evidence is the document itself, not a name for it; not found: "
+                + "; ".join(absent)
             )
         if not effective_from < expires_on or (expires_on - effective_from).days > MAX_DAYS:
             raise InvalidInput(f"it must expire after it starts, and within {MAX_DAYS} days")
@@ -209,9 +241,17 @@ class DeploymentService:
             expires_on=expires_on,
             proposed_by=actor_id,
             data_classes=sorted(set(data_classes)),
-            evidence={k: evidence[k].strip() for k in EVIDENCE},
             pinned=pinned_now(self.ctx),
         )
+        # The approval binds to the evidence as it is now: each document is copied into the
+        # application's keeping and recorded by its SHA-256, and signing checks it unchanged.
+        kept = Path(self.ctx.settings.artifacts_dir) / "deployment" / a.authorisation_id
+        kept.mkdir(parents=True, exist_ok=True)
+        for k, f in files.items():
+            body = f.read_bytes()
+            copy = kept / f"{k}{f.suffix}"
+            copy.write_bytes(body)
+            a.evidence[k] = f"{copy.name} sha256:{hashlib.sha256(body).hexdigest()}"
         self._put(a, actor_id, "deployment_proposed", "proposed")
         return a
 
@@ -229,8 +269,15 @@ class DeploymentService:
             raise InvalidState(f"this authorisation is {a.status}")
         if a.pinned != pinned_now(self.ctx):
             raise InvalidState(
-                "the software, policy or model changed since it was proposed; propose it again"
+                "what it was proposed for (software, policy, models, workflow, legal-system packs "
+                "or sources) changed since; propose it again"
             )
+        kept = Path(self.ctx.settings.artifacts_dir) / "deployment" / a.authorisation_id
+        for k, recorded in a.evidence.items():
+            name, _, digest = recorded.partition(" sha256:")
+            copy = kept / name
+            if not copy.is_file() or hashlib.sha256(copy.read_bytes()).hexdigest() != digest:
+                raise InvalidState(f"the evidence for {EVIDENCE.get(k, k)} changed or is missing")
         other = a.deployer_signed_by if as_lead == "provider" else a.provider_signed_by
         if other == actor_id:
             raise PolicyDenied("the provider lead and the deployer lead must be different people")

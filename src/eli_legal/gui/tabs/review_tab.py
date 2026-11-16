@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from html import escape
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -13,7 +15,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from eli_legal.application.reliance_service import BARRED
+from eli_legal.application.reliance_service import BARRED, standing_line
 from eli_legal.domain import plain
 from eli_legal.domain.enums import HoldScope, ReviewDecision, VerificationStatus
 from eli_legal.domain.models import Claim, Hold, RelianceBlock, Run
@@ -301,8 +303,14 @@ class ReviewTab(Tab):
             text, withheld = shown if shown else ("_The report could not be read._", False)
             self.report.setMarkdown(text)
             state = plain.state(report["release_status"]).lower()
+            st = self.session.attempt(
+                self,
+                lambda: self.sv.reliance.standing(self.mid, self.rid, actor_id=self.actor),
+                quiet=True,
+            )
             self.report_info.setText(
-                f"Version {report['version']} · {state} · SHA-256 {report['sha256'][:16]}…"
+                (f"<b>{escape(standing_line(st))}</b><br>" if st else "")
+                + f"Version {report['version']} · {state} · SHA-256 {report['sha256'][:16]}…"
                 + (
                     " · material your role does not include is withheld from this copy"
                     if withheld

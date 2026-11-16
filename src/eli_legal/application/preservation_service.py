@@ -26,7 +26,7 @@ from pathlib import Path
 
 from eli_legal.application.container import AppContext
 from eli_legal.domain.errors import InvalidInput, InvalidState, NotFound, PolicyDenied
-from eli_legal.domain.models import Document, Matter, PreservationHold, utcnow
+from eli_legal.domain.models import Document, Matter, PreservationHold, Run, utcnow
 from eli_legal.security import authn
 
 MIN_TEXT = 20
@@ -65,6 +65,7 @@ def dispose(
             "its content may not be deleted until the hold is released"
         )
     keep_ids = sorted({d for h in holds for d in h.document_ids})
+    generated = _generated(ctx, mid)
     documents = ctx.store.list(Document, mid)
     kept = [d for d in documents if d.document_id in keep_ids]
     going = [d for d in documents if d.document_id not in keep_ids]
@@ -72,7 +73,33 @@ def dispose(
     counts["vault_files"] = ctx.vault.purge_matter(mid, keep={d.sha256 for d in kept})
     counts["preserved_documents"] = len(kept)
     deleted = sorted({d.sha256 for d in going} - {d.sha256 for d in kept})
-    manifest = hashlib.sha256("\n".join(deleted).encode()).hexdigest()
+    # What the application made from the matter: reports, outbox copies, evidence packs in its
+    # own folders. A report can quote any document, a held one included, so any hold in force
+    # keeps them all. Packs exported elsewhere are beyond its control: named, not deleted.
+    files_deleted: dict[str, str] = {}
+    files_kept: list[str] = []
+    for kind, paths in generated.items():
+        for path in paths:
+            name = f"{kind}/{path.relative_to(Path(ctx.settings.artifacts_dir)).as_posix()}"
+            if holds:
+                files_kept.append(name)
+                continue
+            files_deleted[name] = hashlib.sha256(path.read_bytes()).hexdigest()
+            path.chmod(0o600)
+            path.unlink()
+    if not holds:
+        for paths in generated.values():
+            _prune(Path(ctx.settings.artifacts_dir), paths)
+    elsewhere = [
+        e for e in ctx.audit.events(matter_id=mid)
+        if e["event_type"] == "evidence_exported" and not e["payload"].get("managed", False)
+    ]  # fmt: skip
+    counts["generated_files_deleted"] = len(files_deleted)
+    counts["generated_files_kept"] = len(files_kept)
+    counts["exported_elsewhere"] = len(elsewhere)
+    manifest = hashlib.sha256(
+        "\n".join(deleted + [f"{n} {h}" for n, h in sorted(files_deleted.items())]).encode()
+    ).hexdigest()
     at = utcnow()
     receipt = {
         "matter_id": mid,
@@ -82,6 +109,17 @@ def dispose(
         "deleted_originals_sha256": deleted,
         "manifest_sha256": manifest,
         "preserved_document_ids": keep_ids,
+        "generated_files_deleted_sha256": files_deleted,
+        "generated_files_kept": files_kept,
+        "exported_outside_the_application": [
+            {
+                "at": e["created_at"],
+                "by": e["actor_id"],
+                "run_id": e.get("run_id"),
+                "manifest_sha256": e.get("output_hash"),
+            }
+            for e in elsewhere
+        ],  # fmt: skip
         "preservation_holds": [h.hold_id for h in holds],
         "counts": counts,
     }
@@ -108,6 +146,30 @@ def dispose(
         },
     )
     return counts
+
+
+def _generated(ctx: AppContext, matter_id: str) -> dict[str, list[Path]]:
+    """Every file the application made from a matter, in its own folders, by kind."""
+    root = Path(ctx.settings.artifacts_dir)
+    runs = [r.run_id for r in ctx.store.list(Run, matter_id)]
+    found: dict[str, list[Path]] = {
+        "reports": _files(root / "runs" / matter_id),
+        "outbox": _files(root / "outbox" / matter_id),
+        "evidence": [p for r in runs for p in _files(root / "evidence" / f"evidence_pack_{r}")],
+    }
+    return {k: v for k, v in found.items() if v}
+
+
+def _files(folder: Path) -> list[Path]:
+    return sorted(p for p in folder.rglob("*") if p.is_file()) if folder.is_dir() else []
+
+
+def _prune(root: Path, paths: list[Path]) -> None:
+    """Remove the folders left empty, up to the kind's own folder."""
+    for folder in sorted({p.parent for p in paths}, key=lambda f: len(f.parts), reverse=True):
+        while folder != root and folder.is_dir() and not any(folder.iterdir()):
+            folder.rmdir()
+            folder = folder.parent
 
 
 @dataclass(slots=True)

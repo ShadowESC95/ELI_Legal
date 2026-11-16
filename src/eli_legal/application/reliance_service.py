@@ -264,9 +264,56 @@ def open_or_extend(
     return block, True
 
 
+def standing(ctx: AppContext, matter: Matter, run: Run) -> dict[str, str]:
+    """A report's standing now, to show wherever it is read: whether it may be relied on, why
+    not, and when the law it rests on was last checked, and from where. A report file keeps the
+    status it was approved with; this is what it does not say."""
+    from eli_legal.application.checks_service import ChecksService
+
+    blocks = barring(ctx, matter.matter_id, run.run_id)
+    if blocks:
+        b = blocks[0]
+        state = "suspended" if b.status == "active" else "superseded"
+        detail = (
+            f"reliance suspended since {b.opened_at.date().isoformat()}: an authority it relies "
+            "on is no longer confirmed as good law"
+            if b.status == "active"
+            else f"replaced by a later approved run ({b.superseded_by_run_id})"
+        )
+    elif not matter.real and run.status is RunStatus.APPROVED_FOR_RELIANCE:
+        state, detail = "practice", "a practice matter: reviewed, never for reliance"
+    elif run.status is RunStatus.APPROVED_FOR_RELIANCE:
+        state, detail = "in_force", "approved for reliance; no status problem detected"
+    else:
+        state, detail = run.status.value, "not approved for reliance"
+    last = ChecksService(ctx).latest()
+    law = next((r for r in last.results if r.check_id == "authorities"), None) if last else None
+    sources = [ctx.sources.get(i) for i in sorted(matter.approved_source_ids)]
+    return {
+        "state": state,
+        "detail": detail,
+        "law_checked_at": last.started_at.isoformat(timespec="minutes") if law and last else "",
+        "law_check": law.state if law else "never run",
+        "sources": ", ".join(s.name for s in sources if s is not None) or "none approved",
+    }
+
+
+def standing_line(st: dict[str, str]) -> str:
+    when = (
+        f"law last checked {st['law_checked_at']} UTC by the routine checks ({st['law_check']})"
+        if st["law_checked_at"]
+        else "the routine checks of the law have not run yet"
+    )
+    return f"Status now: {st['detail']}; {when}; sources: {st['sources']}."
+
+
 @dataclass(slots=True)
 class RelianceService:
     ctx: AppContext
+
+    def standing(self, matter_id: str, run_id: str, *, actor_id: str) -> dict[str, str]:
+        matter = self.ctx.matter_for(matter_id, actor_id, "document.read")
+        return standing(self.ctx, matter, self.ctx.store.require(Run, matter.matter_id, run_id))
 
     def list(self, matter_id: str, *, actor_id: str) -> list[RelianceBlock]:
         matter = self.ctx.matter_for(matter_id, actor_id, "report.review")

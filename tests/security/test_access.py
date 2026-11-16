@@ -141,13 +141,14 @@ def test_an_unapproved_source_cannot_be_used(demo):
     )
 
 
-def test_closing_a_matter_ends_access_and_deletes_content_but_keeps_the_account(
-    lifecycle, tmp_path
-):
+def test_closing_a_matter_ends_access_and_deletes_content_but_keeps_the_account(tmp_path):
     from eli_legal.application.services import build_services
     from eli_legal.demo import build_demo_workspace
-    from eli_legal.demo_run import demo_settings
+    from eli_legal.demo_run import demo_settings, run_demo
 
+    # Its own lifecycle: closing and deleting must not take away what other tests read from
+    # the shared one (deletion now takes the reports and evidence packs too).
+    lifecycle = run_demo(tmp_path / "own", say=lambda _line: None, install_network_guard=False)
     sv = build_services(
         demo_settings(lifecycle.root, build_demo_workspace(lifecycle.root / "demo")),
         install_network_guard=False,

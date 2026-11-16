@@ -220,7 +220,16 @@ def export_evidence_pack(
         outcome="exported",
         object_type="evidence_pack",
         output_hash=hashlib.sha256((target / "MANIFEST.json").read_bytes()).hexdigest(),
-        payload={"files": len(files), "chain_ok": chain.ok, "record_complete": completeness.ok},
+        payload={
+            "files": len(files),
+            "chain_ok": chain.ok,
+            "record_complete": completeness.ok,
+            # Whether the pack is in the application's own folder (deleted with the matter's
+            # content) or exported elsewhere, beyond its control (named in a deletion receipt).
+            "managed": Path(target)
+            .resolve()
+            .is_relative_to(Path(ctx.settings.artifacts_dir).resolve()),
+        },
     )
     return target
 

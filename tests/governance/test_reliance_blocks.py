@@ -81,6 +81,10 @@ def test_an_overruled_authority_suspends_reliance_on_the_released_report_once(ap
     assert run.status is RunStatus.APPROVED_FOR_RELIANCE, "the approval stays in the record"
     assert sv.ctx.store.get(Run, mid, run.run_id).status is RunStatus.APPROVED_FOR_RELIANCE
 
+    with authn.harness("test-harness"):
+        st = sv.reliance.standing(mid, run.run_id, actor_id=ARBITRATOR)
+    assert st["state"] == "suspended" and st["law_checked_at"] and st["law_check"] == "attention"
+    assert "suspended since" in st["detail"]
     again = {r.check_id: r for r in sv.checks.run().results}["authorities"]
     assert not again.acted, "running the checks again changes nothing"
     assert len(sv.ctx.store.list(RelianceBlock, mid)) == 1

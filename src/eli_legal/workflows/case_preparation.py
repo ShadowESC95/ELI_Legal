@@ -381,6 +381,12 @@ class CasePreparation:
                 for code, pages, said in (
                     ("pages_not_read", [n for n in d.unread_pages if n not in d.pages_checked],
                      "an image with no text layer, not read"),
+                    # On a real matter, images beside a page's text that OCR did not read (it
+                    # is not installed) are a review task: one may be an exhibit.
+                    ("image_text_unread",
+                     [n for n in d.pictured_pages if n not in d.pages_checked]
+                     if c.matter.real else [],
+                     "images beside the text, not read: look at them in the original"),
                     ("ocr_low_confidence",
                      sorted(int(n) for n, conf in d.ocr_pages.items()
                             if conf < ctx.settings.ocr_min_confidence

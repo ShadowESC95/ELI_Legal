@@ -178,6 +178,17 @@ _HOLD_REASONS: dict[str, Explanation] = {
             "the report will say they were not read.",
         ),
     ),
+    "image_text_unread": Explanation(
+        "Images beside the text were not read",
+        "These pages have text and also images, and OCR is not installed here to read them. "
+        "An image may be an exhibit (an invoice or a letter pasted under its caption) whose "
+        "words are not in the analysis. On a real matter that is checked, not assumed.",
+        (
+            "Look at the pages in the original. If the images hold nothing the analysis needs "
+            "(a logo, a signature), accept it with reasons.",
+            "If one is an exhibit, install OCR and read the document again, or add its text.",
+        ),
+    ),
     "ocr_low_confidence": Explanation(
         "Pages read by OCR need checking",
         "These pages are images read by OCR, and the OCR was not confident of the words: a "

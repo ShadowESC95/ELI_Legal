@@ -355,3 +355,14 @@ def test_preservation_holds_are_placed_and_released_through_the_api_as_decisions
     reason = {"reason": "The claim was settled by deed; preservation is no longer required."}
     assert judge.decide("POST", release, reason).status_code == 403, "not the owner's to end"
     assert governance.decide("POST", release, reason).json()["status"] == "released"
+
+
+def test_a_downloaded_report_says_its_standing_now_above_the_approved_text(api):
+    """The file is the one hashed; what it cannot say about itself is put above it."""
+    client, mid, rid, headers, app = api
+    judge = Browser(app, A, PHRASE[A])
+    got = judge.get(f"/v1/matters/{mid}/runs/{rid}/report.md")
+    assert got.status_code == 200 and got.headers["X-Reliance-Status"]
+    head, _, rest = got.text.partition("\n\n")
+    assert "Added when this copy was downloaded" in head and "Status now:" in head
+    assert judge.get(f"/v1/matters/{mid}/runs/{rid}/report").json()["standing"]["state"]

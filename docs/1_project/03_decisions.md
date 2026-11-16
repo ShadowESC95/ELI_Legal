@@ -165,3 +165,18 @@ missing pages. Each document records the reader version that read it; a PDF read
 one is read again from its stored original before the next run, and reports approved on the
 old reading are flagged for review. Any document can be read again on request, without adding
 it again.
+
+**D-35 A report says its standing where it is read.** An approved report's file keeps the
+status it was approved with: it is the file that was hashed. What it cannot say about itself
+(suspended since, superseded, when the law was last checked and from where) is shown beside it
+on screen and put above it, outside the hashed text, when it is downloaded.
+
+**D-36 A deletion takes what was made from the matter.** Reports, outbox copies and evidence
+packs in the application's folders go with a matter's content and are listed in the receipt by
+their hashes; a preservation hold in force keeps them, since a report can quote any document.
+Packs exported elsewhere are named in the receipt as beyond the application's control.
+
+**D-37 Exhibits beside text are read, and approvals bind to evidence.** An image beside a page's
+text may be an exhibit; with OCR it is read and marked as read from the image, and without OCR
+it is a review task on a real matter. A deployment authorisation binds to its evidence
+documents by hash and to the whole configuration it was approved for.

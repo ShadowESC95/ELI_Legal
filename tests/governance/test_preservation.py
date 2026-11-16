@@ -93,3 +93,38 @@ def test_placing_a_hold_needs_a_basis_and_the_right_person(demo):
         sv.preservation.place(mid, actor_id=S, legal_basis=BASIS, authority="Secretary")
     [placed] = _events(sv, mid, "preservation_hold_placed") or [None]
     assert placed is None, "nothing was placed"
+
+
+def test_deletion_takes_the_reports_outbox_copies_and_packs_with_it_and_says_so(tmp_path):
+    """Everything the application made from a matter goes with its content, with a hash for
+    each file in the receipt; a pack exported elsewhere is named, not deleted."""
+    from eli_legal.demo_run import run_demo
+    from tests.governance.test_compliance_and_checks import _services
+
+    run_demo(tmp_path, say=lambda _line: None, install_network_guard=False)
+    sv = _services(tmp_path)
+    matter = sv.ctx.store.list_matters()[0]
+    mid = matter.matter_id
+    artifacts = Path(sv.ctx.settings.artifacts_dir)
+    from eli_legal.domain.models import Run
+    from eli_legal.security import authn
+
+    [run] = sv.ctx.store.list(Run, mid)
+    with authn.harness("test-harness"):
+        sv.matters.grant(mid, actor_id=A, user_id=G)
+        managed = sv.evidence_pack(mid, run.run_id, actor_id=G)
+        outside = sv.evidence_pack(mid, run.run_id, actor_id=G, out_dir=tmp_path / "usb")
+        before = {p for p in artifacts.rglob("*") if p.is_file()}
+        assert any("outbox" in p.parts for p in before) and any("runs" in p.parts for p in before)
+        sv.matters.close(mid, actor_id=A, purge_content=True, reason="Award issued; file closed.")
+    left = {p for p in artifacts.rglob(f"*{mid}*") if p.is_file()} | {
+        p for p in artifacts.rglob("*") if p.is_file() and p.is_relative_to(managed)
+    }
+    assert not [p for p in left if "disposals" not in p.parts], "reports, outbox, managed pack"
+    assert outside.exists(), "a pack exported elsewhere is beyond the application's control"
+    [receipt] = _receipts(sv, mid)
+    body = json.loads(receipt.read_text(encoding="utf-8"))
+    kinds = {name.split("/")[0] for name in body["generated_files_deleted_sha256"]}
+    assert kinds == {"reports", "outbox", "evidence"}
+    assert len(body["exported_outside_the_application"]) == 1
+    assert body["counts"]["exported_elsewhere"] == 1

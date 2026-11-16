@@ -731,9 +731,10 @@ class ChecksService:
                 ):
                     items.append(
                         CheckItem(
-                            f"“{matter.name}”: a report approved before every page of its PDFs "
-                            "was accounted for. A scanned page may be missing from it without "
-                            "a record: run the matter again and review the new report.",
+                            f"“{matter.name}”: a report approved on PDFs read by an earlier "
+                            "version of the reader, which could miss a scanned page or an "
+                            "exhibit pasted beside text without a record: run the matter again "
+                            "and review the new report.",
                             mid,
                             "an approved report needs review: read before every page was "
                             "accounted for",
