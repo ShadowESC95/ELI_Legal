@@ -129,6 +129,21 @@ class MatterWizard(QWizard):
             )
             if index == 0:
                 choice.setChecked(True)
+        # Practice or real: fixed when the matter is opened.
+        page.box.addWidget(label("<b>Practice or real</b>", wrap=True))
+        self.practice = QRadioButton(
+            "Practice: a demonstration, training or testing, with no real case papers. Never "
+            "relied on; every report says so."
+        )
+        self.real = QRadioButton(
+            "A real matter: real case papers, to be relied on. Its work starts, is approved and "
+            "leaves only under a deployment authorisation in force (Governance → Deployment)."
+        )
+        self.practice.setChecked(True)
+        kind = QButtonGroup(page)
+        for choice in (self.practice, self.real):
+            kind.addButton(choice)
+            page.box.addWidget(choice)
         page.box.addStretch(1)
         return page
 
@@ -575,7 +590,12 @@ class MatterWizard(QWizard):
             issues = "".join(f"<li>{i}</li>" for i in v["stated_issues"]) or "<li>none</li>"
             self.summary.setText(
                 f"<b>{v['name']}</b> — {v['purpose']}<br>"
-                f"For: {spec.label}. Legal system: {v['jurisdiction']}"
+                + (
+                    "<b>A real matter</b>: its work needs a deployment authorisation in force.<br>"
+                    if v["real"]
+                    else "<b>Practice</b>: never relied on; every report says so.<br>"
+                )
+                + f"For: {spec.label}. Legal system: {v['jurisdiction']}"
                 + (f"; governing law {v['governing_law']}" if v["governing_law"] else "")
                 + (f"; law as at {v['relevant_date']}" if v["relevant_date"] else "")
                 + "<br>Parties: "
@@ -620,4 +640,5 @@ class MatterWizard(QWizard):
             "team": team,
             "reviewers": reviewers,
             "sources": self._ticked(self.source_list),
+            "real": self.real.isChecked(),
         }

@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
     QDialogButtonBox,
+    QLineEdit,
     QListWidget,
     QListWidgetItem,
     QMessageBox,
@@ -98,6 +99,7 @@ class MatterTab(Tab):
                     button("Change role…", self._change_role),
                     button("Revoke access", self._revoke),
                     button("Name the reviewers…", self._reviewers),
+                    button("Preservation holds…", self._preservation),
                     None,
                 ),
             ),
@@ -365,6 +367,97 @@ class MatterTab(Tab):
         if people.change(self, user, approve=spec.reviewer_roles, matter_label=spec.label):
             self.refresh()
             self._reviewers()
+
+    def _preservation(self) -> None:
+        """Preservation holds: what is kept from deletion and why; place or release one."""
+        matter = self.session.matter
+        if matter is None:
+            return
+        holds = (
+            self.session.attempt(
+                self, lambda: self.sv.preservation.list(self.mid, actor_id=self.actor), quiet=True
+            )
+            or []
+        )
+        active = [h for h in holds if h.status == "active"]
+        said = (
+            "\n".join(
+                f"• {h.hold_id[-8:]}: "
+                + (
+                    "the whole matter"
+                    if h.scope == "matter"
+                    else f"{len(h.document_ids)} document(s)"
+                )
+                + f", on the authority of {h.authority}: {h.legal_basis}"
+                for h in active
+            )
+            or "No preservation hold is in force: the matter's content is deleted at closure if "
+            "asked, or when its retention period ends."
+        )
+        box = QMessageBox(self)
+        box.setWindowTitle("Preservation holds")
+        box.setText(said)
+        place = box.addButton("Place a hold…", QMessageBox.ButtonRole.ActionRole)
+        release = box.addButton("Release a hold…", QMessageBox.ButtonRole.ActionRole)
+        release.setEnabled(bool(active))
+        box.addButton(QMessageBox.StandardButton.Close)
+        box.exec()
+        if box.clickedButton() is place:
+            self._place_preservation()
+        elif box.clickedButton() is release:
+            self._release_preservation(active)
+
+    def _place_preservation(self) -> None:
+        documents = self.sv.matters.documents(self.mid, self.actor)
+        pick = PickDialog(
+            self,
+            "Keep from deletion",
+            "Tick the documents to keep, or none to keep the whole matter (its documents, "
+            "reports and evidence packs).",
+            [(d.document_id, d.title or d.filename, False) for d in documents],
+        )
+        if pick.exec() != QDialog.DialogCode.Accepted:
+            return
+        authority = QLineEdit()
+        authority.setPlaceholderText("who requires it: the tribunal, the data-protection owner…")
+        basis = ReasonDialog.ask(
+            self,
+            "Place a preservation hold",
+            "What requires the hold: the order, the claim or notice, the instruction?",
+            extra=[("On whose authority", authority)],
+        )
+        if basis:
+            chosen = pick.chosen()
+            self.session.decide(
+                self,
+                "place a preservation hold",
+                lambda: self.sv.preservation.place(
+                    self.mid, actor_id=self.actor, legal_basis=basis,
+                    authority=authority.text(), document_ids=chosen,
+                ),
+            )  # fmt: skip
+
+    def _release_preservation(self, active: list) -> None:  # type: ignore[type-arg]
+        pick = PickDialog(
+            self,
+            "Release a hold",
+            "Only the legal or data-protection owner releases a hold. Tick the one to release.",
+            [(h.hold_id, f"{h.authority}: {h.legal_basis}", False) for h in active],
+        )
+        if pick.exec() != QDialog.DialogCode.Accepted or len(pick.chosen()) != 1:
+            return
+        reason = ReasonDialog.ask(
+            self, "Release the hold", "Why may it end, and on whose authority?"
+        )
+        if reason:
+            hold_id = pick.chosen()[0]
+            self.session.decide(
+                self,
+                "release a preservation hold",
+                lambda: self.sv.preservation.release(
+                    self.mid, hold_id, actor_id=self.actor, reason=reason
+                ),
+            )
 
     def _sources(self) -> None:
         matter = self.session.matter

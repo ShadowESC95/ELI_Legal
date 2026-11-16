@@ -366,3 +366,32 @@ def test_a_downloaded_report_says_its_standing_now_above_the_approved_text(api):
     head, _, rest = got.text.partition("\n\n")
     assert "Added when this copy was downloaded" in head and "Status now:" in head
     assert judge.get(f"/v1/matters/{mid}/runs/{rid}/report").json()["standing"]["state"]
+
+
+def test_a_deployment_is_proposed_with_its_evidence_and_signed_by_two_leads_over_the_api(api):
+    import base64
+    from datetime import date, timedelta
+
+    from eli_legal.application.deployment_service import EVIDENCE
+
+    client, mid, _rid, _headers, app = api
+    governance, admin = Browser(app, G, PHRASE[G]), Browser(app, "admin", PHRASE["admin"])
+    body = {
+        "intended_use": "Case preparation for the arbitral tribunal of the deployer",
+        "provider": "ELI Legal provider", "deployer": "Port Varen Arbitration Centre",
+        "jurisdictions": ["XX"], "profiles": ["adjudicator"],
+        "effective_from": date.today().isoformat(),
+        "expires_on": (date.today() + timedelta(days=90)).isoformat(),
+        "evidence": {k: {"filename": f"{k}.pdf",
+                         "content_base64": base64.b64encode(f"%PDF {k}".encode()).decode()}
+                     for k in EVIDENCE},
+    }  # fmt: skip
+    proposed = governance.decide("POST", "/v1/deployment-authorisations", body)
+    assert proposed.status_code == 201 and proposed.json()["status"] == "proposed"
+    aid = proposed.json()["authorisation_id"]
+    assert all(" sha256:" in v for v in proposed.json()["evidence"].values())
+    sign = f"/v1/deployment-authorisations/{aid}/sign"
+    assert governance.decide("POST", sign, {"as_lead": "provider"}).json()["status"] == "proposed"
+    assert admin.decide("POST", sign, {"as_lead": "deployer"}).json()["status"] == "approved"
+    listed = governance.get("/v1/deployment-authorisations").json()
+    assert [a["status"] for a in listed] == ["approved"]

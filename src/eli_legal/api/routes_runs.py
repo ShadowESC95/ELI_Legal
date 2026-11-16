@@ -248,6 +248,53 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
             headers={"Content-Disposition": f'attachment; filename="{folder.name}.zip"'},
         )
 
+    # ── deployment authorisations ────────────────────────────────────────────
+    @app.get("/v1/deployment-authorisations")
+    def deployment_authorisations(actor: Actor) -> Any:
+        """The approvals to use ELI Legal on real matters, and their state."""
+        return js(sv.deployment.list(actor_id=actor))
+
+    @app.post("/v1/deployment-authorisations", status_code=201)
+    def propose_deployment(body: schemas.DeploymentProposeIn, actor: Actor) -> Any:
+        """Set out what is to be approved, with each piece of evidence as the document itself.
+        A decision: send your passphrase."""
+        import base64
+        import tempfile
+
+        with tempfile.TemporaryDirectory(prefix="eli-legal-evidence-") as folder:
+            paths = {}
+            for kind, upload in body.evidence.items():
+                name = Path(upload.filename).name or kind
+                path = Path(folder) / f"{kind}-{name}"
+                path.write_bytes(base64.b64decode(upload.content_base64, validate=True))
+                paths[kind] = str(path)
+            return js(
+                sv.deployment.propose(
+                    actor_id=actor,
+                    intended_use=body.intended_use,
+                    provider=body.provider,
+                    deployer=body.deployer,
+                    jurisdictions=body.jurisdictions,
+                    profiles=body.profiles,
+                    effective_from=body.effective_from,
+                    expires_on=body.expires_on,
+                    evidence=paths,
+                    data_classes=body.data_classes,
+                )
+            )
+
+    @app.post("/v1/deployment-authorisations/{authorisation_id}/sign")
+    def sign_deployment(authorisation_id: str, body: schemas.DeploymentSignIn, actor: Actor) -> Any:
+        """Sign as the provider lead or the deployer lead. A decision: send your passphrase."""
+        return js(sv.deployment.sign(authorisation_id, actor_id=actor, as_lead=body.as_lead))
+
+    @app.post("/v1/deployment-authorisations/{authorisation_id}/revoke")
+    def revoke_deployment(
+        authorisation_id: str, body: schemas.DeploymentRevokeIn, actor: Actor
+    ) -> Any:
+        """Withdraw it at once. A decision: send your passphrase."""
+        return js(sv.deployment.revoke(authorisation_id, actor_id=actor, reason=body.reason))
+
     # ── preservation holds ───────────────────────────────────────────────────
     @app.get("/v1/matters/{matter_id}/preservation-holds")
     def preservation_holds(matter_id: str, actor: Actor) -> Any:

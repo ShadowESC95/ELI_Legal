@@ -407,6 +407,7 @@ def cmd_matter(args: argparse.Namespace) -> int:
             team=[_member(m) for m in args.member or []],
             reviewers=args.reviewer or [],
             sources=args.source or [],
+            real=args.real,
         )
         print(matter.matter_id)
     elif c == "list":
@@ -969,6 +970,46 @@ def cmd_release(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_deployment(args: argparse.Namespace) -> int:
+    """Deployment authorisations: the approval to use ELI Legal on real matters."""
+    sv = _services(args)
+    actor = _actor(args)
+    c = args.deployment_cmd
+    if c == "list":
+        for a in sv.deployment.list(actor_id=actor):
+            print(
+                f"{a.authorisation_id}  {a.status:9s} {a.effective_from}→{a.expires_on}  "
+                f"{','.join(a.jurisdictions)} {','.join(a.profiles)}  provider "
+                f"{a.provider_signed_by or '-'} deployer {a.deployer_signed_by or '-'}  "
+                f"{a.intended_use}"
+            )
+    elif c == "propose":
+        evidence = dict(item.split("=", 1) for item in args.evidence or [])
+        with _confirmed(args, "propose a deployment authorisation"):
+            a = sv.deployment.propose(
+                actor_id=actor,
+                intended_use=args.intended_use,
+                provider=args.provider,
+                deployer=args.deployer,
+                jurisdictions=args.jurisdiction or [],
+                profiles=args.profile or [],
+                effective_from=date.fromisoformat(args.effective_from),
+                expires_on=date.fromisoformat(args.expires_on),
+                evidence=evidence,
+                data_classes=args.data_class or [],
+            )
+        print(a.authorisation_id)
+    elif c == "sign":
+        with _confirmed(args, f"sign a deployment authorisation as the {args.as_lead} lead"):
+            a = sv.deployment.sign(args.authorisation, actor_id=actor, as_lead=args.as_lead)
+        print(f"{a.authorisation_id}: {a.status}")
+    elif c == "revoke":
+        with _confirmed(args, "revoke a deployment authorisation"):
+            a = sv.deployment.revoke(args.authorisation, actor_id=actor, reason=args.reason)
+        print(f"{a.authorisation_id}: {a.status}")
+    return 0
+
+
 def cmd_preserve(args: argparse.Namespace) -> int:
     """Preservation holds: nothing they cover is deleted until released."""
     sv = _services(args)
@@ -1525,6 +1566,12 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--issue", action="append", default=[])
     a.add_argument("--represents", help="party name (party-representative profile)")
     a.add_argument(
+        "--real",
+        action="store_true",
+        help="a real matter (real case papers, to be relied on): its work needs a deployment "
+        "authorisation in force; without this it is a practice matter",
+    )
+    a.add_argument(
         "--framework",
         action="append",
         default=[],
@@ -1727,6 +1774,36 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--kind", default="general", choices=["general", "death", "widespread"])
     a.add_argument("--reported-on", help="the date it was reported, if it was")
     a.add_argument("--reference", default="")
+
+    p = add("deployment", cmd_deployment, "approve the use of ELI Legal on real matters")
+    s = p.add_subparsers(dest="deployment_cmd", required=True)
+    s.add_parser("list")
+    a = s.add_parser("propose", help="set out what is to be approved, with its evidence")
+    a.add_argument("--intended-use", required=True)
+    a.add_argument("--provider", required=True)
+    a.add_argument("--deployer", required=True)
+    a.add_argument("--jurisdiction", action="append", help="a legal system code; repeat")
+    a.add_argument(
+        "--profile",
+        action="append",
+        help="adjudicator, neutral_facilitator or party_representative; repeat",
+    )
+    a.add_argument("--effective-from", required=True)
+    a.add_argument("--expires-on", required=True)
+    a.add_argument(
+        "--evidence",
+        action="append",
+        metavar="KIND=FILE",
+        help="design_review, legal_validation, security_assessment, evaluation, "
+        "impact_assessment, oversight_plan: each the document itself; repeat",
+    )
+    a.add_argument("--data-class", action="append")
+    a = s.add_parser("sign", help="sign as the provider lead or the deployer lead")
+    a.add_argument("authorisation")
+    a.add_argument("--as-lead", required=True, choices=["provider", "deployer"])
+    a = s.add_parser("revoke", help="withdraw it at once")
+    a.add_argument("authorisation")
+    a.add_argument("--reason", required=True)
 
     p = add("preserve", cmd_preserve, "preservation holds: keep a matter's content from deletion")
     s = p.add_subparsers(dest="preserve_cmd", required=True)

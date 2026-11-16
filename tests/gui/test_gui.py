@@ -907,3 +907,21 @@ def test_review_says_what_a_returned_report_needs_and_keeps_what_was_ticked(desk
     assert "Reliance on this report is suspended" in review.release_note.text()
     assert "1 recipient(s)" in review.release_note.text()
     assert not review.end_suspension.isHidden()
+
+
+def test_a_matter_is_opened_as_practice_unless_real_is_chosen_and_deployment_is_listed(desk):
+    from eli_legal.gui.tabs.governance_tab import GovernanceTab
+
+    d = desk(ADMIN)
+    wizard = _wizard(d, ADMIN, None)
+    assert wizard.values()["real"] is False, "practice unless chosen"
+    wizard.real.setChecked(True)
+    wizard.next()
+    wizard.next()
+    assert wizard.values()["real"] is True and "A real matter" in wizard.summary.text()
+    wizard.close()
+    governance = d.page(GovernanceTab)
+    titles = [governance.inner.tabText(i) for i in range(governance.inner.count())]
+    assert "Deployment" in titles
+    governance.refresh()
+    assert governance.deployments.rowCount() == 0

@@ -144,6 +144,7 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
             team=[TeamMember(t.user_id, t.matter_role, t.party) for t in body.team],
             reviewers=body.reviewers,
             sources=body.sources,
+            real=body.real,
         )
         return js(m)
 

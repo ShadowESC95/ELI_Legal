@@ -176,3 +176,29 @@ def test_the_evidence_pack_carries_the_suspension(approved, tmp_path):  # noqa: 
 
     rows = json.loads((Path(pack) / "reliance_blocks.json").read_text(encoding="utf-8"))
     assert [r["status"] for r in rows] == ["active"]
+
+
+def test_a_real_report_is_checked_again_at_release_before_the_daily_check_runs(
+    approved,  # noqa: F811
+    monkeypatch,
+):
+    """On a real matter the law is checked again at the moment of release: an overruling the
+    daily checks have not yet seen stops the release there, and suspends the report."""
+    from tests.governance.test_deployment_gate import _authorise, _validated
+
+    sv = _services(approved)
+    matter, run = _matter_and_run(sv)
+    matter.real = True
+    sv.ctx.store.put_matter(matter)
+    with authn.harness("test-harness"):
+        _authorise(sv)
+    _validated(monkeypatch)
+    with authn.harness("test-harness"):
+        assert _prepare(sv, matter.matter_id, run.run_id).release_id, "law confirmed: it may leave"
+    _reimport(sv, approved, "corvin_2022_xxsc_7", **OVERRULED)  # no daily check yet
+    with authn.harness("test-harness"):
+        with pytest.raises(VerificationGateFailed, match="checked again before release"):
+            _prepare(sv, matter.matter_id, run.run_id)
+    [block] = sv.ctx.store.list(RelianceBlock, matter.matter_id)
+    assert block.status == "active" and block.run_id == run.run_id
+    assert _events(sv, "release_recheck_failed")

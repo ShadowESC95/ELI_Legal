@@ -85,6 +85,8 @@ class MatterCreate(Strict):
     team: list[TeamMemberIn] = Field(default_factory=list, max_length=100)
     reviewers: list[Ident] = Field(default_factory=list, max_length=50)
     sources: list[Ident] = Field(default_factory=list, max_length=50)
+    # A real matter (real case papers, to be relied on) needs a deployment authorisation.
+    real: bool = False
 
 
 class MatterUpdate(Strict):
@@ -261,6 +263,31 @@ class PreservationIn(Strict):
 
 
 class PreservationRelease(Strict):
+    reason: Long
+
+
+class EvidenceFile(Strict):
+    filename: Name
+    content_base64: Annotated[str, StringConstraints(max_length=40_000_000)]
+
+
+class DeploymentProposeIn(Strict):
+    intended_use: Long
+    provider: Short
+    deployer: Short
+    jurisdictions: list[Ident] = Field(min_length=1, max_length=50)
+    profiles: list[Ident] = Field(min_length=1, max_length=3)
+    effective_from: date
+    expires_on: date
+    evidence: dict[Ident, EvidenceFile]
+    data_classes: list[Ident] = Field(default_factory=list, max_length=20)
+
+
+class DeploymentSignIn(Strict):
+    as_lead: Ident
+
+
+class DeploymentRevokeIn(Strict):
     reason: Long
 
 

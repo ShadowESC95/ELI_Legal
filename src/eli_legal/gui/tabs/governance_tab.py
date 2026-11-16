@@ -9,12 +9,14 @@ person's name (with their passphrase again) and reviewed on time.
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
+from typing import Any
 
-from PySide6.QtCore import QDate, Qt
+from PySide6.QtCore import QDate, QDateTime, Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDateEdit,
+    QDateTimeEdit,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
@@ -76,6 +78,12 @@ _ACTION_STATE = {
     "review_due": "Review due",
     "not_applicable": "Does not apply",
 }
+
+
+def _utc(widget: QDateTimeEdit) -> datetime:
+    moment = widget.dateTime().toPython()
+    assert isinstance(moment, datetime)
+    return moment.astimezone(timezone.utc)
 
 
 def _pydate(widget: QDateEdit) -> date:
@@ -295,6 +303,8 @@ class GovernanceTab(Tab):
         box.addWidget(
             row(
                 button("Open an incident…", self._open_incident),
+                button("When it became known…", self._aware),
+                button("Owner and stand-in…", self._assign),
                 button("Decide on reporting…", self._decide_reporting),
                 button("Close the selected incident…", self._close_incident),
                 None,
@@ -302,6 +312,37 @@ class GovernanceTab(Tab):
         )
         self._incidents_page = page
         self.inner.addTab(page, "Incidents")
+
+        # deployment authorisations: the approval to use ELI Legal on real matters
+        self.deployments = table(
+            ["Authorisation", "State", "In force", "Legal systems", "Kinds of matter",
+             "Provider lead", "Deployer lead", "Intended use"],
+            stretch=7,
+        )  # fmt: skip
+        page = QWidget()
+        box = QVBoxLayout(page)
+        box.addWidget(
+            label(
+                "A real matter's work starts, is approved and leaves only under an authorisation "
+                "in force that covers its legal system and kind. It rests on the evidence "
+                "documents themselves, is signed by a provider lead and a different deployer "
+                "lead, and is pinned to this version, policy, models, workflow, legal-system "
+                "packs and sources: a change to any voids it. Practice matters need none.",
+                "muted",
+                wrap=True,
+            )
+        )
+        box.addWidget(self.deployments, 1)
+        box.addWidget(
+            row(
+                button("Propose…", self._propose_deployment, kind="primary"),
+                button("Sign as the provider lead…", lambda: self._sign_deployment("provider")),
+                button("Sign as the deployer lead…", lambda: self._sign_deployment("deployer")),
+                button("Revoke…", self._revoke_deployment, kind="danger"),
+                None,
+            )
+        )
+        self.inner.addTab(page, "Deployment")
         self._registers_loaded = False
 
     # ── filling ──────────────────────────────────────────────────────────────
@@ -315,6 +356,7 @@ class GovernanceTab(Tab):
         self._fill_checks()
         self._fill_register_of_matters()
         self._fill_incidents()
+        self._fill_deployments()
 
     def _fill_registers(self) -> None:
         controls = load_register("controls")
@@ -956,6 +998,141 @@ class GovernanceTab(Tab):
                 ),
             )
 
+    # ── deployment authorisations ────────────────────────────────────────────
+    def _fill_deployments(self) -> None:
+        found = self.session.attempt(
+            self, lambda: self.sv.deployment.list(actor_id=self.actor), quiet=True
+        )
+        rows = found or []
+        today = date.today()
+        fill(
+            self.deployments,
+            [
+                [
+                    a.authorisation_id[-8:],
+                    a.status,
+                    "yes"
+                    if a.status == "approved" and a.effective_from <= today <= a.expires_on
+                    else f"{a.effective_from} → {a.expires_on}",
+                    ", ".join(a.jurisdictions),
+                    ", ".join(a.profiles),
+                    a.provider_signed_by or "—",
+                    a.deployer_signed_by or "—",
+                    a.intended_use,
+                ]
+                for a in rows
+            ],
+            ids=[a.authorisation_id for a in rows],
+        )
+
+    def _propose_deployment(self) -> None:
+        dialog = _DeploymentDialog(self, self.sv.ctx.jurisdictions.codes())
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        values = dialog.values()
+        self.session.decide(
+            self,
+            "propose a deployment authorisation",
+            lambda: self.sv.deployment.propose(actor_id=self.actor, **values),
+        )
+        self._fill_deployments()
+
+    def _sign_deployment(self, as_lead: str) -> None:
+        authorisation_id = selected_id(self.deployments)
+        if not authorisation_id:
+            return
+        self.session.decide(
+            self,
+            f"sign this deployment authorisation as the {as_lead} lead",
+            lambda: self.sv.deployment.sign(authorisation_id, actor_id=self.actor, as_lead=as_lead),
+        )
+        self._fill_deployments()
+
+    def _revoke_deployment(self) -> None:
+        authorisation_id = selected_id(self.deployments)
+        if not authorisation_id:
+            return
+        reason = ReasonDialog.ask(
+            self,
+            "Revoke the authorisation",
+            "Real matters' work stops at once until another is approved. Why is it revoked?",
+        )
+        if reason:
+            self.session.decide(
+                self,
+                "revoke this deployment authorisation",
+                lambda: self.sv.deployment.revoke(
+                    authorisation_id, actor_id=self.actor, reason=reason
+                ),
+            )
+            self._fill_deployments()
+
+    # ── incidents: when known, who owns it ───────────────────────────────────
+    def _aware(self) -> None:
+        incident_id = selected_id(self.incidents)
+        if not incident_id:
+            return
+        when = QDateTimeEdit(QDateTime.currentDateTime())
+        when.setCalendarPopup(True)
+        happened = QDateTimeEdit(QDateTime.currentDateTime())
+        happened.setCalendarPopup(True)
+        known_happened = QCheckBox("I know when it happened")
+        basis = ReasonDialog.ask(
+            self,
+            "When it became known",
+            "The reporting deadline (Art. 73) counts from when the provider or deployer became "
+            "aware, which may be before it was entered here. It may be moved earlier later, "
+            "never later. How did it become known?",
+            extra=[("Became known on", when), ("", known_happened), ("It happened on", happened)],
+        )
+        if basis:
+            aware = _utc(when)
+            occurred = _utc(happened) if known_happened.isChecked() else None
+            self.session.decide(
+                self,
+                "record when the incident became known",
+                lambda: self.sv.incidents.record_awareness(
+                    self.mid, incident_id, actor_id=self.actor, aware_at=aware, basis=basis,
+                    occurred_at=occurred,
+                ),
+            )  # fmt: skip
+
+    def _assign(self) -> None:
+        incident_id = selected_id(self.incidents)
+        matter = self.session.matter
+        if not incident_id or matter is None:
+            return
+        people = sorted({matter.owner_user_id, *matter.authorised_user_ids})
+        owner, backup = QComboBox(), QComboBox()
+        owner.addItems(people)
+        backup.addItems(people)
+        if len(people) > 1:
+            backup.setCurrentIndex(1)
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Owner and stand-in")
+        form = QFormLayout(dialog)
+        form.addRow(label(
+            "The owner decides on the incident; the stand-in is told when half the time to "
+            "report is gone undecided. Two different people who may manage incidents.",
+            wrap=True,
+        ))  # fmt: skip
+        form.addRow("Owner", owner)
+        form.addRow("Stand-in", backup)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        form.addRow(buttons)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.session.attempt(
+                self,
+                lambda: self.sv.incidents.assign(
+                    self.mid, incident_id, actor_id=self.actor,
+                    owner=owner.currentText(), backup=backup.currentText(),
+                ),
+            )  # fmt: skip
+
     def _decide_reporting(self) -> None:
         incident_id = selected_id(self.incidents)
         if not incident_id:
@@ -1033,3 +1210,84 @@ class GovernanceTab(Tab):
                     reason=reason,
                 ),
             )
+
+
+class _DeploymentDialog(QDialog):
+    """What a deployment authorisation is to approve, and the evidence documents it rests on."""
+
+    def __init__(self, parent: QWidget, codes: list[str]) -> None:
+        from eli_legal.application.deployment_service import EVIDENCE
+
+        super().__init__(parent)
+        self.setWindowTitle("Propose a deployment authorisation")
+        self.setMinimumWidth(720)
+        form = QFormLayout(self)
+        self.use = QPlainTextEdit()
+        self.use.setPlaceholderText("What it is to be used for, by whom, on which matters")
+        self.use.setMaximumHeight(80)
+        self.provider, self.deployer = QLineEdit(), QLineEdit()
+        self.codes = QLineEdit(", ".join(codes))
+        self.kinds = {
+            code: QCheckBox(label_)
+            for code, label_ in (
+                ("adjudicator", "Court, tribunal or arbitral tribunal"),
+                ("neutral_facilitator", "Mediator or conciliator"),
+                ("party_representative", "Party's legal representative"),
+            )
+        }
+        self.start, self.end = (
+            QDateEdit(QDate.currentDate()),
+            QDateEdit(QDate.currentDate().addYears(1)),
+        )
+        for widget in (self.start, self.end):
+            widget.setCalendarPopup(True)
+        form.addRow("Intended use", self.use)
+        form.addRow("Provider", self.provider)
+        form.addRow("Deployer", self.deployer)
+        form.addRow("Legal systems", self.codes)
+        kinds = QWidget()
+        line = QHBoxLayout(kinds)
+        for box in self.kinds.values():
+            line.addWidget(box)
+        form.addRow("Kinds of matter", kinds)
+        form.addRow("In force from", self.start)
+        form.addRow("Expires on", self.end)
+        form.addRow(label("<b>Evidence</b>: each the document itself, copied and recorded by its "
+                          "fingerprint when proposed.", wrap=True))  # fmt: skip
+        self.evidence: dict[str, QLineEdit] = {}
+        for key, what in EVIDENCE.items():
+            path = QLineEdit()
+            path.setPlaceholderText(what)
+            choose = button("Choose…", lambda _=False, p=path: self._choose(p))
+            holder = QWidget()
+            line = QHBoxLayout(holder)
+            line.setContentsMargins(0, 0, 0, 0)
+            line.addWidget(path, 1)
+            line.addWidget(choose)
+            self.evidence[key] = path
+            form.addRow(what.capitalize(), holder)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        form.addRow(buttons)
+
+    def _choose(self, target: QLineEdit) -> None:
+        from PySide6.QtWidgets import QFileDialog
+
+        path, _ = QFileDialog.getOpenFileName(self, "The evidence document")
+        if path:
+            target.setText(path)
+
+    def values(self) -> dict[str, Any]:
+        return {
+            "intended_use": self.use.toPlainText(),
+            "provider": self.provider.text(),
+            "deployer": self.deployer.text(),
+            "jurisdictions": [c.strip() for c in self.codes.text().split(",") if c.strip()],
+            "profiles": [k for k, box in self.kinds.items() if box.isChecked()],
+            "effective_from": _pydate(self.start),
+            "expires_on": _pydate(self.end),
+            "evidence": {k: w.text().strip() for k, w in self.evidence.items()},
+        }

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from eli_legal.application.container import AppContext
 from eli_legal.application.deployment_service import require_deployment
-from eli_legal.application.reliance_service import require_reliance
+from eli_legal.application.reliance_service import recheck_before_release, require_reliance
 from eli_legal.domain.enums import Profile, ReviewDecision, RunStatus, StepStatus
 from eli_legal.domain.errors import InvalidState, NotFound, VerificationGateFailed
 from eli_legal.domain.models import HumanReview, Matter, Report, Run
@@ -59,6 +59,7 @@ class ReleaseService:
             raise VerificationGateFailed("run is not eligible for release preparation")
         require_reliance(ctx, mid, run_id, actor_id=actor_id, action="report.prepare_release")
         require_deployment(ctx, matter, actor_id=actor_id, action="report.prepare_release")
+        recheck_before_release(ctx, matter, run, actor_id=actor_id, action="report.prepare_release")
         report = ctx.store.get(Report, mid, run.report_id or "")
         if report is None or report.release_status != "APPROVED_FOR_RELIANCE":
             raise VerificationGateFailed("there is no approved report for this run")

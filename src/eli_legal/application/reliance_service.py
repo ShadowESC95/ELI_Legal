@@ -161,6 +161,39 @@ def require_reliance(ctx: AppContext, matter_id: str, run_id: str, *, actor_id: 
     )
 
 
+def recheck_before_release(ctx: AppContext, matter: Matter, run: Run, *, actor_id: str,
+                           action: str) -> None:  # fmt: skip
+    """On a real matter, the law a report relies on is checked again at the moment it is to
+    leave, not only by the daily checks: an authority no longer confirmed, a source that cannot
+    be reached, or a case that needs a person's citator check stops it here, and the report is
+    suspended on the record. A practice matter is not relied on and is not re-checked."""
+    if not matter.real:
+        return
+    flagged = no_longer_confirmed(ctx, matter, run)
+    if flagged is None:
+        reasons = "no approved legal source can be reached to check the law now"
+    elif flagged:
+        open_or_extend(ctx, matter, run, flagged)
+        reasons = "; ".join(f"{f.authority.citation}: {f.said}" for f in flagged.values())
+    else:
+        return
+    ctx.log(
+        "release_recheck_failed",
+        actor_id=actor_id,
+        matter_id=matter.matter_id,
+        run_id=run.run_id,
+        action=action,
+        subject_id=run.run_id,
+        outcome="denied",
+        object_type="run",
+        payload={"authorities": len(flagged or {})},
+    )
+    raise VerificationGateFailed(
+        "the law this report relies on was checked again before release and is not confirmed "
+        f"now: {reasons}. Confirm each with a qualified person, or approve a new run"
+    )
+
+
 def open_or_extend(
     ctx: AppContext, matter: Matter, run: Run, flagged: dict[str, Flagged]
 ) -> tuple[RelianceBlock, bool]:
