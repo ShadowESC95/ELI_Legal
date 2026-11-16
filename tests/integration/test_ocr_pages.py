@@ -78,3 +78,60 @@ def test_a_page_read_with_too_little_confidence_holds_until_checked(demo):
     run = sv.runs.start(mid, actor_id=A)
     holds = _holds(sv, mid, run.run_id, document.document_id)
     assert "ocr_low_confidence" in holds and "page(s) 2" in holds["ocr_low_confidence"].detail
+
+
+def _as_read_by_083(sv, mid, document):
+    """What 0.8.3 left behind: processed, page 2 silently missing, no page record."""
+
+    def old(d):
+        d.read_with, d.unread_pages, d.ocr_pages, d.blank_pages, d.pictured_pages = (
+            "",
+            [],
+            {},
+            [],
+            [],
+        )
+        d.error = ""
+
+    return sv.ctx.store.change(Document, mid, document.document_id, old)
+
+
+def test_a_pdf_read_by_an_earlier_version_is_read_again_before_the_next_run(demo):
+    """Opening a 0.8.3 database: the exhibit's page 2 must not stay silently missing."""
+    sv, mid = demo
+    sv.ctx.ocr = TesseractOcr(None, None)
+    document = _as_read_by_083(sv, mid, _add(sv, mid))
+    assert document.status is DocumentStatus.PROCESSED and not document.unread_pages
+    run = sv.runs.start(mid, actor_id=A)
+    again = sv.ctx.store.get(Document, mid, document.document_id)
+    assert again.read_with and again.unread_pages == [2], "read again, page 2 accounted for"
+    assert "pages_not_read" in _holds(sv, mid, run.run_id, document.document_id)
+    reread = [e for e in sv.ctx.audit.events(matter_id=mid) if e["event_type"] == "document_reread"]
+    assert reread and reread[0]["payload"]["read_with_before"] == "unrecorded"
+    assert sv.ctx.store.get(type(run), mid, run.run_id).tool_versions["document_reader"]
+
+
+def test_a_report_approved_before_every_page_was_accounted_for_is_flagged(demo):
+    sv, mid = demo
+    sv.ctx.ocr = TesseractOcr(None, None)
+    _add(sv, mid)
+    run = sv.runs.start(mid, actor_id=A)
+
+    def approved_by_083(r):
+        r.status = type(r.status).APPROVED_FOR_RELIANCE
+        r.tool_versions.pop("document_reader", None)
+
+    sv.ctx.store.change(type(run), mid, run.run_id, approved_by_083)
+    open_work = {r.check_id: r for r in sv.checks.run().results}["open_work"]
+    assert any("before every page of its PDFs" in i.text for i in open_work.items)
+
+
+@pytest.mark.skipif(not HAVE_OCR, reason="Tesseract and Poppler are not installed here")
+def test_once_ocr_is_installed_a_document_is_read_again_from_its_original(demo):
+    sv, mid = demo
+    sv.ctx.ocr = TesseractOcr(None, None)
+    document = _add(sv, mid)
+    assert document.unread_pages == [2]
+    sv.ctx.ocr = TesseractOcr.find("auto")
+    again = sv.ingestion.reread(mid, document.document_id, actor_id=A, why="OCR installed")
+    assert again.unread_pages == [] and set(again.ocr_pages) == {"2"}

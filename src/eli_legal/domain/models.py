@@ -119,6 +119,9 @@ class Document:
     # (an image that could not be read), blank (no text, no image), or with images beside the
     # text that were not read. A person who checks an unread or a low-confidence page against
     # the original records it, page by page.
+    # Which version of the reader read it. A PDF read before every page was accounted for
+    # ("" or an older version) is read again from its original before the next run.
+    read_with: str = ""
     ocr_pages: dict[str, float] = field(default_factory=dict)
     ocr_engine: str = ""
     unread_pages: list[int] = field(default_factory=list)

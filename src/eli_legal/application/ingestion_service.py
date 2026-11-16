@@ -12,6 +12,21 @@ from eli_legal.domain.models import Document, Matter
 from eli_legal.legal.dates import find_dates
 from eli_legal.legal.legal_document_processor import build_chunks, classify_document
 
+# The reader's version. "pages/1": every page of a PDF is accounted for, image pages read by OCR
+# or reported unread (0.8.4). A PDF read by anything earlier may have lost a page silently.
+READER_VERSION = "pages/1"
+_PAGED = ("application/pdf",)
+
+
+def read_by_older_reader(document: Document) -> bool:
+    """A PDF last read before every page was accounted for, and not a gap a person accepted."""
+    return (
+        document.media_type in _PAGED
+        and document.status is not DocumentStatus.WAIVED
+        and document.status is not DocumentStatus.REGISTERED
+        and document.read_with != READER_VERSION
+    )
+
 
 @dataclass(slots=True)
 class IngestionService:
@@ -77,6 +92,7 @@ class IngestionService:
     def process(self, document: Document, *, actor_id: str, type_given: bool = False) -> Document:
         """Parse, classify, scan and index one registered document. Idempotent."""
         raw = self.ctx.vault.read(document.matter_id, document.sha256)
+        document.read_with = READER_VERSION
         try:
             parsed = self.ctx.parser.parse(document.filename, raw, image_pages=True)
             parsed = self._read_images(document, raw, parsed)
@@ -132,6 +148,29 @@ class IngestionService:
             },
         )
         return document
+
+    def reread(self, matter_id: str, document_id: str, *, actor_id: str, why: str) -> Document:
+        """Read a document again from its stored original: after an upgrade of the reader, or
+        once OCR is installed. Its text and indexes are replaced; earlier runs keep theirs."""
+        matter = self.ctx.matter_for(matter_id, actor_id, "document.ingest")
+        document = self.ctx.store.require(Document, matter.matter_id, document_id)
+        if document.status is DocumentStatus.WAIVED:
+            raise InvalidState(
+                "a person accepted this document as not read or took it out of the analysis; "
+                "add it again to read it"
+            )
+        self.ctx.log(
+            "document_reread",
+            actor_id=actor_id,
+            matter_id=matter.matter_id,
+            action="document.ingest",
+            subject_id=document_id,
+            outcome="reread",
+            object_type="document",
+            input_hash=document.sha256,
+            payload={"why": why[:120], "read_with_before": document.read_with or "unrecorded"},
+        )
+        return self.process(document, actor_id=actor_id, type_given=True)
 
     def _read_images(
         self, document: Document, raw: bytes, parsed: ParsedDocument

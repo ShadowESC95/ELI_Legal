@@ -69,6 +69,7 @@ class DocumentsTab(Tab):
                 row(
                     button("Add files…", self._files, kind="primary"),
                     button("Add a folder…", self._folder),
+                    button("Re-read from the original", self._reread),
                     self.coverage,
                     stretch_last=True,
                 ),
@@ -220,6 +221,20 @@ class DocumentsTab(Tab):
         taken = self.session.attempt(self, work)
         if taken:
             QMessageBox.information(self, "Documents taken in", _outcome(taken))
+
+    def _reread(self) -> None:
+        """Read the chosen document again from its stored original: after an upgrade of the
+        reader, or once OCR is installed. Nothing has to be added again."""
+        document_id = selected_id(self.docs)
+        if not document_id:
+            return
+        self.session.attempt(
+            self,
+            lambda: self.sv.ingestion.reread(
+                self.mid, document_id, actor_id=self.actor, why="asked for on the Documents page"
+            ),
+        )
+        self.session.notify()
 
     def _files(self) -> None:
         paths, _ = QFileDialog.getOpenFileNames(self, "Add documents")

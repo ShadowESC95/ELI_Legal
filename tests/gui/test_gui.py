@@ -195,7 +195,8 @@ def test_a_run_started_from_the_dag_tab_executes_in_the_background_and_every_tab
     )
     review = d.page(ReviewTab)
     assert review.holds.rowCount() == 6 and review.tasks.rowCount() == 5
-    assert "DRAFT — NOT FOR RELIANCE" in review.report.toPlainText() and review.limits.count() >= 4
+    assert "PRACTICE MATTER — DRAFT, NOT FOR RELIANCE" in review.report.toPlainText()
+    assert review.limits.count() >= 4
     audit = d.page(AuditTab)
     assert audit.events.rowCount() > 40 and "chain verified" in audit.chain.text()
     proofs = {audit.events.item(r, 4).text() for r in range(audit.events.rowCount())}

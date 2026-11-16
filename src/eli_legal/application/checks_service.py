@@ -30,6 +30,7 @@ from pathlib import Path
 from eli_legal.application.compliance_service import ComplianceService
 from eli_legal.application.container import AppContext
 from eli_legal.application.incident_service import needs_escalation, reporting_deadline
+from eli_legal.application.ingestion_service import READER_VERSION
 from eli_legal.application.preservation_service import PreservationHeld, dispose
 from eli_legal.application.reliance_service import no_longer_confirmed, open_or_extend
 from eli_legal.domain import plain
@@ -718,6 +719,26 @@ class ChecksService:
                         f"{plain.count(len(old), 'hold')} open for more than {_OLD_HOLD_DAYS} days",
                     )
                 )
+            # An approved report whose PDFs were read before every page was accounted for may
+            # rest on a document with a page silently missing: it needs a new run and review.
+            paged = any(d.media_type == "application/pdf"
+                        for d in self.ctx.store.list(Document, mid))  # fmt: skip
+            for run in self.ctx.store.list(Run, mid):
+                if (
+                    paged
+                    and run.status in _APPROVED
+                    and run.tool_versions.get("document_reader") != READER_VERSION
+                ):
+                    items.append(
+                        CheckItem(
+                            f"“{matter.name}”: a report approved before every page of its PDFs "
+                            "was accounted for. A scanned page may be missing from it without "
+                            "a record: run the matter again and review the new report.",
+                            mid,
+                            "an approved report needs review: read before every page was "
+                            "accounted for",
+                        )
+                    )
             for incident in self.ctx.store.list(Incident, mid):
                 if incident.status != "open":
                     continue

@@ -289,11 +289,27 @@ class LegalReportBuilder:
 
         add(f"# {_TITLES.get(spec.report_template, 'Case analysis')}")
         add("")
-        if approved and ctx.approved_at:
+        # One status, never two that contradict each other: a practice matter's report is never
+        # "approved for reliance", only reviewed as practice.
+        practice = not ctx.matter.real
+        if approved and ctx.approved_at and practice:
+            add(
+                f"> **PRACTICE REVIEW COMPLETE — NOT FOR RELIANCE.** Reviewed by "
+                f"{ctx.approved_by} on {ctx.approved_at.date().isoformat()} on a practice matter "
+                "(demonstration, training or testing): it holds no real case material and "
+                "nothing in it is to be relied on."
+            )
+        elif approved and ctx.approved_at:
             add(
                 f"> **APPROVED FOR RELIANCE** by {ctx.approved_by} on "
                 f"{ctx.approved_at.date().isoformat()}. The approval covers the findings in "
                 "sections 3–5 only."
+            )
+        elif practice:
+            add(
+                "> **PRACTICE MATTER — DRAFT, NOT FOR RELIANCE.** Opened for demonstration, "
+                "training or testing: it holds no real case material and nothing in it is to be "
+                "relied on, reviewed or not."
             )
         else:
             add(
@@ -302,13 +318,6 @@ class LegalReportBuilder:
             )
         add(">")
         add(f"> {spec.disclaimer}")
-        if not ctx.matter.real:
-            add(">")
-            add(
-                "> **PRACTICE MATTER — NOT FOR RELIANCE.** Opened for demonstration, training "
-                "or testing: it holds no real case material and nothing in it is to be relied "
-                "on, approved or not."
-            )
         add("")
         lines += self._at_a_glance(
             ctx, spec.label, docs, claims, verified, not_relied, warnings, party_cited

@@ -755,9 +755,19 @@ def cmd_ingest(args: argparse.Namespace) -> int:
 
 def cmd_docs(args: argparse.Namespace) -> int:
     sv = _services(args)
+    if getattr(args, "reread", None):
+        d = sv.ingestion.reread(args.matter, args.reread, actor_id=_actor(args),
+                                why="asked for from the command line")  # fmt: skip
+        pages = (f"; OCR pages {sorted(d.ocr_pages, key=int)}" if d.ocr_pages else "") + (
+            f"; not read: pages {d.unread_pages}" if d.unread_pages else ""
+        )
+        print(f"{d.document_id}: {d.status.value}{pages}")
+        return 0
     for d in sv.matters.documents(args.matter, _actor(args)):
         print(
             f"{d.document_id}  {d.status.value:11s} {d.doc_type.value:18s} {d.access_scope.value:18s} {d.sha256[:16]}  {d.filename}"
+            + (f"  [pages not read: {d.unread_pages}]" if d.unread_pages else "")
+            + (f"  [OCR: {sorted(d.ocr_pages, key=int)}]" if d.ocr_pages else "")
         )
     return 0
 
@@ -1587,7 +1597,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--scope", default=AccessScope.ALL_PARTIES.value, choices=[x.value for x in AccessScope]
     )
     p.add_argument("--custodian", default="")
-    add("docs", cmd_docs, "list a matter's documents").add_argument("matter")
+    p = add("docs", cmd_docs, "list a matter's documents, or read one again from its original")
+    p.add_argument("matter")
+    p.add_argument(
+        "--reread", metavar="DOCUMENT", help="read this document again from its original"
+    )
 
     p = add("run", cmd_run, "start, inspect, stop or restart a run")
     p.add_argument("--json", action="store_true")

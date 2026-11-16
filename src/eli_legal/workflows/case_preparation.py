@@ -15,7 +15,11 @@ from datetime import datetime
 from typing import Any
 
 from eli_legal.application.container import AppContext
-from eli_legal.application.ingestion_service import IngestionService
+from eli_legal.application.ingestion_service import (
+    READER_VERSION,
+    IngestionService,
+    read_by_older_reader,
+)
 from eli_legal.domain import plain
 from eli_legal.domain.enums import (
     ActorType,
@@ -330,7 +334,17 @@ class CasePreparation:
         for document in pending:
             check_stop()
             self.ingestion.process(document, actor_id=c.actor_id)
-        return {"documents": len(documents), "processed_now": len(pending)}
+        # A PDF read before every page was accounted for may have lost a page silently: it is
+        # read again from its original, so this run applies the page rules to it.
+        older = [d for d in documents if read_by_older_reader(d)]
+        for document in older:
+            check_stop()
+            self.ingestion.reread(
+                c.matter.matter_id, document.document_id, actor_id=c.actor_id,
+                why="read by an earlier reader that could drop a page without a record",
+            )  # fmt: skip
+        c.run.tool_versions["document_reader"] = READER_VERSION
+        return {"documents": len(documents), "processed_now": len(pending), "reread": len(older)}
 
     def document_coverage(self, c: StepContext) -> Mapping[str, Any]:
         ctx, mid, rid = self.ctx, c.matter.matter_id, c.run.run_id

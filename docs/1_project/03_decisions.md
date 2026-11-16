@@ -158,3 +158,10 @@ image is read by OCR on this machine where Tesseract and Poppler are installed, 
 marked "(OCR)" with the page's confidence, because OCR misreads figures, dates and names; a page
 OCR cannot read, or reads with low confidence, holds the run until a person checks it against
 the original. Where OCR is not installed nothing is guessed: the page is reported unread.
+
+**D-34 A fix to how documents are read reaches documents already read.** The page accounting
+of 0.8.4 applied only to documents added after it, so a database from 0.8.3 kept its silently
+missing pages. Each document records the reader version that read it; a PDF read by an earlier
+one is read again from its stored original before the next run, and reports approved on the
+old reading are flagged for review. Any document can be read again on request, without adding
+it again.

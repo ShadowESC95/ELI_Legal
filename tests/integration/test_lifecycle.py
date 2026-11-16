@@ -45,8 +45,10 @@ def test_approved_report_is_the_reviewed_draft_with_only_its_banner_changed(life
     approved = Path(lifecycle.report_path)
     draft = approved.with_name(approved.name.replace("_approved", ""))
     a, d = approved.read_text(encoding="utf-8"), draft.read_text(encoding="utf-8")
-    assert "APPROVED FOR RELIANCE** by Aoife Keane (arb.keane)" in a
-    assert "DRAFT — NOT FOR RELIANCE" in d and "DRAFT — NOT FOR RELIANCE" not in a
+    # The demonstration is a practice matter: one status, never "approved for reliance".
+    assert "PRACTICE REVIEW COMPLETE — NOT FOR RELIANCE.** Reviewed by Aoife Keane (arb.keane)" in a
+    assert "APPROVED FOR RELIANCE" not in a
+    assert "PRACTICE MATTER — DRAFT, NOT FOR RELIANCE" in d and "PRACTICE MATTER — DRAFT" not in a
     assert a.split("## 1. Matter")[1] == d.split("## 1. Matter")[1]
 
 

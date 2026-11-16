@@ -51,7 +51,8 @@ def test_a_practice_matter_needs_no_authorisation_and_says_it_is_not_for_relianc
     report = sv.runs.summary(mid, run.run_id, actor_id=A)["report"]
     from pathlib import Path
 
-    assert "PRACTICE MATTER — NOT FOR RELIANCE" in Path(report["path"]).read_text(encoding="utf-8")
+    text = Path(report["path"]).read_text(encoding="utf-8")
+    assert "PRACTICE MATTER — DRAFT, NOT FOR RELIANCE" in text and "APPROVED FOR" not in text
 
 
 def test_a_real_matter_is_refused_until_an_authorisation_covers_it(demo, monkeypatch):
