@@ -127,3 +127,10 @@ unless a person chooses a step, and a restart that would not read a document add
 papers were read is refused. The law and standards packages are listed in a fixed order: the
 report rebuilt at approval must equal the reviewed draft, and after a restart their order had
 differed, so the corrected report could not be approved.
+
+**D-30 Nothing under a preservation hold is deleted (EL-004).** A matter's content is deleted
+at closure or when its retention ends, through one path. A preservation hold on the whole
+matter refuses that before anything changes; a hold on named documents keeps those and lets the
+rest go. Every deletion leaves a receipt of the hashes of the originals deleted and what was
+kept, matched by the ledger. Preserving more is always safe, so the matter's lead may place a
+hold; ending one is the legal or data-protection owner's decision, with a reason.

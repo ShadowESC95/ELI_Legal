@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import os
 import shutil
+from collections.abc import Iterable
 from pathlib import Path
 
 from eli_legal.domain.errors import AuditIntegrityError, NotFound
@@ -63,11 +64,28 @@ class EvidenceVault:
             return False
         return True
 
-    def purge_matter(self, matter_id: str) -> int:
-        """Delete every original for a matter (retention at matter close). Returns files removed."""
+    def has_files(self, matter_id: str) -> bool:
+        """Whether any original of the matter is still held."""
+        directory = self._matter_dir(matter_id)
+        return directory.exists() and any(p.is_file() for p in directory.rglob("*"))
+
+    def purge_matter(self, matter_id: str, *, keep: Iterable[str] = ()) -> int:
+        """Delete every original for a matter (retention at matter close), except those whose
+        SHA-256 is in ``keep`` (under a preservation hold). Returns files removed."""
         directory = self._matter_dir(matter_id)
         if not directory.exists():
             return 0
+        kept = set(keep)
+        if kept:
+            removed = 0
+            for path in sorted(directory.rglob("*"), reverse=True):
+                if path.is_file() and path.name not in kept:
+                    path.chmod(0o600)
+                    path.unlink()
+                    removed += 1
+                elif path.is_dir() and not any(path.iterdir()):
+                    path.rmdir()
+            return removed
         count = sum(1 for p in directory.rglob("*") if p.is_file())
         for path in directory.rglob("*"):
             if path.is_file():

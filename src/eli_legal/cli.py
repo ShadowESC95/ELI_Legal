@@ -959,6 +959,34 @@ def cmd_release(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_preserve(args: argparse.Namespace) -> int:
+    """Preservation holds: nothing they cover is deleted until released."""
+    sv = _services(args)
+    actor = _actor(args)
+    if args.preserve_cmd == "list":
+        for h in sv.preservation.list(args.matter, actor_id=actor):
+            what = "whole matter" if h.scope == "matter" else f"{len(h.document_ids)} document(s)"
+            print(f"{h.hold_id}  {h.status:8s} {what}  {h.authority}: {h.legal_basis}")
+    elif args.preserve_cmd == "place":
+        with _confirmed(args, "place a preservation hold"):
+            hold = sv.preservation.place(
+                args.matter,
+                actor_id=actor,
+                legal_basis=args.basis,
+                authority=args.authority,
+                document_ids=args.document or [],
+                review_by=date.fromisoformat(args.review_by) if args.review_by else None,
+            )
+        print(hold.hold_id)
+    elif args.preserve_cmd == "release":
+        with _confirmed(args, "release a preservation hold"):
+            hold = sv.preservation.release(
+                args.matter, args.hold, actor_id=actor, reason=args.reason
+            )
+        print(f"{hold.hold_id}: {hold.status}")
+    return 0
+
+
 def cmd_reliance(args: argparse.Namespace) -> int:
     """Approved reports suspended from reliance, and ending a suspension."""
     sv = _services(args)
@@ -1645,6 +1673,20 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--kind", default="general", choices=["general", "death", "widespread"])
     a.add_argument("--reported-on", help="the date it was reported, if it was")
     a.add_argument("--reference", default="")
+
+    p = add("preserve", cmd_preserve, "preservation holds: keep a matter's content from deletion")
+    s = p.add_subparsers(dest="preserve_cmd", required=True)
+    s.add_parser("list").add_argument("matter")
+    a = s.add_parser("place", help="keep the whole matter, or named documents, from deletion")
+    a.add_argument("matter")
+    a.add_argument("--basis", required=True, help="what requires it: the order, claim, notice")
+    a.add_argument("--authority", required=True, help="on whose authority")
+    a.add_argument("--document", action="append", help="a document id; repeat; none = all")
+    a.add_argument("--review-by", help="the date to review whether it is still needed")
+    a = s.add_parser("release", help="end a hold (the legal or data-protection owner)")
+    a.add_argument("matter")
+    a.add_argument("hold")
+    a.add_argument("--reason", required=True)
 
     p = add("reliance", cmd_reliance, "approved reports suspended from reliance")
     s = p.add_subparsers(dest="reliance_cmd", required=True)

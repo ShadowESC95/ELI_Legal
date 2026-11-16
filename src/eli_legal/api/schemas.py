@@ -241,6 +241,17 @@ class LawCurrentIn(Strict):
     note: Long
 
 
+class PreservationIn(Strict):
+    legal_basis: Long
+    authority: Short
+    document_ids: list[Ident] = []
+    review_by: date | None = None
+
+
+class PreservationRelease(Strict):
+    reason: Long
+
+
 class RelianceResolveIn(Strict):
     basis: Long
     superseded_by_run_id: Ident = ""

@@ -151,4 +151,6 @@ MIGRATIONS: list[str] = [
     # 6 — an approved report suspended from reliance when an authority it relies on is found,
     # after approval, to be no longer good law (EL-001). Kept through a matter's purge.
     _record_table("reliance_blocks"),
+    # 7 — legal holds that stop a matter's content being deleted (EL-004). Kept through a purge.
+    _record_table("preservation_holds"),
 ]

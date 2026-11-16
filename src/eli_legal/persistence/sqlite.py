@@ -30,6 +30,7 @@ from eli_legal.domain.models import (
     Incident,
     Issue,
     Matter,
+    PreservationHold,
     RelianceBlock,
     Report,
     Run,
@@ -74,7 +75,13 @@ _SPECS: dict[type, _Spec] = {
     Incident: _Spec("incidents", "incident_id", "run_id", "category", "status", "created_at"),
     ReleasePackage: _Spec("releases", "release_id", "run_id", None, "status", "created_at"),
     RelianceBlock: _Spec("reliance_blocks", "block_id", "run_id", "cause", "status", "opened_at"),
+    PreservationHold: _Spec("preservation_holds", "hold_id", None, "scope", "status", "opened_at"),
 }
+
+# Accountability records: ids, hashes and decisions, never content. A matter's purge keeps them.
+_KEPT_ON_PURGE = frozenset(
+    {"runs", "reviews", "releases", "holds", "incidents", "reliance_blocks", "preservation_holds"}
+)
 
 _WORD = re.compile(r"[^\W_]+", re.UNICODE)
 # Words that carry no subject. Searching for them finds every passage that uses them: a question
@@ -345,24 +352,30 @@ class Store:
         return [(Chunk(*r[:7]), -float(r[7])) for r in rows]
 
     # ── retention ────────────────────────────────────────────────────────────
-    def purge_matter_content(self, matter_id: str) -> dict[str, int]:
-        """Delete documents, text, indexes and analysis for a matter. Audit events are not here."""
+    def purge_matter_content(
+        self, matter_id: str, *, keep_document_ids: Sequence[str] = ()
+    ) -> dict[str, int]:
+        """Delete documents, text, indexes and analysis for a matter. Audit events are not here.
+        Documents in ``keep_document_ids`` (under a preservation hold) keep their record and
+        their text."""
         counts: dict[str, int] = {}
+        keep = list(dict.fromkeys(keep_document_ids))
+        marks = ",".join("?" * len(keep))
+        spare = f" AND document_id NOT IN ({marks})" if keep else ""
         with self._tx() as con:
             counts["chunks"] = con.execute(
-                "DELETE FROM chunks WHERE matter_id=?", (matter_id,)
+                f"DELETE FROM chunks WHERE matter_id=?{spare}", (matter_id, *keep)
             ).rowcount
-            con.execute("DELETE FROM chunks_fts WHERE matter_id=?", (matter_id,))
+            con.execute(f"DELETE FROM chunks_fts WHERE matter_id=?{spare}", (matter_id, *keep))
             for spec in _SPECS.values():
-                if spec.table in {
-                    "runs",
-                    "reviews",
-                    "releases",
-                    "holds",
-                    "incidents",
-                    "reliance_blocks",
-                }:
+                if spec.table in _KEPT_ON_PURGE:
                     continue  # accountability records are kept; they hold ids and decisions only
+                if spec.table == "documents" and keep:
+                    counts[spec.table] = con.execute(
+                        f"DELETE FROM documents WHERE matter_id=? AND id NOT IN ({marks})",
+                        (matter_id, *keep),
+                    ).rowcount
+                    continue
                 counts[spec.table] = con.execute(
                     f"DELETE FROM {spec.table} WHERE matter_id=?", (matter_id,)
                 ).rowcount

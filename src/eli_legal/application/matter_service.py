@@ -9,6 +9,7 @@ from datetime import date, timedelta
 
 from eli_legal.application.container import AppContext
 from eli_legal.application.framework_service import default_frameworks
+from eli_legal.application.preservation_service import dispose
 from eli_legal.domain import plain
 from eli_legal.domain.enums import AccessScope, ActorType, MatterStatus, Profile
 from eli_legal.domain.errors import (
@@ -829,8 +830,8 @@ class MatterService:
             raise InvalidInput("a reason is required to close a matter")
         counts: dict[str, int] = {}
         if purge_content:
-            counts = self.ctx.store.purge_matter_content(matter.matter_id)
-            counts["vault_files"] = self.ctx.vault.purge_matter(matter.matter_id)
+            # Refused before anything changes if a preservation hold covers the matter.
+            counts = dispose(self.ctx, matter, actor_id=actor_id, why=f"closed: {reason}"[:200])
         revoked = len(matter.authorised_user_ids - {matter.owner_user_id})
         matter.authorised_user_ids = {matter.owner_user_id}
         matter.reviewer_user_ids = set()

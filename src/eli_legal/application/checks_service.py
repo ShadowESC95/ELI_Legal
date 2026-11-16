@@ -30,6 +30,7 @@ from pathlib import Path
 from eli_legal.application.compliance_service import ComplianceService
 from eli_legal.application.container import AppContext
 from eli_legal.application.incident_service import reporting_deadline
+from eli_legal.application.preservation_service import PreservationHeld, dispose
 from eli_legal.application.reliance_service import no_longer_confirmed, open_or_extend
 from eli_legal.domain import plain
 from eli_legal.domain.enums import (
@@ -661,20 +662,30 @@ class ChecksService:
             due = matter.closed_at.date() + timedelta(days=retention.closed_matter_days)
             if due > today:
                 continue
-            counts = self.ctx.store.purge_matter_content(matter.matter_id)
-            counts["vault_files"] = self.ctx.vault.purge_matter(matter.matter_id)
-            if not any(counts.values()):
+            if not self.ctx.store.list(Document, matter.matter_id) and not self.ctx.vault.has_files(
+                matter.matter_id
+            ):
                 continue  # already deleted
-            self.ctx.log(
-                "retention_purge",
-                actor_id=SYSTEM,
-                matter_id=matter.matter_id,
-                action="matter.close",
-                subject_id=matter.matter_id,
-                outcome="purged",
-                object_type="matter",
-                payload={"deleted": counts, "retention_days": retention.closed_matter_days},
-            )
+            try:
+                counts = dispose(
+                    self.ctx,
+                    matter,
+                    actor_id=SYSTEM,
+                    why=f"retention of {retention.closed_matter_days} days ended {due.isoformat()}",
+                    event="retention_purge",
+                )
+            except PreservationHeld as held:
+                items.append(
+                    CheckItem(
+                        f"A closed matter ({plain.short_id(matter.matter_id)}) is past its "
+                        f"retention period and kept: {held}",
+                        matter.matter_id,
+                        "kept under a preservation hold",
+                    )
+                )
+                continue
+            if not any(v for k, v in counts.items() if k != "preserved_documents"):
+                continue  # nothing left to delete but what is preserved
             acted.append(
                 f"Deleted the content of a closed matter ({plain.short_id(matter.matter_id)}) "
                 f"whose {retention.closed_matter_days}-day retention ended on {due.isoformat()}."

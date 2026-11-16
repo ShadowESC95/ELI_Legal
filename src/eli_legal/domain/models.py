@@ -418,6 +418,29 @@ class RelianceBlock:
 
 
 @dataclass(slots=True)
+class PreservationHold:
+    """A legal hold on a matter's content: nothing it covers is deleted, at closure or when the
+    retention period ends, until it is released (EL-004). Not a workflow hold: it does not stop
+    the work, it stops disposal. ``document_ids`` empty: the whole matter; otherwise only those
+    documents (their originals, records and text) are kept and the rest may go."""
+
+    matter_id: str
+    legal_basis: str
+    authority: str
+    opened_by: str
+    hold_id: str = field(default_factory=lambda: new_id("pres"))
+    scope: str = "matter"
+    document_ids: list[str] = field(default_factory=list)
+    status: str = "active"
+    opened_at: datetime = field(default_factory=utcnow)
+    review_by: date | None = None
+    released_by: str | None = None
+    released_at: datetime | None = None
+    release_reason: str = ""
+    run_id: str | None = None
+
+
+@dataclass(slots=True)
 class AuditEvent:
     event_type: str
     actor_id: str

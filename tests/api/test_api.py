@@ -338,3 +338,20 @@ def test_suspensions_of_approved_reports_are_listed_and_ending_one_is_a_decision
     assert unconfirmed.status_code == 401 and unconfirmed.json()["error"] == "StepUpRequired"
     assert judge.decide("POST", path, body).status_code == 404
     assert Browser(app, S, PHRASE[S]).decide("POST", path, body).status_code == 403
+
+
+def test_preservation_holds_are_placed_and_released_through_the_api_as_decisions(api):
+    """EL-004 parity: a hold is placed and released over the API like everywhere else."""
+    client, mid, _rid, _headers, app = api
+    judge, governance = Browser(app, A, PHRASE[A]), Browser(app, G, PHRASE[G])
+    path = f"/v1/matters/{mid}/preservation-holds"
+    body = {"legal_basis": "Notice of a negligence claim received on 12 November 2026.",
+            "authority": "Tribunal chair"}  # fmt: skip
+    assert judge.send("POST", path, body).status_code == 401, "a decision needs the passphrase"
+    placed = judge.decide("POST", path, body)
+    assert placed.status_code == 201 and placed.json()["scope"] == "matter"
+    assert [h["status"] for h in judge.get(path).json()] == ["active"]
+    release = f"{path}/{placed.json()['hold_id']}/release"
+    reason = {"reason": "The claim was settled by deed; preservation is no longer required."}
+    assert judge.decide("POST", release, reason).status_code == 403, "not the owner's to end"
+    assert governance.decide("POST", release, reason).json()["status"] == "released"

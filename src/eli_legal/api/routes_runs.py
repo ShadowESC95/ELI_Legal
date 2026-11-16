@@ -238,6 +238,35 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
             headers={"Content-Disposition": f'attachment; filename="{folder.name}.zip"'},
         )
 
+    # ── preservation holds ───────────────────────────────────────────────────
+    @app.get("/v1/matters/{matter_id}/preservation-holds")
+    def preservation_holds(matter_id: str, actor: Actor) -> Any:
+        """Preservation holds on the matter: what they keep from deletion, and why."""
+        return js(sv.preservation.list(matter_id, actor_id=actor))
+
+    @app.post("/v1/matters/{matter_id}/preservation-holds", status_code=201)
+    def place_preservation_hold(matter_id: str, body: schemas.PreservationIn, actor: Actor) -> Any:
+        """Keep the matter, or named documents, from deletion. A decision: send your
+        passphrase."""
+        return js(
+            sv.preservation.place(
+                matter_id,
+                actor_id=actor,
+                legal_basis=body.legal_basis,
+                authority=body.authority,
+                document_ids=list(body.document_ids),
+                review_by=body.review_by,
+            )
+        )
+
+    @app.post("/v1/matters/{matter_id}/preservation-holds/{hold_id}/release")
+    def release_preservation_hold(
+        matter_id: str, hold_id: str, body: schemas.PreservationRelease, actor: Actor
+    ) -> Any:
+        """End a preservation hold: the legal or data-protection owner, with the reason. A
+        decision: send your passphrase."""
+        return js(sv.preservation.release(matter_id, hold_id, actor_id=actor, reason=body.reason))
+
     # ── reliance on approved reports ─────────────────────────────────────────
     @app.get("/v1/matters/{matter_id}/reliance-blocks")
     def reliance_blocks(matter_id: str, actor: Actor) -> Any:
