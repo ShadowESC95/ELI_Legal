@@ -2,21 +2,17 @@ Governed legal case preparation: it takes the papers in a dispute, establishes w
 
 **A high-risk AI system under the EU AI Act (Article 6(2) and Annex III, point 8(a)). It has not been conformity-assessed or validated on real matters, and it is not legal advice.** Read the [documentation](https://github.com/ShadowESC95/ELI_Legal/blob/@TAG@/docs/README.md), starting with the legal overview, before using it on a matter.
 
-## Fixed in this release
-
-- **An exhibit pasted beside text on a page was not read.** An invoice image under a searchable caption was listed as an unchecked image, but its words were not read and nothing held. With OCR installed, such a page is now read whole and what its text layer lacks is added from the image, marked "(OCR, image)" with the page's confidence; a logo or a signature adds nothing. Without OCR, on a real matter, the page is a review task that holds the run. PDFs read by 0.8.5 are read again once, from their originals, at the next run.
-- **Deleting a matter's content left its reports, outbox copies and evidence packs on disk.** A deletion now takes everything the application made from the matter in its own folders, each file recorded in the receipt by its SHA-256, unless a preservation hold is in force, which keeps them. Evidence packs exported to another folder are named in the receipt as beyond the application's control.
-- **A downloaded report did not say it had been suspended.** Wherever a report is read or downloaded, its standing now is shown with it: approved, suspended since when, superseded, or practice, with when the law was last checked by the routine checks and from which sources. A downloaded copy carries this above the approved text, which is otherwise exactly the file that was hashed.
-
 ## New in this version
 
-- **A deployment authorisation binds to its evidence and to everything it approves.** Each piece of evidence is the document itself, copied and recorded by its SHA-256, and checked unchanged when signed. The authorisation is pinned to the software version, policy, model, embedding model, workflow, legal-system packs and approved legal sources: a change to any voids it until approved again. (Opening real matters comes in a later version.)
+- **Real matters can be opened and approved.** *Open a matter* now asks, on its first page, whether a matter is practice (the default: never relied on, and every report says so) or real. A real matter's work starts, is approved and leaves only under a deployment authorisation in force. On **Governance → Deployment** an authorisation is proposed with each piece of evidence as the document itself (the design review, the lawyer's validation of the legal-system packs, the security assessment, the accuracy evaluation, the impact assessments, the oversight plan), signed by a provider lead and by a different deployer lead, and revoked at once when needed. It is pinned to this version, its policy, models, workflow, legal-system packs and sources: a change to any voids it until approved again. Also `eli-legal deployment`, `eli-legal matter create --real` and the API.
+- **A real report's law is checked again at release.** Preparing or sending a release on a real matter checks every authority the report relies on at that moment, not only in the daily checks: an overruling not yet seen, a source that cannot be reached, or a case that needs a person's citator check stops the release there and suspends the report.
+- **Screens for preservation holds and incidents.** On the Case page, *Preservation holds…* shows what is kept from deletion and why, and places or releases a hold. On **Governance → Incidents**, *When it became known…* records awareness (the reporting deadline counts from it) and *Owner and stand-in…* names who owns an incident and who is told if half the time passes undecided.
 
 ## Still to know
 
-- Benchmarks measure retrieval and linking against answers fixed in advance on public legislation. They are not a measure of accuracy on real matters, which has not been done.
+- Benchmarks measure retrieval and linking against answers fixed in advance on public legislation. They are not a measure of accuracy on real matters, which has not been done. Before a real matter is relied on, an authorisation needs that evaluation as evidence, and a lawyer's validation of the legal-system packs.
+- Case law's later treatment (overruled, distinguished) needs a licensed citator source; the open databases ELI Legal reads do not supply it, so a case's standing goes to a person.
 - Tesseract and Poppler are not included in the installers; install them for scanned pages and pasted exhibits to be read.
-- A suspension takes effect when the daily check detects the status problem. An authority's status is its source's as last retrieved; refreshing live sources before a real report is staged comes with real matters.
 - A repeal of part of a subsection, or of words within it, is not detected; a consolidated EU text is documentation, not the authentic text.
 
 ## Which file
@@ -44,6 +40,6 @@ Every one of them includes the desktop application, the server with its browser 
 - **Windows:** the program ran the synthetic dispute; the setup program was installed silently, started and uninstalled. The desktop application was not opened by a person.
 - **macOS (Intel and Apple silicon):** the program ran the synthetic dispute. The disk images were not opened by a person.
 - The test suite (desktop application, server, browser application, security, the whole lifecycle, the benchmarks) passes on Linux, Windows and macOS.
-- **The desktop application:** the Report tab's standing line and the Documents page's re-read are tested; a pasted exhibit is read by OCR (tested on Linux with Tesseract installed) and, without OCR on a real matter, held for review (tested everywhere).
+- **The desktop application:** the practice-or-real choice on *Open a matter* and the Deployment page are tested; a real matter's report refused at release once its authority is overruled is tested end to end.
 
 Installation and first steps: [docs/6_manuals/01_installation.md](https://github.com/ShadowESC95/ELI_Legal/blob/@TAG@/docs/6_manuals/01_installation.md).
