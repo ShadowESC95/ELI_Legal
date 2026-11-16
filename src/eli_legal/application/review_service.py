@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from eli_legal.application.container import AppContext
+from eli_legal.application.deployment_service import require_deployment
 from eli_legal.domain.enums import ActorType, ReviewDecision, RunStatus, StepStatus
 from eli_legal.domain.errors import (
     AuditIntegrityError,
@@ -122,6 +123,9 @@ class ReviewService:
             self._deny(run, actor_id, "not a named reviewer for this matter")
         if ctx.policy.require_reviewer_distinct_from_operator and actor_id == run.initiated_by:
             self._deny(run, actor_id, "policy requires a reviewer other than the person who ran it")
+        if approving:
+            require_deployment(ctx, matter, actor_id=actor_id, action="report.approve",
+                               reviewer_id=actor_id, operator_id=run.initiated_by)  # fmt: skip
         if len(reasons.strip()) < 10:
             raise InvalidInput("record the reasons for the decision")
         report = ctx.store.get(Report, mid, run.report_id or "")

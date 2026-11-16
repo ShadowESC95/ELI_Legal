@@ -299,6 +299,13 @@ class LegalReportBuilder:
             )
         add(">")
         add(f"> {spec.disclaimer}")
+        if not ctx.matter.real:
+            add(">")
+            add(
+                "> **PRACTICE MATTER — NOT FOR RELIANCE.** Opened for demonstration, training "
+                "or testing: it holds no real case material and nothing in it is to be relied "
+                "on, approved or not."
+            )
         add("")
         lines += self._at_a_glance(
             ctx, spec.label, docs, claims, verified, not_relied, warnings, party_cited

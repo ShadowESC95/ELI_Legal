@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from eli_legal.application.container import AppContext
+from eli_legal.application.deployment_service import require_deployment
 from eli_legal.application.incident_service import IncidentService
 from eli_legal.application.verification_service import HELD_BY_PERSON
 from eli_legal.domain import plain
@@ -61,6 +62,7 @@ class RunService:
         matter = ctx.matter_for(matter_id, actor_id, "workflow.run")
         if matter.status is not MatterStatus.ACTIVE:
             raise InvalidState(f"matter is {matter.status.value}; a run needs an active matter")
+        require_deployment(ctx, matter, actor_id=actor_id, action="workflow.run")
         ctx.audit.verify_chain()  # never start governed work on a ledger that does not verify
         run = Run(matter_id=matter.matter_id, initiated_by=actor_id, status=RunStatus.RUNNING)
         ctx.store.put(run)
@@ -109,6 +111,7 @@ class RunService:
         ctx = self.ctx
         authn.require_step_up(actor_id, "restart a run")
         matter = ctx.matter_for(matter_id, actor_id, "workflow.restart")
+        require_deployment(ctx, matter, actor_id=actor_id, action="workflow.restart")
         run = self._load(matter, run_id, actor_id, "workflow.restart")
         if run.status not in _RESUMABLE:
             raise InvalidState(f"run is {run.status.value}; only a held or stopped run can restart")

@@ -11,6 +11,7 @@ from eli_legal.application.compliance_service import ComplianceService
 from eli_legal.application.config_service import ConfigService, NetworkControl
 from eli_legal.application.container import AppContext, build_context
 from eli_legal.application.delivery_service import DeliveryService
+from eli_legal.application.deployment_service import DeploymentService
 from eli_legal.application.framework_service import FrameworkService
 from eli_legal.application.guidance_service import GuidanceService
 from eli_legal.application.incident_service import IncidentService
@@ -51,6 +52,7 @@ class Services:
     incidents: IncidentService
     reliance: RelianceService
     preservation: PreservationService
+    deployment: DeploymentService
     monitoring: MonitoringService
     chat: ChatService
     frameworks: FrameworkService
@@ -123,6 +125,7 @@ def build_services(
         incidents=IncidentService(ctx),
         reliance=RelianceService(ctx),
         preservation=PreservationService(ctx),
+        deployment=DeploymentService(ctx),
         monitoring=MonitoringService(ctx),
         chat=ChatService(ctx),
         frameworks=FrameworkService(ctx),

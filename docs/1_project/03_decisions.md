@@ -142,3 +142,11 @@ since later would lengthen the time to report. Until it is recorded, the deadlin
 the entry, which can only be later. Each serious incident has an owner and a different stand-in;
 when half the time is gone with no decision, the stand-in is told, once, on the record. Nothing
 is reported to an authority by the software: a person decides and reports.
+
+**D-32 Real matters need a deployment authorisation; practice matters say what they are
+(EL-005).** A matter is opened as practice or real. Practice needs nothing and every report says
+it is not for reliance. A real matter's work needs an authorisation in force for its legal
+system and kind, resting on named evidence, signed by a provider lead and a different deployer
+lead, pinned to the software version, policy and model, so that an upgrade or a changed model
+is approved before it is used on real cases. Existing matters are practice: none was opened
+under an authorisation.

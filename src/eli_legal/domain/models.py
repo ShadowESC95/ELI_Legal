@@ -80,6 +80,11 @@ class Matter:
     framework_ids: list[str] = field(default_factory=list)
     created_at: datetime = field(default_factory=utcnow)
     closed_at: datetime | None = None
+    # A real matter (real people's papers, relied on) needs a current deployment authorisation
+    # for its work to start, be approved or leave (EL-005). A practice matter (demonstration,
+    # training, testing) needs none, holds no real case material, and every report from it says
+    # it is not for reliance. Fixed when the matter is opened.
+    real: bool = False
     # Each member's role on this matter (eli_legal.security.access.MATTER_ROLES). Someone on the
     # matter with no entry has the narrowest role that keeps what their account allows.
     member_roles: dict[str, str] = field(default_factory=dict)
@@ -448,6 +453,42 @@ class PreservationHold:
     released_at: datetime | None = None
     release_reason: str = ""
     run_id: str | None = None
+
+
+@dataclass(slots=True)
+class DeploymentAuthorisation:
+    """The deploying organisation's and the provider's approval to use ELI Legal on real matters
+    (EL-005): for what, where, on which kinds of matter, on what evidence, until when, and for
+    exactly which version of the software, policy and model. Approved once a provider lead and
+    a different deployer lead have both signed; void when it expires, is revoked, or what it
+    was approved for changes."""
+
+    intended_use: str
+    provider: str
+    deployer: str
+    jurisdictions: list[str]
+    profiles: list[str]
+    effective_from: date
+    expires_on: date
+    proposed_by: str
+    authorisation_id: str = field(default_factory=lambda: new_id("dep"))
+    environment: str = "production"
+    data_classes: list[str] = field(default_factory=list)
+    # References to the documents relied on: the design review, the lawyer's validation of the
+    # legal-system packs, the security assessment, the accuracy evaluation, the data-protection
+    # and fundamental-rights impact assessments.
+    evidence: dict[str, str] = field(default_factory=dict)
+    # What it was approved for: software version, policy, model.
+    pinned: dict[str, str] = field(default_factory=dict)
+    provider_signed_by: str = ""
+    provider_signed_at: datetime | None = None
+    deployer_signed_by: str = ""
+    deployer_signed_at: datetime | None = None
+    status: str = "proposed"  # proposed | approved | revoked
+    proposed_at: datetime = field(default_factory=utcnow)
+    revoked_by: str = ""
+    revoked_at: datetime | None = None
+    revoke_reason: str = ""
 
 
 @dataclass(slots=True)

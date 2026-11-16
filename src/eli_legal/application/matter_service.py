@@ -421,6 +421,7 @@ class MatterService:
         team: Sequence[TeamMember] = (),
         reviewers: Sequence[str] = (),
         sources: Sequence[str] = (),
+        real: bool = False,
     ) -> Matter:
         """Open a matter. Its law and standards packages are the recommended ones for its kind
         and legal system, plus any named in ``frameworks``; or only those named, when
@@ -456,6 +457,7 @@ class MatterService:
             owner_user_id=actor_id,
             status=MatterStatus.ACTIVE,
             profile=profile,
+            real=real,
             governing_law=governing_law or jurisdiction,
             forum=forum,
             procedural_rules=procedural_rules,
@@ -485,6 +487,7 @@ class MatterService:
             object_type="matter",
             payload={
                 "profile": profile.value,
+                "real": matter.real,
                 "jurisdiction": jurisdiction,
                 "governing_law": matter.governing_law,
                 "packs": [p.code for p in packs],
