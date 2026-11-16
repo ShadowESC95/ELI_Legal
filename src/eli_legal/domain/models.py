@@ -380,6 +380,16 @@ class Incident:
     report_reason: str = ""
     reported_at: datetime | None = None
     report_reference: str = ""
+    # EL-006: Art. 73 counts from when the provider (or deployer) became aware, which may be
+    # before the incident was entered here. Who became aware, when, and how; who owns the
+    # incident and who stands in; when it was escalated to the stand-in.
+    occurred_at: datetime | None = None
+    aware_at: datetime | None = None
+    aware_by: str = ""
+    awareness_basis: str = ""
+    owner_user_id: str = ""
+    backup_user_id: str = ""
+    escalated_at: datetime | None = None
 
 
 @dataclass(slots=True)

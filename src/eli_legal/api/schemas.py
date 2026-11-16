@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
@@ -239,6 +239,18 @@ class SignOffIn(Strict):
 class LawCurrentIn(Strict):
     checked_on: date
     note: Long
+
+
+class AwarenessIn(Strict):
+    aware_at: datetime
+    basis: Long
+    aware_by: Ident | None = None
+    occurred_at: datetime | None = None
+
+
+class AssignIn(Strict):
+    owner: Ident
+    backup: Ident
 
 
 class PreservationIn(Strict):

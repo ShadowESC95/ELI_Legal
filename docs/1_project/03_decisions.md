@@ -134,3 +134,11 @@ matter refuses that before anything changes; a hold on named documents keeps tho
 rest go. Every deletion leaves a receipt of the hashes of the originals deleted and what was
 kept, matched by the ledger. Preserving more is always safe, so the matter's lead may place a
 hold; ending one is the legal or data-protection owner's decision, with a reason.
+
+**D-31 An incident's deadline counts from awareness (EL-006).** Article 73 counts from when the
+provider or deployer became aware, which is often before anyone enters the incident here. The
+time and the way it became known are recorded; the time may be moved earlier but never later,
+since later would lengthen the time to report. Until it is recorded, the deadline counts from
+the entry, which can only be later. Each serious incident has an owner and a different stand-in;
+when half the time is gone with no decision, the stand-in is told, once, on the record. Nothing
+is reported to an authority by the software: a person decides and reports.

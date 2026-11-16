@@ -1027,6 +1027,31 @@ def cmd_incident(args: argparse.Namespace) -> int:
             run_id=args.run,
         )
         print(incident.incident_id)
+    elif args.incident_cmd == "aware":
+        with _confirmed(args, "record when an incident became known"):
+            incident = sv.incidents.record_awareness(
+                args.matter,
+                args.incident,
+                actor_id=actor,
+                aware_at=datetime.fromisoformat(args.aware_at).astimezone(timezone.utc),
+                basis=args.basis,
+                aware_by=args.aware_by or "",
+                occurred_at=datetime.fromisoformat(args.occurred_at).astimezone(timezone.utc)
+                if args.occurred_at
+                else None,
+            )
+        from eli_legal.application.incident_service import reporting_deadline
+
+        deadline = reporting_deadline(incident)
+        print(f"{incident.incident_id}: aware {incident.aware_at}"
+              + (f"; report due by {deadline.date().isoformat()}" if deadline else ""))  # fmt: skip
+    elif args.incident_cmd == "assign":
+        incident = sv.incidents.assign(
+            args.matter, args.incident, actor_id=actor, owner=args.owner, backup=args.backup
+        )
+        print(
+            f"{incident.incident_id}: owner {incident.owner_user_id}, stand-in {incident.backup_user_id}"
+        )
     elif args.incident_cmd == "report":
         on = date.fromisoformat(args.reported_on) if args.reported_on else None
         with _confirmed(args, "record the reporting decision"):
@@ -1664,6 +1689,21 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("incident")
     a.add_argument("--containment", required=True)
     a.add_argument("--reason", required=True)
+
+    a = s.add_parser(
+        "aware", help="when the provider or deployer became aware (Art. 73 counts from it)"
+    )
+    a.add_argument("matter")
+    a.add_argument("incident")
+    a.add_argument("--aware-at", required=True, help="date and time, e.g. 2026-11-14T09:30+00:00")
+    a.add_argument("--basis", required=True, help="how it became known")
+    a.add_argument("--aware-by", help="who became aware, if not you")
+    a.add_argument("--occurred-at", help="when it happened, if known")
+    a = s.add_parser("assign", help="the incident's owner and a different stand-in")
+    a.add_argument("matter")
+    a.add_argument("incident")
+    a.add_argument("--owner", required=True)
+    a.add_argument("--backup", required=True)
 
     a = s.add_parser("report", help="decide whether a serious incident is reportable (Art. 73)")
     a.add_argument("matter")

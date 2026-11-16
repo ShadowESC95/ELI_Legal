@@ -309,6 +309,35 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
             )
         )
 
+    @app.post("/v1/matters/{matter_id}/incidents/{incident_id}/awareness")
+    def incident_awareness(
+        matter_id: str, incident_id: str, body: schemas.AwarenessIn, actor: Actor
+    ) -> Any:
+        """When the provider or deployer became aware: the Art. 73 deadline counts from it. It
+        may be moved earlier, never later. A decision: send your passphrase."""
+        return js(
+            sv.incidents.record_awareness(
+                matter_id,
+                incident_id,
+                actor_id=actor,
+                aware_at=body.aware_at,
+                basis=body.basis,
+                aware_by=body.aware_by or "",
+                occurred_at=body.occurred_at,
+            )
+        )
+
+    @app.post("/v1/matters/{matter_id}/incidents/{incident_id}/assign")
+    def incident_assign(
+        matter_id: str, incident_id: str, body: schemas.AssignIn, actor: Actor
+    ) -> Any:
+        """Name the incident's owner and a different stand-in."""
+        return js(
+            sv.incidents.assign(
+                matter_id, incident_id, actor_id=actor, owner=body.owner, backup=body.backup
+            )
+        )
+
     @app.post("/v1/matters/{matter_id}/incidents/{incident_id}/close")
     def close_incident(
         matter_id: str, incident_id: str, body: schemas.IncidentClose, actor: Actor

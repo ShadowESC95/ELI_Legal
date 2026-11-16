@@ -29,7 +29,7 @@ from pathlib import Path
 
 from eli_legal.application.compliance_service import ComplianceService
 from eli_legal.application.container import AppContext
-from eli_legal.application.incident_service import reporting_deadline
+from eli_legal.application.incident_service import needs_escalation, reporting_deadline
 from eli_legal.application.preservation_service import PreservationHeld, dispose
 from eli_legal.application.reliance_service import no_longer_confirmed, open_or_extend
 from eli_legal.domain import plain
@@ -700,6 +700,7 @@ class ChecksService:
 
     def _open_work(self, actor_id: str, today: date) -> CheckResult:
         items: list[CheckItem] = []
+        acted: list[str] = []
         now = utcnow()
         for matter in self._open_matters():
             mid = matter.matter_id
@@ -721,6 +722,32 @@ class ChecksService:
                 if incident.status != "open":
                     continue
                 deadline = reporting_deadline(incident)
+                if needs_escalation(incident, now):
+                    # Half the time to report is gone and nobody has decided: the stand-in is
+                    # told, once, and it is on the record.
+                    def escalate(i: Incident) -> None:
+                        i.escalated_at = utcnow()
+
+                    incident = self.ctx.store.change(Incident, mid, incident.incident_id, escalate)
+                    self.ctx.log(
+                        "incident_escalated",
+                        actor_id=SYSTEM,
+                        matter_id=mid,
+                        action="incident.manage",
+                        subject_id=incident.incident_id,
+                        outcome="escalated",
+                        object_type="incident",
+                        payload={
+                            "owner": incident.owner_user_id,
+                            "backup": incident.backup_user_id,
+                            "counted_from": "awareness" if incident.aware_at else "entry",
+                        },
+                    )
+                    acted.append(
+                        f"Escalated a serious incident on matter {plain.short_id(mid)} to "
+                        f"{incident.backup_user_id or 'the matter lead'}: half the time to report "
+                        "is gone and no decision is recorded."
+                    )
                 if deadline is not None:
                     left = (deadline - now).days
                     when = (
@@ -737,7 +764,7 @@ class ChecksService:
                             f"a serious incident's reporting deadline: {when}",
                         )
                     )
-        if not items:
+        if not items and not acted:
             return CheckResult(
                 "open_work",
                 "Holds and incidents",
@@ -753,6 +780,7 @@ class ChecksService:
             "Resolve old holds in Review; decide on each serious incident in Governance → "
             "Incidents.",
             items,
+            acted,
         )
 
 
