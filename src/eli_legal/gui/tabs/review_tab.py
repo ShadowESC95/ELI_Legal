@@ -13,12 +13,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from eli_legal.application.reliance_service import BARRED
 from eli_legal.domain import plain
 from eli_legal.domain.enums import HoldScope, ReviewDecision, VerificationStatus
-from eli_legal.domain.models import Claim, Hold
+from eli_legal.domain.models import Claim, Hold, RelianceBlock, Run
 from eli_legal.domain.release import ReleasePackage
 from eli_legal.gui import theme
-from eli_legal.gui.run_controls import hold_run, lift_hold
+from eli_legal.gui.run_controls import RESUMABLE, hold_run, lift_hold, restart_run
 from eli_legal.gui.tabs.base import Tab
 from eli_legal.gui.widgets import (
     ReasonDialog,
@@ -126,18 +127,20 @@ class ReviewTab(Tab):
             card("Limits of this report — tick each one to show you have read it", self.limits), 1
         )
         box.addWidget(card("Reasons", self.reasons))
+        self.approve = button(
+            "Approve for reliance…", lambda: self._decide(ReviewDecision.APPROVE), kind="primary"
+        )
+        self.send_back = button(
+            "Return for correction…", lambda: self._decide(ReviewDecision.RETURN_FOR_CORRECTION)
+        )
+        self.reject = button("Reject…", lambda: self._decide(ReviewDecision.REJECT), kind="danger")
+        self.restart = button("↻ Restart to make the corrections…", self._restart)
         box.addWidget(
             row(
-                button(
-                    "Approve for reliance…",
-                    lambda: self._decide(ReviewDecision.APPROVE),
-                    kind="primary",
-                ),
-                button(
-                    "Return for correction…",
-                    lambda: self._decide(ReviewDecision.RETURN_FOR_CORRECTION),
-                ),
-                button("Reject…", lambda: self._decide(ReviewDecision.REJECT), kind="danger"),
+                self.approve,
+                self.send_back,
+                self.reject,
+                self.restart,
                 None,
                 button("Put on hold…", lambda: hold_run(self)),
                 button("Lift the hold…", lambda: lift_hold(self)),
@@ -161,6 +164,12 @@ class ReviewTab(Tab):
                 button("Lift the hold…", lambda: lift_hold(self)),
             )
         )
+        self.end_suspension = button("End the suspension…", self._end_suspension)
+        self.end_suspension.setToolTip(
+            "For a named reviewer: once the law is confirmed again for this report, or a later "
+            "run, re-checked and approved, replaces it"
+        )
+        box.addWidget(row(self.end_suspension, None))
         box.addWidget(card("Prepared releases", self.packages), 1)
         box.addWidget(
             row(
@@ -265,6 +274,23 @@ class ReviewTab(Tab):
         self.inner.setTabText(1, f"Checks for you ({len(tasks)})")
 
         report = summary["report"]
+        # A refresh rebuilds the lists; what the reviewer ticked stays ticked for the same report.
+        previous: dict = getattr(self, "_report", None) or {}  # type: ignore[type-arg]
+        same = bool(report) and previous.get("sha256") == report.get("sha256")
+        kept_limits = (
+            {
+                str(self.limits.item(i).data(Qt.ItemDataRole.UserRole))
+                for i in range(self.limits.count())
+                if self.limits.item(i).checkState() == Qt.CheckState.Checked
+            }
+            if same
+            else set()
+        )
+        kept_recipients = {
+            str(self.recipients.item(i).data(Qt.ItemDataRole.UserRole)[0])
+            for i in range(self.recipients.count())
+            if self.recipients.item(i).checkState() == Qt.CheckState.Checked
+        }
         self.limits.clear()
         if report:
             shown = self.session.attempt(
@@ -298,7 +324,11 @@ class ReviewTab(Tab):
                 item = QListWidgetItem(said or warning)
                 item.setToolTip(f"Recorded as acknowledged: {ident}")
                 item.setData(Qt.ItemDataRole.UserRole, warning_id(warning))
-                item.setCheckState(Qt.CheckState.Unchecked)
+                item.setCheckState(
+                    Qt.CheckState.Checked
+                    if warning_id(warning) in kept_limits
+                    else Qt.CheckState.Unchecked
+                )
                 self.limits.addItem(item)
         else:
             self.report.clear()
@@ -306,14 +336,29 @@ class ReviewTab(Tab):
         self._report = report
         status = summary["status"]
         colour = theme.colour_for(status)
-        ready = (
-            "It can be approved by a named reviewer."
-            if status == "awaiting_human_review"
-            else "It cannot be approved in this state."
-        )
+        ready = {
+            "awaiting_human_review": "It can be approved by a named reviewer. Approval is tied "
+            "to the exact report version shown in the Report tab.",
+            "returned_for_correction": "It was returned for correction, so it cannot be "
+            "approved, and lifting a hold does not change that. Make the corrections (add or "
+            "replace a document, record a check on a finding), then press <b>Restart to make "
+            "the corrections</b>: it reads everything again from the papers and brings a new "
+            "draft back here for review.",
+            "held": "It is on hold. See what is holding it under Holds and checks, deal with "
+            "each, then restart it; a hold a person placed is lifted with Lift the hold.",
+            "stopped": "It was stopped. Restart it to carry on, or start a new run.",
+            "approved_for_reliance": "It is approved. Release is on the Release tab.",
+        }.get(status, "It cannot be approved in this state.")
         self.decision_note.setText(
-            f"The run is <b style='color:{colour}'>{plain.state(status).lower()}</b>. {ready} Approval is tied to the exact report version shown in the Report tab."
+            f"The run is <b style='color:{colour}'>{plain.state(status).lower()}</b>. {ready}"
         )
+        reviewing = status == "awaiting_human_review"
+        for decision_button in (self.approve, self.send_back, self.reject):
+            decision_button.setEnabled(reviewing)
+            decision_button.setToolTip(
+                "" if reviewing else "Only a report awaiting review can be decided"
+            )
+        self.restart.setVisible(status in {s.value for s in RESUMABLE})
 
         matter = self.session.matter
         self.recipients.clear()
@@ -327,7 +372,9 @@ class ReviewTab(Tab):
             for key, text in people:
                 item = QListWidgetItem(text)
                 item.setData(Qt.ItemDataRole.UserRole, (key, text.split(" — ")[0]))
-                item.setCheckState(Qt.CheckState.Unchecked)
+                item.setCheckState(
+                    Qt.CheckState.Checked if key in kept_recipients else Qt.CheckState.Unchecked
+                )
                 self.recipients.addItem(item)
         packages = self.sv.ctx.store.list(ReleasePackage, self.mid, run_id=self.rid)
         fill(
@@ -350,11 +397,34 @@ class ReviewTab(Tab):
         )
         fit(self.packages, [90, 150, 0, 260])
         self._packages = {p.release_id: p for p in packages}
-        self.release_note.setText(
-            "Only an approved report can be released, and only to people entitled to it. A tribunal's memorandum is not released to a party."
-            if status == "approved_for_reliance"
-            else "A report can be released once it has been approved."
-        )
+        blocks = [b for b in self.sv.ctx.store.list(RelianceBlock, self.mid, run_id=self.rid)
+                  if b.status in BARRED]  # fmt: skip
+        self._blocks = blocks
+        self.end_suspension.setVisible(any(b.status == "active" for b in blocks))
+        if blocks:
+            first = blocks[0]
+            self.release_note.setText(
+                f"<b style='color:{theme.colour_for('held')}'>Reliance on this report is "
+                "suspended.</b> "
+                + (
+                    "A later run, re-checked and approved, replaces it."
+                    if first.status == "superseded"
+                    else "An authority it relies on is no longer confirmed as good law (see "
+                    "the incident on the matter). Nothing more may be prepared or sent from it."
+                    + (
+                        f" Already received by {len(first.recipient_ids)} recipient(s), who "
+                        "should be told."
+                        if first.recipient_ids
+                        else ""
+                    )
+                )
+            )
+        else:
+            self.release_note.setText(
+                "Only an approved report can be released, and only to people entitled to it. A tribunal's memorandum is not released to a party."
+                if status == "approved_for_reliance"
+                else "A report can be released once it has been approved."
+            )
 
     # ── holds and checks ─────────────────────────────────────────────────────
     def _explain(self) -> None:
@@ -456,6 +526,45 @@ class ReviewTab(Tab):
                 acknowledged=acknowledged,
             ),
         )
+
+    def _restart(self) -> None:
+        restart_run(self, lambda _r: self.session.notify(), self._restart_failed)
+
+    def _restart_failed(self, exc: Exception) -> None:
+        self.session.attempt(self, lambda: (_ for _ in ()).throw(exc))
+
+    def _end_suspension(self) -> None:
+        block = next((b for b in getattr(self, "_blocks", []) if b.status == "active"), None)
+        if block is None:
+            return
+        how = QComboBox()
+        how.addItem("the law is confirmed again for this report", "")
+        for run in self.sv.ctx.store.list(Run, self.mid):
+            if run.run_id != block.run_id and run.status.value == "approved_for_reliance":
+                how.addItem(f"replaced by the later approved run {run.run_id[-8:]}", run.run_id)
+        basis = ReasonDialog.ask(
+            self,
+            "End the suspension",
+            "Only a named reviewer who may approve ends a suspension. Either the authority is "
+            "confirmed again for this report (a qualified person's confirmation of its current "
+            "status, made after the suspension, recorded on the finding), or a later run, "
+            "re-checked and approved after the suspension, replaces the report, which then stays "
+            "barred. Write down the basis: the status found, by whom, from which source, and "
+            "what it means for the report.",
+            extra=[("How it ends", how)],
+        )
+        if basis:
+            self.session.decide(
+                self,
+                "end the suspension of this report",
+                lambda: self.sv.reliance.resolve(
+                    self.mid,
+                    block.block_id,
+                    actor_id=self.actor,
+                    basis=basis,
+                    superseded_by_run_id=how.currentData() or "",
+                ),
+            )
 
     def _prepare(self) -> None:
         chosen = [

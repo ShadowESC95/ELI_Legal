@@ -6,10 +6,12 @@ from typing import Any
 from eli_legal.application.container import AppContext
 from eli_legal.application.incident_service import IncidentService
 from eli_legal.application.verification_service import HELD_BY_PERSON
+from eli_legal.domain import plain
 from eli_legal.domain.enums import HoldResolution, HoldScope, MatterStatus, RunStatus, StepStatus
 from eli_legal.domain.errors import InvalidInput, InvalidState, NotFound
 from eli_legal.domain.models import (
     Claim,
+    Document,
     Hold,
     Matter,
     Report,
@@ -20,6 +22,7 @@ from eli_legal.domain.models import (
 )
 from eli_legal.security import authn
 from eli_legal.security.redaction import content_hash
+from eli_legal.workflows.agents import agent_for
 from eli_legal.workflows.case_preparation import CasePreparation
 from eli_legal.workflows.runner import WorkflowRunner, record_person_step
 
@@ -134,17 +137,41 @@ class RunService:
                     detail="to be done again after the restart",
                 )
         steps = {s.step_id: s for s in ctx.store.list(RunStep, matter.matter_id, run_id=run_id)}
+        first = ctx.workflow.automated[0].id
         if from_step is None:
-            from_step = next(
-                (
-                    s.id
-                    for s in ctx.workflow.automated
-                    if s.id not in steps or steps[s.id].status is not StepStatus.OK
-                ),
-                "verification_gate",
-            )
+            if run.status is RunStatus.RETURNED_FOR_CORRECTION:
+                # A report returned for correction: what was corrected may be anywhere, from the
+                # papers on, and every automated step finished cleanly the first time. Starting
+                # at the first step that did not finish would start at the verification gate and
+                # never read the corrections, so everything runs again.
+                from_step = first
+            else:
+                from_step = next(
+                    (
+                        s.id
+                        for s in ctx.workflow.automated
+                        if s.id not in steps or steps[s.id].status is not StepStatus.OK
+                    ),
+                    "verification_gate",
+                )
         ctx.workflow.step(from_step)  # raises KeyError for an unknown step
         rerun = {from_step} | ctx.workflow.descendants(from_step)
+        # The step that reads the papers: a document added after it last ran is read only if
+        # the restart runs it again.
+        reading = next((s.id for s in ctx.workflow.automated if s.id == "ingest"), first)
+        reader = steps.get(reading)
+        if reading not in rerun and reader is not None and reader.finished_at is not None:
+            added = [
+                d
+                for d in ctx.store.list(Document, matter.matter_id)
+                if d.ingested_at > reader.finished_at
+            ]
+            if added:
+                raise InvalidState(
+                    f"{plain.count(len(added), 'document')} added after this run read the papers: "
+                    f"restart from {agent_for(reading).name} or earlier, so that "
+                    f"{'it is' if len(added) == 1 else 'they are'} read"
+                )
         for hold in ctx.holds.open_holds(matter.matter_id, run_id):
             if hold.scope is HoldScope.STEP and hold.subject_id in rerun:
                 ctx.holds.resolve(

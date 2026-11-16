@@ -383,6 +383,41 @@ class Incident:
 
 
 @dataclass(slots=True)
+class RelianceBlock:
+    """An approved report that may no longer be relied on: an authority it relies on was found,
+    after approval, to be no longer good law (or no longer confirmed as such).
+
+    The approval stays in the record as it was; what the block changes is whether the report
+    may now be prepared for release or sent. ``active``: nothing may leave. ``superseded``: a
+    later run of the matter, re-checked and approved, replaces this report, which stays barred.
+    ``lifted``: the authorities were confirmed again for this report by a named reviewer, with
+    the basis recorded. Closing the incident never changes a block."""
+
+    matter_id: str
+    run_id: str
+    report_id: str
+    report_hash: str
+    cause: str
+    block_id: str = field(default_factory=lambda: new_id("blk"))
+    severity: IncidentSeverity = IncidentSeverity.HIGH
+    authority_ids: list[str] = field(default_factory=list)
+    claim_ids: list[str] = field(default_factory=list)
+    incident_id: str = ""
+    owner_user_id: str = ""
+    # Releases of this report already made, and to whom: software cannot recall them, so the
+    # people who received it are to be told (an impact and notification task for the owner).
+    release_ids: list[str] = field(default_factory=list)
+    recipient_ids: list[str] = field(default_factory=list)
+    status: str = "active"
+    opened_at: datetime = field(default_factory=utcnow)
+    resolved_at: datetime | None = None
+    resolved_by: str | None = None
+    resolution_basis: str = ""
+    superseded_by_run_id: str = ""
+    approval_id: str = ""
+
+
+@dataclass(slots=True)
 class AuditEvent:
     event_type: str
     actor_id: str

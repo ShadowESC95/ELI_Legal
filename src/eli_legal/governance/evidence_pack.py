@@ -23,6 +23,7 @@ from eli_legal.domain.models import (
     HumanReview,
     Incident,
     Issue,
+    RelianceBlock,
     Report,
     Run,
     RunStep,
@@ -126,6 +127,10 @@ def export_evidence_pack(
     _write(target / "tasks.json", _rows(ctx.store.list(VerificationTask, mid, run_id=run_id)))
     _write(target / "reviews.json", _rows(reviews))
     _write(target / "incidents.json", _rows(ctx.store.list(Incident, mid, run_id=run_id)))
+    _write(
+        target / "reliance_blocks.json",
+        _rows(ctx.store.list(RelianceBlock, mid, run_id=run_id)),
+    )
     _write(
         target / "releases.json",
         [

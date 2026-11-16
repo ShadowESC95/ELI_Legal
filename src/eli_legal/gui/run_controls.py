@@ -7,13 +7,17 @@ is stopped. Each is a decision: the passphrase is asked again and the reasons ar
 
 from __future__ import annotations
 
-from PySide6.QtWidgets import QMessageBox
+from collections.abc import Callable
+
+from PySide6.QtWidgets import QComboBox, QMessageBox
 
 from eli_legal.application.verification_service import HELD_BY_PERSON
+from eli_legal.domain import plain
 from eli_legal.domain.enums import RunStatus
 from eli_legal.domain.models import Hold
 from eli_legal.gui.tabs.base import Tab
 from eli_legal.gui.widgets import ReasonDialog
+from eli_legal.workflows.agents import agent_for
 
 
 def person_hold(tab: Tab) -> Hold | None:
@@ -79,3 +83,77 @@ def lift_hold(tab: Tab) -> None:
                 tab.mid, hold.hold_id, actor_id=tab.actor, action="lift", reason=reason
             ),
         )
+
+
+RESUMABLE = (
+    RunStatus.HELD,
+    RunStatus.BLOCKED,
+    RunStatus.STOPPED,
+    RunStatus.RETURNED_FOR_CORRECTION,
+)
+
+
+def restart_run(
+    tab: Tab,
+    on_done: Callable[[object], None],
+    on_failed: Callable[[Exception], None],
+) -> bool:
+    """Ask which step to restart from, and why, then restart the open run in the background.
+    A report returned for correction starts again from the papers by default: its steps all
+    finished cleanly, so "the first step that did not finish" would be the verification gate
+    and the corrections would never be read. Whether anything was started."""
+    run = tab.session.run
+    if run is None or not tab.rid:
+        return False
+    if run.status not in RESUMABLE:
+        QMessageBox.information(
+            tab,
+            "Restart",
+            f"The run is {plain.state(run.status.value).lower()}; only a run that is held, "
+            "stopped or returned for correction is restarted.",
+        )
+        return False
+    returned = run.status is RunStatus.RETURNED_FOR_CORRECTION
+    automated = tab.sv.ctx.workflow.automated
+    steps = QComboBox()
+    if returned:
+        steps.addItem(f"the beginning: {agent_for(automated[0].id).name}", automated[0].id)
+    else:
+        steps.addItem("the first step that did not finish cleanly", "")
+    for step in automated:
+        steps.addItem(agent_for(step.id).name, step.id)
+    reason = ReasonDialog.ask(
+        tab,
+        "Restart to make the corrections" if returned else "Restart this run",
+        (
+            "The report was returned for correction. Make the corrections first (add or replace "
+            "a document, record a check on a finding), then restart. Starting from the beginning "
+            "reads everything again, the corrections included. "
+            if returned
+            else ""
+        )
+        + "A restart is recorded under your name. The step you choose and everything after it "
+        "runs again; earlier decisions about findings are kept. What was corrected?",
+        extra=[("Restart from", steps)],
+    )
+    if not reason:
+        return False
+    phrase = tab.session.ask_passphrase(tab, "restart this run")
+    if phrase is None:
+        return False
+    try:
+        tab.sv.users.confirm(tab.actor, phrase)
+    except Exception:
+        tab.session.decide_with(tab, "", lambda: None)
+        return False
+    mid, rid, actor, from_step = tab.mid, tab.rid, tab.actor, steps.currentData() or None
+
+    def work() -> object:
+        from eli_legal.security import authn
+
+        with authn.stepped_up():
+            return tab.sv.runs.resume(mid, rid, actor_id=actor, reason=reason, from_step=from_step)
+
+    tab.session.background("Restarting the run…", work, on_done, on_failed)
+    tab.session.notify()
+    return True

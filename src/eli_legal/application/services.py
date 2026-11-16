@@ -18,6 +18,7 @@ from eli_legal.application.ingestion_service import IngestionService
 from eli_legal.application.matter_service import MatterService, UserService
 from eli_legal.application.monitoring_service import MonitoringService
 from eli_legal.application.release_service import ReleaseService
+from eli_legal.application.reliance_service import RelianceService
 from eli_legal.application.review_service import ReviewService
 from eli_legal.application.run_service import RunService
 from eli_legal.application.source_service import SourceService
@@ -47,6 +48,7 @@ class Services:
     releases: ReleaseService
     delivery: DeliveryService
     incidents: IncidentService
+    reliance: RelianceService
     monitoring: MonitoringService
     chat: ChatService
     frameworks: FrameworkService
@@ -117,6 +119,7 @@ def build_services(
             release_gate=ReleaseGate(),
         ),
         incidents=IncidentService(ctx),
+        reliance=RelianceService(ctx),
         monitoring=MonitoringService(ctx),
         chat=ChatService(ctx),
         frameworks=FrameworkService(ctx),

@@ -10,6 +10,7 @@ from eli_legal.demo_run import resolve_demo_holds
 from eli_legal.domain.enums import ReviewDecision, RunStatus, StepStatus
 from eli_legal.domain.errors import (
     AuditIntegrityError,
+    InvalidInput,
     InvalidState,
     PolicyDenied,
     VerificationGateFailed,
@@ -140,3 +141,49 @@ def test_the_guide_tells_people_what_a_held_run_needs(awaiting):
     assert guide.steps[0].title == "Resolve 1 hold: put on hold by a person"
     assert "Lift the hold" in guide.steps[0].why and guide.steps[0].can_do
     assert not sv.guidance.for_matter(mid, actor_id=S).steps[0].can_do
+
+
+def test_a_report_returned_for_correction_is_corrected_restarted_and_approved(awaiting):
+    """Awaiting review → returned for correction → the correction is filed → restarted →
+    awaiting review → approved. A restart that would skip reading the correction is refused,
+    and with nothing chosen a returned run starts again from the papers."""
+    from eli_legal.domain.enums import DocumentType
+    from eli_legal.domain.models import Document
+
+    sv, mid, rid = awaiting
+    with pytest.raises(InvalidInput, match="reasons"):
+        sv.reviews.decide(
+            mid, rid, actor_id=A, decision=ReviewDecision.RETURN_FOR_CORRECTION,
+            reasons="x",
+        )  # fmt: skip
+    sv.reviews.decide(
+        mid, rid, actor_id=A, decision=ReviewDecision.RETURN_FOR_CORRECTION,
+        reasons="The reply to the defence is missing; file it and run again.",
+    )  # fmt: skip
+    assert sv.runs.get(mid, rid, actor_id=A).status is RunStatus.RETURNED_FOR_CORRECTION
+    with pytest.raises(VerificationGateFailed, match="only a run awaiting review"):
+        _approve(sv, mid, rid)
+    reader = _steps(sv, mid, rid)["ingest"].finished_at
+    matter = sv.matters.get(mid, A)
+    filed = sv.ingestion.register(
+        matter=matter, actor_id=A, filename="reply_to_defence.txt",
+        raw=b"Reply to the defence. The claimant joins issue on the defence.\n",
+        doc_type=DocumentType.PLEADING,
+    )  # fmt: skip
+    sv.ingestion.process(filed, actor_id=A, type_given=True)
+    with pytest.raises(InvalidState, match="added after this run read the papers"):
+        sv.runs.resume(mid, rid, actor_id=A, reason="Reply filed.", from_step="verification_gate")
+    with pytest.raises(InvalidState, match="Document reader or earlier"):
+        sv.runs.resume(mid, rid, actor_id=A, reason="Reply filed.", from_step="facts")
+    assert sv.runs.get(mid, rid, actor_id=A).status is RunStatus.RETURNED_FOR_CORRECTION
+    sv.runs.resume(mid, rid, actor_id=A, reason="Reply to the defence filed; run it again.")
+    steps = _steps(sv, mid, rid)
+    assert steps["ingest"].finished_at > reader, "the papers were read again, the reply with them"
+    assert sv.ctx.store.get(Document, mid, filed.document_id) is not None
+    run = sv.runs.get(mid, rid, actor_id=A)
+    if run.status is RunStatus.HELD:  # the new document may raise holds of its own
+        resolve_demo_holds(sv, mid, rid)
+        sv.runs.resume(mid, rid, actor_id=A, reason="Holds on the reply resolved.")
+    assert sv.runs.get(mid, rid, actor_id=A).status is RunStatus.AWAITING_HUMAN_REVIEW
+    _approve(sv, mid, rid)
+    assert sv.runs.get(mid, rid, actor_id=A).status is RunStatus.APPROVED_FOR_RELIANCE

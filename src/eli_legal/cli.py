@@ -959,6 +959,30 @@ def cmd_release(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_reliance(args: argparse.Namespace) -> int:
+    """Approved reports suspended from reliance, and ending a suspension."""
+    sv = _services(args)
+    actor = _actor(args)
+    if args.reliance_cmd == "list":
+        for b in sv.reliance.list(args.matter, actor_id=actor):
+            print(
+                f"{b.block_id}  {b.status:10s} run {b.run_id}  {len(b.authority_ids)} authority(ies)"
+                f"  incident {b.incident_id or '-'}"
+                + (f"  received by: {', '.join(b.recipient_ids)}" if b.recipient_ids else "")
+            )
+    elif args.reliance_cmd == "resolve":
+        with _confirmed(args, "end the suspension of an approved report"):
+            block = sv.reliance.resolve(
+                args.matter,
+                args.block,
+                actor_id=actor,
+                basis=args.basis,
+                superseded_by_run_id=args.superseded_by or "",
+            )
+        print(f"{block.block_id}: {block.status}")
+    return 0
+
+
 def cmd_incident(args: argparse.Namespace) -> int:
     sv = _services(args)
     actor = _actor(args)
@@ -1621,6 +1645,19 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--kind", default="general", choices=["general", "death", "widespread"])
     a.add_argument("--reported-on", help="the date it was reported, if it was")
     a.add_argument("--reference", default="")
+
+    p = add("reliance", cmd_reliance, "approved reports suspended from reliance")
+    s = p.add_subparsers(dest="reliance_cmd", required=True)
+    s.add_parser("list").add_argument("matter")
+    a = s.add_parser(
+        "resolve",
+        help="end a suspension: the law confirmed again for the report, or a later approved run "
+        "that replaces it",
+    )
+    a.add_argument("matter")
+    a.add_argument("block")
+    a.add_argument("--basis", required=True, help="the legal status found, by whom, from where")
+    a.add_argument("--superseded-by", help="a later run, re-checked and approved, that replaces it")
 
     p = add("network", cmd_network, "hard offline: the kernel refuses every network connection")
     s = p.add_subparsers(dest="network_cmd", required=True)

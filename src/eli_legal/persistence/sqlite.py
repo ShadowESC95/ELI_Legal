@@ -30,6 +30,7 @@ from eli_legal.domain.models import (
     Incident,
     Issue,
     Matter,
+    RelianceBlock,
     Report,
     Run,
     RunStep,
@@ -72,6 +73,7 @@ _SPECS: dict[type, _Spec] = {
     Report: _Spec("reports", "report_id", "run_id", "template", "release_status", "created_at"),
     Incident: _Spec("incidents", "incident_id", "run_id", "category", "status", "created_at"),
     ReleasePackage: _Spec("releases", "release_id", "run_id", None, "status", "created_at"),
+    RelianceBlock: _Spec("reliance_blocks", "block_id", "run_id", "cause", "status", "opened_at"),
 }
 
 _WORD = re.compile(r"[^\W_]+", re.UNICODE)
@@ -352,7 +354,14 @@ class Store:
             ).rowcount
             con.execute("DELETE FROM chunks_fts WHERE matter_id=?", (matter_id,))
             for spec in _SPECS.values():
-                if spec.table in {"runs", "reviews", "releases", "holds", "incidents"}:
+                if spec.table in {
+                    "runs",
+                    "reviews",
+                    "releases",
+                    "holds",
+                    "incidents",
+                    "reliance_blocks",
+                }:
                     continue  # accountability records are kept; they hold ids and decisions only
                 counts[spec.table] = con.execute(
                     f"DELETE FROM {spec.table} WHERE matter_id=?", (matter_id,)

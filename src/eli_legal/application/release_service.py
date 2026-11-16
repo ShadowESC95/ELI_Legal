@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from eli_legal.application.container import AppContext
+from eli_legal.application.reliance_service import require_reliance
 from eli_legal.domain.enums import Profile, ReviewDecision, RunStatus, StepStatus
 from eli_legal.domain.errors import InvalidState, NotFound, VerificationGateFailed
 from eli_legal.domain.models import HumanReview, Matter, Report, Run
@@ -55,6 +56,7 @@ class ReleaseService:
             raise NotFound(f"run not found in this matter: {run_id}")
         if run.status is not RunStatus.APPROVED_FOR_RELIANCE or run.hard_gate_reasons:
             raise VerificationGateFailed("run is not eligible for release preparation")
+        require_reliance(ctx, mid, run_id, actor_id=actor_id, action="report.prepare_release")
         report = ctx.store.get(Report, mid, run.report_id or "")
         if report is None or report.release_status != "APPROVED_FOR_RELIANCE":
             raise VerificationGateFailed("there is no approved report for this run")

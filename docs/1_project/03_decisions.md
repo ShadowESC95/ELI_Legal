@@ -109,3 +109,21 @@ automatically is one measured to be at least as precise as words, where one is p
 **D-27 An EU act is read as in force on the date, and the authentic text is named.** An amended
 act is read in the consolidated version in force on the relevant date. Consolidated texts are
 documentation: the report's status basis says that the Official Journal texts are authentic.
+
+**D-28 An approved report stops leaving the matter the moment its law fails (EL-001).** The
+routine checks look at every approved report, not only the latest run. When an authority one
+relies on is no longer confirmed as good law, a suspension and its incident are recorded
+together, once per report, naming who already received it. Preparing and sending a release
+consult the suspension immediately before acting, by every route. The approval and earlier
+releases stay in the record: what changes is whether the report may leave now. Closing the
+incident does not end the suspension; a named reviewer who may approve ends it, on a written
+basis, either when the law is confirmed again for that report (checked again at that moment) or
+when a later run, re-checked and approved after the suspension, replaces it.
+
+**D-29 A report returned for correction is read again from the beginning.** Its steps all
+finished cleanly, so restarting at "the first step that did not finish" began at the
+verification gate and never read the correction. A returned run now restarts from the beginning
+unless a person chooses a step, and a restart that would not read a document added since the
+papers were read is refused. The law and standards packages are listed in a fixed order: the
+report rebuilt at approval must equal the reviewed draft, and after a restart their order had
+differed, so the corrected report could not be approved.

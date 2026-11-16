@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from eli_legal.application.container import AppContext
+from eli_legal.application.reliance_service import require_reliance
 from eli_legal.domain.enums import ActorType, StepStatus
 from eli_legal.domain.errors import NotFound
 from eli_legal.domain.models import Run
@@ -37,6 +38,9 @@ class DeliveryService:
         if package is None:
             raise NotFound(f"release not found in this matter: {release_id}")
         run = ctx.store.require(Run, mid, package.run_id)
+        # Checked immediately before anything is staged: a suspension made after the release
+        # was prepared still stops it.
+        require_reliance(ctx, mid, run.run_id, actor_id=actor_id, action="report.send")
         approver = ctx.user(actor_id)
         approval = ReleaseApproval(
             release_id=package.release_id,

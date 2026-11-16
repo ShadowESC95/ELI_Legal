@@ -853,3 +853,56 @@ def test_named_reviewers_says_why_nobody_can_approve_and_an_account_is_changed_t
     page._reviewers()
     assert "arbitrator" in d.sv.ctx.store.get_user(SECRETARY).roles
     assert opened == ["Whose account?", "Named reviewers"], "then the reviewers can be named"
+
+
+def test_review_says_what_a_returned_report_needs_and_keeps_what_was_ticked(desk, monkeypatch):
+    """A returned report cannot be decided, and the page says so and offers the restart, which
+    starts from the papers; a refresh keeps the limits ticked; a suspension is shown."""
+    from eli_legal.demo_run import resolve_demo_holds
+    from eli_legal.domain.models import RelianceBlock
+    from eli_legal.gui import run_controls
+
+    d = desk()
+    d.page(WorkflowTab)._start()
+    d.settle()
+    mid, rid = d.mid, d.session.run_id
+    with authn.stepped_up():
+        resolve_demo_holds(d.sv, mid, rid)
+        d.sv.runs.resume(mid, rid, actor_id=ARBITRATOR, reason="All holds resolved.")
+    review = d.page(ReviewTab)
+    review.refresh()
+    assert review.approve.isEnabled() and review.restart.isHidden()
+    review.limits.item(0).setCheckState(QtCore.Qt.CheckState.Checked)
+    review.refresh()
+    assert review.limits.item(0).checkState() == QtCore.Qt.CheckState.Checked, "kept"
+
+    with authn.stepped_up():
+        d.sv.reviews.decide(
+            mid, rid, actor_id=ARBITRATOR, decision=ReviewDecision.RETURN_FOR_CORRECTION,
+            reasons="The reply to the defence is missing; file it and run again.",
+        )  # fmt: skip
+    review.refresh()
+    assert not any(b.isEnabled() for b in (review.approve, review.send_back, review.reject))
+    assert not review.restart.isHidden()
+    assert "Restart to make the corrections" in review.decision_note.text()
+    assert "lifting a hold does not change that" in review.decision_note.text()
+    offered = {}
+
+    def ask(cls, parent, title, prompt, **kw):
+        combo = kw["extra"][0][1]
+        offered.update(title=title, start=combo.currentData())
+        return None
+
+    monkeypatch.setattr(run_controls.ReasonDialog, "ask", classmethod(ask))
+    review.restart.click()
+    first = d.sv.ctx.workflow.automated[0].id
+    assert offered == {"title": "Restart to make the corrections", "start": first}
+
+    d.sv.ctx.store.put(
+        RelianceBlock(matter_id=mid, run_id=rid, report_id="r", report_hash="h",
+                      cause="authority_changed_after_approval", recipient_ids=[ARBITRATOR])
+    )  # fmt: skip
+    review.refresh()
+    assert "Reliance on this report is suspended" in review.release_note.text()
+    assert "1 recipient(s)" in review.release_note.text()
+    assert not review.end_suspension.isHidden()

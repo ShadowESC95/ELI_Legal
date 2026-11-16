@@ -323,3 +323,18 @@ def test_the_whole_lifecycle_works_over_https_sessions_alone(tmp_path):
     assert proofs <= {"web-session", "web-session+step-up", "system"}, proofs
     asked = judge.decide("POST", f"{m}/chat", {"question": "Who should win this case?"}).json()
     assert any("do not say who should succeed" in n for n in asked["notes"])
+
+
+def test_suspensions_of_approved_reports_are_listed_and_ending_one_is_a_decision(api):
+    """EL-001 parity: what the desktop and command line do with a suspension, the API does,
+    and ending one needs the person's passphrase like every decision."""
+    client, mid, _rid, _headers, app = api
+    judge = Browser(app, A, PHRASE[A])
+    listed = judge.get(f"/v1/matters/{mid}/reliance-blocks")
+    assert listed.status_code == 200 and listed.json() == []
+    path = f"/v1/matters/{mid}/reliance-blocks/blk_missing/resolve"
+    body = {"basis": "The source withdrew the overruling; the authority stands as cited."}
+    unconfirmed = judge.send("POST", path, body)
+    assert unconfirmed.status_code == 401 and unconfirmed.json()["error"] == "StepUpRequired"
+    assert judge.decide("POST", path, body).status_code == 404
+    assert Browser(app, S, PHRASE[S]).decide("POST", path, body).status_code == 403

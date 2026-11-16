@@ -238,6 +238,28 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
             headers={"Content-Disposition": f'attachment; filename="{folder.name}.zip"'},
         )
 
+    # ── reliance on approved reports ─────────────────────────────────────────
+    @app.get("/v1/matters/{matter_id}/reliance-blocks")
+    def reliance_blocks(matter_id: str, actor: Actor) -> Any:
+        """Approved reports of the matter suspended from reliance, and how each ended."""
+        return js(sv.reliance.list(matter_id, actor_id=actor))
+
+    @app.post("/v1/matters/{matter_id}/reliance-blocks/{block_id}/resolve")
+    def resolve_reliance_block(
+        matter_id: str, block_id: str, body: schemas.RelianceResolveIn, actor: Actor
+    ) -> Any:
+        """End a suspension: the law confirmed again for the report, or a later run, re-checked
+        and approved, that replaces it. A decision: send your passphrase."""
+        return js(
+            sv.reliance.resolve(
+                matter_id,
+                block_id,
+                actor_id=actor,
+                basis=body.basis,
+                superseded_by_run_id=body.superseded_by_run_id,
+            )
+        )
+
     # ── incidents ────────────────────────────────────────────────────────────
     @app.get("/v1/matters/{matter_id}/incidents")
     def incidents(matter_id: str, actor: Actor, open_only: bool = False) -> Any:

@@ -20,7 +20,7 @@ from eli_legal.domain import plain
 from eli_legal.domain.enums import RunStatus
 from eli_legal.domain.models import RunStep
 from eli_legal.gui import theme
-from eli_legal.gui.run_controls import hold_run, lift_hold, person_hold
+from eli_legal.gui.run_controls import hold_run, lift_hold, person_hold, restart_run
 from eli_legal.gui.tabs.base import Tab
 from eli_legal.gui.widgets import ReasonDialog, button, card, chip, label, row, set_chip
 from eli_legal.workflows.agents import HUMAN, MODEL_ASSISTED, agent_for, layers
@@ -352,6 +352,13 @@ class WorkflowTab(Tab):
                 "Not reached yet: the run is on hold until its holds are dealt with, on the "
                 "Review page."
             )
+        elif status is RunStatus.RETURNED_FOR_CORRECTION:
+            said = (
+                "<b>Returned for correction.</b> The reviewer's reasons are on the Review page. "
+                "Make the corrections (add or replace a document, record a check on a finding), "
+                "then press <b>Restart…</b>: by default it reads everything again from the "
+                "papers. Lifting a hold does not move a returned report; a restart does."
+            )
         else:
             said = f"Not reached yet: the run is {plain.state(status).lower()}."
         self.person_text.setText(said)
@@ -439,36 +446,5 @@ class WorkflowTab(Tab):
             )
 
     def _restart(self) -> None:
-        steps = QComboBox()
-        steps.addItem("the first step that did not finish cleanly", "")
-        for step in self.sv.ctx.workflow.automated:
-            steps.addItem(agent_for(step.id).name, step.id)
-        reason = ReasonDialog.ask(
-            self,
-            "Restart this run",
-            "A restart is recorded under your name. The step you choose and everything after it runs again; earlier decisions about findings are kept.",
-            extra=[("Restart from", steps)],
-        )
-        if not reason:
-            return
-        phrase = self.session.ask_passphrase(self, "restart this run")
-        if phrase is None:
-            return
-        try:
-            self.sv.users.confirm(self.actor, phrase)
-        except Exception:
-            self.session.decide_with(self, "", lambda: None)
-            return
-        mid, rid, actor, from_step = self.mid, self.rid, self.actor, steps.currentData() or None
-
-        def work() -> object:
-            from eli_legal.security import authn
-
-            with authn.stepped_up():
-                return self.sv.runs.resume(
-                    mid, rid, actor_id=actor, reason=reason, from_step=from_step
-                )
-
-        self.session.background("Restarting the run…", work, self._finished, self._failed)
-        self.timer.start()
-        self.session.notify()
+        if restart_run(self, self._finished, self._failed):
+            self.timer.start()

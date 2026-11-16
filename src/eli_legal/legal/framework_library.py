@@ -186,10 +186,14 @@ class FrameworkLibrary:
         ]
 
     def for_run(self, versions: dict[str, str]) -> list[FrameworkPack]:
-        """The packs a run was prepared under, exactly as they were. A pack that has changed
-        since cannot silently stand in for the one the run used."""
+        """The packs a run was prepared under, exactly as they were, in the order of their ids. A
+        pack that has changed since cannot silently stand in for the one the run used.
+
+        The order is fixed here, not taken from the record: a run held in memory keeps the order
+        its packs were added in, the same run read back from the store has them sorted, and a
+        report built from each must be the same report (approval compares the two)."""
         out = []
-        for pack_id, fingerprint in versions.items():
+        for pack_id, fingerprint in sorted(versions.items()):
             pack = self.get(pack_id)
             if pack is None or pack.fingerprint != fingerprint:
                 raise VerificationGateFailed(

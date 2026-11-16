@@ -241,6 +241,11 @@ class LawCurrentIn(Strict):
     note: Long
 
 
+class RelianceResolveIn(Strict):
+    basis: Long
+    superseded_by_run_id: Ident = ""
+
+
 class ReportingIn(Strict):
     reportable: bool
     reason: Long

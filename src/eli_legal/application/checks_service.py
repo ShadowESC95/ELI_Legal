@@ -30,6 +30,7 @@ from pathlib import Path
 from eli_legal.application.compliance_service import ComplianceService
 from eli_legal.application.container import AppContext
 from eli_legal.application.incident_service import reporting_deadline
+from eli_legal.application.reliance_service import no_longer_confirmed, open_or_extend
 from eli_legal.domain import plain
 from eli_legal.domain.enums import (
     ClaimKind,
@@ -37,25 +38,19 @@ from eli_legal.domain.enums import (
     IncidentSeverity,
     MatterStatus,
     RunStatus,
-    VerificationStatus,
 )
 from eli_legal.domain.errors import InvalidInput
 from eli_legal.domain.models import (
-    Authority,
     Claim,
     Document,
     Hold,
     Incident,
     Matter,
     Run,
-    VerificationResult,
     new_id,
     utcnow,
 )
-from eli_legal.governance.gates import effective_results
 from eli_legal.governance.registers import check_registers
-from eli_legal.legal.current_law_citator import CurrentLawCitator
-from eli_legal.legal.frameworks import combined_rules, tighten_status_age
 from eli_legal.security import access, authn
 
 log = logging.getLogger("eli_legal.checks")
@@ -322,8 +317,9 @@ class ChecksService:
         )
 
     def _authorities(self, actor_id: str, today: date) -> CheckResult:
-        """Is every authority relied on in each matter's latest run still good law, judged
-        exactly as a run would judge it today?"""
+        """Is every authority relied on still good law, judged exactly as a run would judge it
+        today? In each matter's latest run, and in every report approved for reliance, however
+        old: a report released earlier may still be relied on after a later run (EL-001)."""
         items: list[CheckItem] = []
         acted: list[str] = []
         checked = 0
@@ -331,118 +327,62 @@ class ChecksService:
             runs = self.ctx.store.list(Run, matter.matter_id)
             if not runs:
                 continue
-            run = runs[-1]
-            connectors = self.ctx.connectors_for(matter)
-            if not connectors:
-                continue
-            citator = CurrentLawCitator(connectors)
-            packs = [p for i in matter.framework_ids if (p := self.ctx.frameworks.get(i))]
-            rules = combined_rules(packs)
-            default_pack = self.ctx.jurisdictions.for_matter(matter)[0]
-            # One incident per authority per matter, naming every finding that relies on it.
-            open_by_authority: dict[str, Incident] = {}
-            for incident in self.ctx.store.list(Incident, matter.matter_id):
-                if incident.status == "open" and incident.category == _CHANGED:
-                    for sid in incident.affected_source_ids[1:]:
-                        open_by_authority[sid] = incident
-            results: dict[str, list[VerificationResult]] = {}
-            for r in self.ctx.store.list(VerificationResult, matter.matter_id, run_id=run.run_id):
-                results.setdefault(r.claim_id, []).append(r)
-            flagged: dict[str, tuple[Authority, str, list[str]]] = {}
-            for claim in self.ctx.store.list(Claim, matter.matter_id, run_id=run.run_id):
-                if claim.kind not in _RELIED or claim.status is not ClaimStatus.VERIFIED:
-                    continue
-                authority = (
-                    self.ctx.store.get_authority(claim.authority_id) if claim.authority_id else None
+            latest = runs[-1]
+            looked = [r for r in runs if r.status in _APPROVED]
+            if latest not in looked:
+                looked.append(latest)
+            for run in looked:
+                approved = run.status in _APPROVED
+                flagged = no_longer_confirmed(self.ctx, matter, run)
+                if flagged is None:
+                    break
+                checked += sum(
+                    1
+                    for c in self.ctx.store.list(Claim, matter.matter_id, run_id=run.run_id)
+                    if c.kind in _RELIED and c.status is ClaimStatus.VERIFIED and c.authority_id
                 )
-                if authority is None or authority.source_id not in connectors:
+                if not flagged:
                     continue
-                checked += 1
-                pack = tighten_status_age(
-                    self.ctx.jurisdictions.get(authority.jurisdiction) or default_pack, rules
-                )
-                result = citator.verify(
-                    claim, authority, pack=pack, relevant_date=matter.relevant_date
-                )
-                if result.status is VerificationStatus.VERIFIED:
-                    continue
-                # A person's own confirmation stands until it is as old as the limit allows,
-                # unless the source now says something new and negative.
-                human = effective_results(results.get(claim.claim_id, [])).get("current_law")
-                if (
-                    result.status is not VerificationStatus.FAILED
-                    and human is not None
-                    and human.by_human
-                    and human.status is VerificationStatus.VERIFIED
-                    and (utcnow() - human.created_at).days <= pack.status_max_age_days
-                ):
-                    continue
-                said = plain.check_result("current_law", result.status, result.detail)
-                entry = flagged.setdefault(authority.authority_id, (authority, said, []))
-                entry[2].append(claim.claim_id)
-            approved = run.status in _APPROVED
-            for authority, said, claim_ids in flagged.values():
-                where = "an approved report" if approved else "the latest run"
-                items.append(
-                    CheckItem(
-                        f"{authority.citation}, relied on in {where} of “{matter.name}” "
-                        f"({plain.count(len(claim_ids), 'finding')}): {said}",
-                        matter.matter_id,
-                        "an authority relied on is no longer confirmed as good law",
+                where = (
+                    (
+                        "the latest approved report"
+                        if run is latest
+                        else "an earlier approved report"
                     )
+                    if approved
+                    else "the latest run"
                 )
+                for f in flagged.values():
+                    items.append(
+                        CheckItem(
+                            f"{f.authority.citation}, relied on in {where} of “{matter.name}” "
+                            f"({plain.count(len(f.claim_ids), 'finding')}): {f.said}",
+                            matter.matter_id,
+                            "an authority relied on is no longer confirmed as good law",
+                        )
+                    )
                 if not approved:
                     continue
-                existing = open_by_authority.get(authority.authority_id)
-                if existing is not None:
-                    new = [c for c in claim_ids if c not in existing.affected_claim_ids]
-                    if new:
-                        existing.affected_claim_ids.extend(new)
-                        self.ctx.store.put(existing)
-                    continue
-                incident = Incident(
-                    matter_id=matter.matter_id,
-                    run_id=run.run_id,
-                    category=_CHANGED,
-                    detail=(
-                        f"{authority.citation}, relied on in the approved report, is no longer "
-                        f"confirmed as good law: {said}"
-                    ),
-                    created_by=SYSTEM,
-                    severity=IncidentSeverity.HIGH,
-                    affected_claim_ids=list(claim_ids),
-                    # The source, then the authority: what the incident is about.
-                    affected_source_ids=[authority.source_id, authority.authority_id],
-                )
-                self.ctx.store.put(incident)
-                self.ctx.log(
-                    "incident_opened",
-                    actor_id=SYSTEM,
-                    matter_id=matter.matter_id,
-                    run_id=run.run_id,
-                    action="incident.manage",
-                    subject_id=incident.incident_id,
-                    outcome="open",
-                    object_type="incident",
-                    source_ids=[authority.source_id],
-                    payload={
-                        "category": incident.category,
-                        "severity": incident.severity.value,
-                        "affected_findings": len(claim_ids),
-                    },
-                )
-                open_by_authority[authority.authority_id] = incident
-                acted.append(
-                    f"Opened an incident on matter {plain.short_id(matter.matter_id)}: an "
-                    "authority relied on in its approved report is no longer good law."
-                )
+                block, changed = open_or_extend(self.ctx, matter, run, flagged)
+                if changed:
+                    told = (
+                        f" {plain.count(len(block.recipient_ids), 'recipient')} already received "
+                        "it and should be told."
+                        if block.recipient_ids
+                        else ""
+                    )
+                    acted.append(
+                        f"Suspended reliance on an approved report of matter "
+                        f"{plain.short_id(matter.matter_id)} and opened an incident: an authority "
+                        f"it relies on is no longer confirmed as good law.{told}"
+                    )
         if not items:
             return CheckResult(
                 "authorities",
                 "Authorities still good law",
                 "ok",
                 f"All {plain.count(checked, 'authority', 'authorities')} relied on in the latest "
-                "runs are still confirmed as good law.",
+                "runs and approved reports are still confirmed as good law.",
             )
         return CheckResult(
             "authorities",
@@ -450,8 +390,9 @@ class ChecksService:
             "attention",
             f"{plain.count(len(items), 'authority', 'authorities')} relied on "
             f"{'is' if len(items) == 1 else 'are'} no longer confirmed as good law.",
-            "For a report not yet approved, run the matter again before review. For an approved "
-            "report, see the incident opened on the matter: tell whoever relied on it.",
+            "For a report not yet approved, run the matter again before review. An approved "
+            "report is suspended from reliance until a named reviewer confirms the law again or "
+            "approves a new run that replaces it; see the incident, and tell whoever received it.",
             items,
             acted,
         )

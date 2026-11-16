@@ -148,4 +148,7 @@ MIGRATIONS: list[str] = [
     """
     DROP TABLE IF EXISTS text_vectors;
     """,
+    # 6 — an approved report suspended from reliance when an authority it relies on is found,
+    # after approval, to be no longer good law (EL-001). Kept through a matter's purge.
+    _record_table("reliance_blocks"),
 ]
