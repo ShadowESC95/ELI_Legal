@@ -166,6 +166,27 @@ _HOLD_REASONS: dict[str, Explanation] = {
             "Or accept the gap with reasons: the report will say the document was not read.",
         ),
     ),
+    "pages_not_read": Explanation(
+        "Pages of a document were not read",
+        "Some pages are only an image (a scan or a photographed exhibit) with no text layer, "
+        "and OCR could not read them here, so nothing on them is in the analysis. The rest of "
+        "the document was read.",
+        (
+            "Add a readable copy of those pages (a searchable PDF or the text), then restart.",
+            "Or install OCR (Tesseract and Poppler) and restart from the Document reader.",
+            "Or, having checked the pages against the original, accept the gap with reasons: "
+            "the report will say they were not read.",
+        ),
+    ),
+    "ocr_low_confidence": Explanation(
+        "Pages read by OCR need checking",
+        "These pages are images read by OCR, and the OCR was not confident of the words: a "
+        "date, a figure or a citation on them may be misread.",
+        (
+            "Compare the OCR text with the original pages; if it is right, accept it with reasons.",
+            "If it is wrong, add a correct text of the pages and restart.",
+        ),
+    ),
     "verification_failed": Explanation(
         "A check failed",
         "A finding did not pass a check its kind requires, so it cannot be relied on as it stands.",

@@ -150,3 +150,11 @@ system and kind, resting on named evidence, signed by a provider lead and a diff
 lead, pinned to the software version, policy and model, so that an upgrade or a changed model
 is approved before it is used on real cases. Existing matters are practice: none was opened
 under an authorisation.
+
+**D-33 No page is dropped without a record; OCR text says it is OCR (EL-017).** A document was
+marked processed while an image-only exhibit page was silently left out, so a reviewer could not
+know the analysis missed it. Every page of a PDF is now accounted for. A page that is only an
+image is read by OCR on this machine where Tesseract and Poppler are installed, and its text is
+marked "(OCR)" with the page's confidence, because OCR misreads figures, dates and names; a page
+OCR cannot read, or reads with low confidence, holds the run until a person checks it against
+the original. Where OCR is not installed nothing is guessed: the page is reported unread.

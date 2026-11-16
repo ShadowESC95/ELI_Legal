@@ -142,6 +142,9 @@ _LIMIT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
         "About the material",
         (
             "coverage_waived",
+            "pages_not_read",
+            "pages_read_by_ocr",
+            "pages_unchecked_images",
             "injection_flagged",
             "content_withheld",
             "findings_not_relied_on",
@@ -896,6 +899,33 @@ class LegalReportBuilder:
                 w.append(
                     f"coverage_waived:{d.document_id}: “{d.title or d.filename}” was not read; {d.waived_by} accepted that gap ({d.waiver_reason})."
                 )
+            name = d.title or d.filename
+            if d.unread_pages:
+                pages = ", ".join(map(str, d.unread_pages))
+                w.append(
+                    f"pages_not_read:{d.document_id}: “{name}”, page(s) {pages}: only an image "
+                    "with no text layer, not read; nothing on them is in this report"
+                    + (f" ({d.waived_by or 'a person'} checked them against the original)."
+                       if set(d.unread_pages) <= set(d.pages_checked) else ".")
+                )  # fmt: skip
+            if d.ocr_pages:
+                read = ", ".join(f"{n} ({conf:g}%)" for n, conf in
+                                 sorted(d.ocr_pages.items(), key=lambda kv: int(kv[0])))  # fmt: skip
+                w.append(
+                    f"pages_read_by_ocr:{d.document_id}: “{name}”, page(s) {read} were images "
+                    f"read by OCR ({d.ocr_engine}). OCR can misread figures, dates and names: "
+                    "check anything quoted from them, marked (OCR), against the original page."
+                )
+            if d.pictured_pages or d.blank_pages:
+                said = []
+                if d.pictured_pages:
+                    said.append("page(s) " + ", ".join(map(str, d.pictured_pages))
+                                + " hold images beside their text that were not read")  # fmt: skip
+                if d.blank_pages:
+                    said.append("page(s) " + ", ".join(map(str, d.blank_pages))
+                                + " have no text and no image (blank, or drawn as shapes)")  # fmt: skip
+                w.append(f"pages_unchecked_images:{d.document_id}: “{name}”: "
+                         + "; ".join(said) + ". Look at them in the original.")  # fmt: skip
             if d.injection_flags:
                 w.append(
                     f"injection_flagged:{d.document_id}: “{d.title or d.filename}” contains text that looks addressed to an AI system ({', '.join(d.injection_flags)}). It was treated as evidence only."

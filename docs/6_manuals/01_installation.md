@@ -91,6 +91,15 @@ powershell -ExecutionPolicy Bypass -File install.ps1     # Windows
 This makes a private Python environment and launchers. `./install.sh --no-gui` installs the
 command line and server only. `--uninstall` removes it and keeps your data.
 
+**Scanned pages.** A PDF page that is only an image (a scan, a photographed exhibit) is read by
+OCR on this machine if Tesseract and Poppler are installed (`sudo apt install tesseract-ocr
+poppler-utils`; on macOS `brew install tesseract poppler`; on Windows the Tesseract installer
+and Poppler for Windows, both on the PATH). Without them such a page is never skipped: it is
+reported unread and the run holds until a person supplies its text or, having checked the
+original, accepts the gap. Text read by OCR is marked "(OCR)" with its confidence, and a page
+read with less than 80% confidence holds the run until it is checked (`ELI_LEGAL_OCR`,
+`ELI_LEGAL_OCR_MIN_CONFIDENCE` change this).
+
 ELI Legal needs eli-sdk 1.1.0, which is not published. A licensee installing from source gets
 its wheel with their licence and points pip at its folder first:
 `PIP_FIND_LINKS=/path/to/folder ./install.sh` (on Windows, set `$env:PIP_FIND_LINKS` before

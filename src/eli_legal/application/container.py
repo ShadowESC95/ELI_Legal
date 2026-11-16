@@ -19,6 +19,7 @@ from eli_legal.adapters.inference.local import (
 )
 from eli_legal.adapters.local.hmac_audit import HmacAuditLedger
 from eli_legal.adapters.local.network import NetworkGuard
+from eli_legal.adapters.local.ocr import TesseractOcr
 from eli_legal.adapters.local.parsers import LocalDocumentParser
 from eli_legal.adapters.local.vault import EvidenceVault
 from eli_legal.adapters.sources import live
@@ -62,6 +63,7 @@ class AppContext:
     holds: HoldBook
     frameworks: FrameworkLibrary
     embedder: EmbeddingPort = field(default_factory=NullEmbedder)
+    ocr: TesseractOcr = field(default_factory=lambda: TesseractOcr(None, None))
     extra_connectors: dict[str, LegalSourcePort] = field(default_factory=dict)
     _semantic: SemanticIndex | None = field(default=None, repr=False)
 
@@ -283,6 +285,7 @@ def build_context(
         holds=HoldBook(store=store, audit=audit),
         frameworks=FrameworkLibrary(store),
         embedder=embedder if embedder is not None else _embedder_from_settings(settings),
+        ocr=TesseractOcr.find(settings.ocr, settings.ocr_language),
     )
     ctx.record_loads(ctx.model)
     ctx.record_loads(ctx.verifier_model)

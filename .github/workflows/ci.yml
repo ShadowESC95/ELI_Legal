@@ -24,6 +24,11 @@ jobs:
           sudo apt-get install -y libegl1 libgl1 libxkbcommon0 libdbus-1-3 libfontconfig1 \
             libnss3 libxcomposite1 libxdamage1 libxrandr2 libxtst6 libxkbfile1 libasound2t64 || \
           sudo apt-get install -y libegl1 libgl1 libxkbcommon0 libdbus-1-3 libfontconfig1
+      # Tesseract and Poppler, so the tests read an image-only page by OCR as a user's machine
+      # with them installed does (elsewhere those tests are skipped; the unread-page test runs).
+      - name: OCR (Tesseract, Poppler)
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y tesseract-ocr tesseract-ocr-eng poppler-utils
       # eli-sdk is private: its wheel is fetched with a read-only token and checked against
       # its pinned SHA-256, and every pip install in this job finds it (PIP_FIND_LINKS).
       - name: eli-sdk, from its private release

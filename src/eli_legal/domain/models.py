@@ -115,6 +115,16 @@ class Document:
     char_count: int = 0
     error: str = ""
     injection_flags: list[str] = field(default_factory=list)
+    # Pages of a PDF, every one accounted for: read by OCR (page → confidence, 0-100), not read
+    # (an image that could not be read), blank (no text, no image), or with images beside the
+    # text that were not read. A person who checks an unread or a low-confidence page against
+    # the original records it, page by page.
+    ocr_pages: dict[str, float] = field(default_factory=dict)
+    ocr_engine: str = ""
+    unread_pages: list[int] = field(default_factory=list)
+    blank_pages: list[int] = field(default_factory=list)
+    pictured_pages: list[int] = field(default_factory=list)
+    pages_checked: list[int] = field(default_factory=list)
     waived_by: str | None = None
     waiver_reason: str = ""
     ingested_at: datetime = field(default_factory=utcnow)

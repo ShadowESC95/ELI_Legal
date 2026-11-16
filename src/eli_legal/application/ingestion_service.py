@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from pathlib import Path
 
-from eli_legal.adapters.local.parsers import detect_media_type
+from eli_legal.adapters.local.parsers import ParsedDocument, Segment, detect_media_type
 from eli_legal.application.container import AppContext
 from eli_legal.domain.enums import AccessScope, DocumentStatus, DocumentType
 from eli_legal.domain.errors import IngestionError, InvalidState, UnsupportedDocument
@@ -78,7 +78,8 @@ class IngestionService:
         """Parse, classify, scan and index one registered document. Idempotent."""
         raw = self.ctx.vault.read(document.matter_id, document.sha256)
         try:
-            parsed = self.ctx.parser.parse(document.filename, raw)
+            parsed = self.ctx.parser.parse(document.filename, raw, image_pages=True)
+            parsed = self._read_images(document, raw, parsed)
         except UnsupportedDocument as exc:
             document.status, document.error = DocumentStatus.UNSUPPORTED, str(exc)[:240]
             parsed = None
@@ -102,6 +103,14 @@ class IngestionService:
                 mentions = find_dates(full_text[:1500])
                 document.document_date = mentions[0].value if mentions else None
             document.injection_flags = list(self.ctx.detector.assess(full_text).reasons)
+        if document.status is DocumentStatus.PROCESSED and document.unread_pages:
+            pages = ", ".join(str(n) for n in document.unread_pages)
+            document.error = (
+                f"page(s) {pages} not read: an image with no text layer"
+                + (f" ({self.ctx.ocr.reason})" if not self.ctx.ocr.available else
+                   " that OCR could not read")
+                + (f"; {document.error}" if document.error else "")
+            )[:240]  # fmt: skip
         self.ctx.store.put(document)
         self.ctx.log(
             "document_processed",
@@ -117,9 +126,53 @@ class IngestionService:
                 "segments": document.segment_count,
                 "doc_type": document.doc_type.value,
                 "injection_flags": document.injection_flags,
+                "ocr_pages": sorted(document.ocr_pages, key=int),
+                "unread_pages": document.unread_pages,
+                "ocr_engine": document.ocr_engine,
             },
         )
         return document
+
+    def _read_images(
+        self, document: Document, raw: bytes, parsed: ParsedDocument
+    ) -> ParsedDocument:
+        """Read a PDF's image pages by OCR where it is available, and account for every page:
+        what OCR read (with its confidence), what stayed unread, what is blank, and where
+        images beside the text were not read. Nothing is dropped without a record."""
+        document.ocr_pages, document.ocr_engine = {}, ""
+        document.unread_pages = []
+        document.blank_pages = list(parsed.blank_pages)
+        document.pictured_pages = list(parsed.pictured_pages)
+        wanted = parsed.image_pages
+        if not wanted:
+            return parsed
+        ocr = self.ctx.ocr
+        read: dict[int, list[Segment]] = {}
+        if ocr.available:
+            document.ocr_engine = ocr.version
+            for page in ocr.read_pdf_pages(raw, wanted):
+                if page.paragraphs and page.words >= 3:
+                    document.ocr_pages[str(page.number)] = page.confidence
+                    read[page.number] = [
+                        Segment(f"p.{page.number} (OCR) ¶{i}", text)
+                        for i, text in enumerate(page.paragraphs, start=1)
+                    ]
+        document.unread_pages = [n for n in wanted if n not in read]
+        if not read:
+            if not parsed.segments:
+                raise UnsupportedDocument(
+                    "every page is an image with no text layer, and "
+                    + (ocr.reason.split(": ", 1)[-1] if not ocr.available else "OCR read none")
+                )
+            return parsed
+        # Keep the pages in order: the text layer's pages and OCR's in one sequence.
+        by_page: dict[int, list[Segment]] = {}
+        for segment in parsed.segments:
+            number = int(segment.locator.split()[0][2:]) if segment.locator.startswith("p.") else 0
+            by_page.setdefault(number, []).append(segment)
+        by_page.update(read)
+        ordered = tuple(s for n in sorted(by_page) for s in by_page[n])
+        return replace(parsed, segments=ordered)
 
     def ingest_path(
         self,

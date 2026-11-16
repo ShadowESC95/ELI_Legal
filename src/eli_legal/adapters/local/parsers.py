@@ -32,11 +32,41 @@ class Segment:
 
 
 @dataclass(frozen=True, slots=True)
+class PdfPage:
+    """What one page of a PDF holds: how much text its text layer gave, and how many images."""
+
+    number: int
+    chars: int
+    images: int
+
+
+# Fewer characters than this on a page and its text layer did not carry the page: a scan, a
+# photographed exhibit, or a page drawn as shapes. It is read by OCR, or reported unread.
+MIN_PAGE_CHARS = 20
+
+
+@dataclass(frozen=True, slots=True)
 class ParsedDocument:
     media_type: str
     segments: tuple[Segment, ...]
     title: str = ""
     notes: tuple[str, ...] = ()  # things a reviewer should know, e.g. unprocessed attachments
+    pages: tuple[PdfPage, ...] = ()  # a PDF's pages, every one accounted for
+
+    @property
+    def image_pages(self) -> list[int]:
+        """Pages with an image and no usable text: a scan or a photographed exhibit."""
+        return [p.number for p in self.pages if p.chars < MIN_PAGE_CHARS and p.images]
+
+    @property
+    def blank_pages(self) -> list[int]:
+        """Pages with neither usable text nor an image: blank, or drawn as shapes."""
+        return [p.number for p in self.pages if p.chars < MIN_PAGE_CHARS and not p.images]
+
+    @property
+    def pictured_pages(self) -> list[int]:
+        """Pages with text and also images, whose content is not read."""
+        return [p.number for p in self.pages if p.chars >= MIN_PAGE_CHARS and p.images]
 
     @property
     def char_count(self) -> int:
@@ -210,23 +240,61 @@ def _parse_pdf(raw: bytes) -> ParsedDocument:
         if reader.is_encrypted:
             raise UnsupportedDocument("PDF is encrypted; supply an unlocked copy")
         pages = [(page.extract_text() or "") for page in reader.pages]
+        images = [_image_count(page) for page in reader.pages]
     except UnsupportedDocument:
         raise
     except Exception as exc:
         raise IngestionError(f"PDF could not be read: {type(exc).__name__}") from exc
     segments: list[Segment] = []
-    for number, text in enumerate(pages, start=1):
-        segments.extend(_segments_from_paragraphs(_pdf_paragraphs(text), f"p.{number} "))
-    if pages and sum(len(s.text) for s in segments) < 20 * len(pages):
-        raise UnsupportedDocument(
-            "PDF has no usable text layer (likely a scan); OCR it and ingest the result"
-        )
+    accounted: list[PdfPage] = []
+    for number, (text, count) in enumerate(zip(pages, images, strict=True), start=1):
+        found = _segments_from_paragraphs(_pdf_paragraphs(text), f"p.{number} ")
+        chars = sum(len(s.text) for s in found)
+        accounted.append(PdfPage(number, chars, count))
+        if chars >= MIN_PAGE_CHARS:
+            segments.extend(found)
+    # A page without a usable text layer is never silently dropped: the document carries a
+    # record of every page, and ingestion reads the image pages by OCR or reports them unread.
     try:
         metadata = reader.metadata
         title = str(metadata.title or "") if metadata is not None else ""
     except Exception:  # metadata is optional and frequently malformed
         title = ""
-    return ParsedDocument("application/pdf", tuple(segments), title)
+    return ParsedDocument("application/pdf", tuple(segments), title, pages=tuple(accounted))
+
+
+def _image_count(page: object) -> int:
+    """Images drawn on a page, directly or inside a form it draws; no image is decoded."""
+    seen: set[int] = set()
+
+    def count(resources: object, depth: int) -> int:
+        try:
+            xobjects = resources.get("/XObject") if resources is not None else None  # type: ignore[attr-defined]
+            xobjects = xobjects.get_object() if xobjects is not None else None
+        except Exception:
+            return 0
+        if not xobjects or depth > 3:
+            return 0
+        total = 0
+        for ref in xobjects.values():
+            try:
+                obj = ref.get_object()
+            except Exception:
+                continue
+            if id(obj) in seen:
+                continue
+            seen.add(id(obj))
+            kind = obj.get("/Subtype")
+            if kind == "/Image":
+                total += 1
+            elif kind == "/Form":
+                total += count(obj.get("/Resources"), depth + 1)
+        return total
+
+    try:
+        return count(page.get("/Resources"), 0)  # type: ignore[attr-defined]
+    except Exception:
+        return 0
 
 
 def _pdf_paragraphs(text: str) -> list[str]:
@@ -291,7 +359,9 @@ class LocalDocumentParser:
 
     version = "local-parsers/1"
 
-    def parse(self, filename: str, raw: bytes) -> ParsedDocument:
+    def parse(self, filename: str, raw: bytes, *, image_pages: bool = False) -> ParsedDocument:
+        """Parse a file. ``image_pages``: a PDF whose pages are images is returned with those
+        pages listed (for ingestion to read by OCR) rather than refused."""
         if len(raw) > MAX_FILE_BYTES:
             raise IngestionError("file exceeds the permitted size")
         if not raw.strip():
@@ -317,6 +387,11 @@ class LocalDocumentParser:
             parsed = _parse_text(raw, suffix)
         else:
             parsed = _parse_text(raw, suffix)
-        if not parsed.segments:
+        if not parsed.segments and not (image_pages and parsed.image_pages):
+            if parsed.pages:
+                raise UnsupportedDocument(
+                    "PDF has no usable text layer (its pages are images or drawn as shapes, "
+                    "likely a scan); OCR it and ingest the result"
+                )
             raise UnsupportedDocument("no text could be extracted")
         return parsed

@@ -306,6 +306,19 @@ class HoldService:
                 return ctx.holds.resolve(
                     hold, resolved_by=actor_id, resolution=HoldResolution.WAIVED, reason=reason
                 )
+            if hold.reason_code in ("pages_not_read", "ocr_low_confidence") and action == "waive":
+                # The person checked the pages against the original: what they hold is not
+                # needed, or the OCR text is right. Recorded page by page, with the reason.
+                pages = (
+                    document.unread_pages
+                    if hold.reason_code == "pages_not_read"
+                    else [int(n) for n in document.ocr_pages]
+                )
+                document.pages_checked = sorted(set(document.pages_checked) | set(pages))
+                ctx.store.put(document)
+                return ctx.holds.resolve(
+                    hold, resolved_by=actor_id, resolution=HoldResolution.WAIVED, reason=reason
+                )
             if hold.reason_code == "prompt_injection_detected" and action == "waive":
                 # The person has read the flagged text and accepts it as ordinary evidence.
                 return ctx.holds.resolve(

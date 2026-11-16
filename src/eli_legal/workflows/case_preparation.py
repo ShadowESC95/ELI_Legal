@@ -361,6 +361,32 @@ class CasePreparation:
                     detail=f"document was not read ({d.status.value})",
                     actor_id=c.actor_id,
                 )
+            if read:
+                # A page that is only an image and was not read, or was read by OCR with low
+                # confidence, holds the document until a person checks it against the original.
+                for code, pages, said in (
+                    ("pages_not_read", [n for n in d.unread_pages if n not in d.pages_checked],
+                     "an image with no text layer, not read"),
+                    ("ocr_low_confidence",
+                     sorted(int(n) for n, conf in d.ocr_pages.items()
+                            if conf < ctx.settings.ocr_min_confidence
+                            and int(n) not in d.pages_checked),
+                     f"read by OCR with less than {ctx.settings.ocr_min_confidence:g}% confidence; "
+                     "check it against the original"),
+                ):  # fmt: skip
+                    if not pages:
+                        continue
+                    gaps += 1
+                    keep.add((d.document_id, code))
+                    ctx.holds.raise_hold(
+                        matter_id=mid,
+                        run_id=rid,
+                        scope=HoldScope.DOCUMENT,
+                        subject_id=d.document_id,
+                        reason_code=code,
+                        detail=f"page(s) {', '.join(map(str, pages))}: {said}",
+                        actor_id=c.actor_id,
+                    )
             if read and d.injection_flags and d.document_id not in accepted:
                 flagged += 1
                 keep.add((d.document_id, "prompt_injection_detected"))

@@ -112,7 +112,18 @@ class DocumentsTab(Tab):
                     d.title or d.filename,
                     plain.kind(d.doc_type),
                     names.get(d.party_id or "", d.custodian or "—"),
-                    plain.state(d.status) + (f": {d.error}" if d.error else ""),
+                    plain.state(d.status)
+                    + (
+                        "; page(s) "
+                        + ", ".join(
+                            f"{n} ({c:g}%)"
+                            for n, c in sorted(d.ocr_pages.items(), key=lambda kv: int(kv[0]))
+                        )
+                        + " read by OCR: check quotations against the original"
+                        if d.ocr_pages
+                        else ""
+                    )
+                    + (f": {d.error}" if d.error else ""),
                     d.segment_count,
                     ", ".join(d.injection_flags),
                     d.sha256[:16],

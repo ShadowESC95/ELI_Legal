@@ -78,6 +78,12 @@ class Settings(BaseSettings):
     # nomic-embed-text-v1.5); a path names one; "none" switches it off. It changes which passages
     # research offers and in what order, never what is verified. Runs on this machine.
     embedding_model: str = "auto"
+    # Reading pages that are only images (adapters/local/ocr.py): "auto" uses Tesseract and
+    # Poppler if installed, "off" never reads them, or a path to tesseract. Unread pages hold
+    # the run; a page read with less than this confidence (0-100) is held for a person to check.
+    ocr: str = "auto"
+    ocr_language: str = "eng"
+    ocr_min_confidence: float = 80.0
     # At most this many passages are embedded during one run; the rest are found by their words
     # until a later run, or "eli-legal source index", embeds them.
     embedding_budget: int = 20000
