@@ -35,7 +35,19 @@ rm -rf build/dmg/* "$DMG"
 cp -R "$APP" build/dmg/
 cp LICENSE packaging/INSTALL_NOTICE.txt THIRD_PARTY_NOTICES.md build/dmg/
 ln -s /Applications build/dmg/Applications
-hdiutil create -volname "ELI Legal $VERSION" -srcfolder build/dmg -ov -format UDZO "$DMG" >/dev/null
+# hdiutil fails now and then with "Resource busy" while the system still holds the new volume
+# (indexing, a mount just released); it succeeds when tried again a little later.
+for attempt in 1 2 3 4 5; do
+  if hdiutil create -volname "ELI Legal $VERSION" -srcfolder build/dmg -ov -format UDZO "$DMG" >/dev/null; then
+    break
+  fi
+  if [ "$attempt" -eq 5 ]; then
+    echo "hdiutil could not create the disk image after $attempt attempts" >&2
+    exit 1
+  fi
+  echo "hdiutil create failed (attempt $attempt); trying again in $((attempt * 10)) s" >&2
+  sleep $((attempt * 10))
+done
 
 if [ -n "${ELI_LEGAL_CODESIGN_IDENTITY:-}" ] && [ -n "${ELI_LEGAL_NOTARY_PROFILE:-}" ]; then
   xcrun notarytool submit "$DMG" --keychain-profile "$ELI_LEGAL_NOTARY_PROFILE" --wait
