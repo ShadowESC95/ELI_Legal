@@ -91,6 +91,11 @@ powershell -ExecutionPolicy Bypass -File install.ps1     # Windows
 This makes a private Python environment and launchers. `./install.sh --no-gui` installs the
 command line and server only. `--uninstall` removes it and keeps your data.
 
+ELI Legal needs eli-sdk 1.1.0, which is not published. A licensee installing from source gets
+its wheel with their licence and points pip at its folder first:
+`PIP_FIND_LINKS=/path/to/folder ./install.sh` (on Windows, set `$env:PIP_FIND_LINKS` before
+running `install.ps1`). The ready-made installers above include it.
+
 The installer also adds llama.cpp, which runs GGUF model files in process, at the version the
 graphics packs are built at. Where there is no ready-made build for the machine it is compiled,
 which takes some minutes and needs a C and C++ compiler. If that fails the installation still

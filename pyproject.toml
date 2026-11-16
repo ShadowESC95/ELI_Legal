@@ -15,7 +15,8 @@ dependencies = [
   "pydantic>=2.8,<3",
   "pydantic-settings>=2.4,<3",
   "pypdf>=4.2,<7",
-  "eli-sdk @ https://github.com/ShadowESC95/eli-sdk/releases/download/v1.1.0/eli_sdk-1.1.0-py3-none-any.whl",
+  # eli-sdk is private: builds fetch its wheel with scripts/fetch_eli_sdk.py (PIP_FIND_LINKS).
+  "eli-sdk==1.1.0",
 ]
 
 [project.optional-dependencies]
