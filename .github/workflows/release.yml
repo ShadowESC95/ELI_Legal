@@ -69,6 +69,7 @@ jobs:
           xvfb-run -a -s "-screen 0 1280x800x24" sh packaging/linux/window_smoke.sh dist/installers/ELI_Legal-*-linux-*.AppImage
       - uses: actions/upload-artifact@v4
         with:
+          retention-days: 3   # passed between the jobs of one run; the release keeps its own files
           name: linux
           path: |
             dist/installers/*
@@ -134,6 +135,7 @@ jobs:
           if (Test-Path "$target\eli-legal.exe") { throw "the uninstaller left the program behind" }
       - uses: actions/upload-artifact@v4
         with:
+          retention-days: 3   # passed between the jobs of one run; the release keeps its own files
           name: windows
           path: |
             dist/installers/*
@@ -181,6 +183,7 @@ jobs:
         run: '"build/dist/ELI Legal.app/Contents/MacOS/eli-legal" gpu status'
       - uses: actions/upload-artifact@v4
         with:
+          retention-days: 3   # passed between the jobs of one run; the release keeps its own files
           name: macos-${{ matrix.runner }}
           path: |
             dist/installers/*
