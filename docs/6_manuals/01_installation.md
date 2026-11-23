@@ -24,10 +24,10 @@ download against the published `SHA256SUMS` before running it.
 One file. Nothing is installed and nothing else is needed.
 
 ```
-chmod +x ELI_Legal-0.8.7-linux-x86_64.AppImage
-./ELI_Legal-0.8.7-linux-x86_64.AppImage                 # the desktop application
-./ELI_Legal-0.8.7-linux-x86_64.AppImage serve --help    # the server
-./ELI_Legal-0.8.7-linux-x86_64.AppImage doctor          # any command-line command
+chmod +x ELI_Legal-0.8.8-linux-x86_64.AppImage
+./ELI_Legal-0.8.8-linux-x86_64.AppImage                 # the desktop application
+./ELI_Legal-0.8.8-linux-x86_64.AppImage serve --help    # the server
+./ELI_Legal-0.8.8-linux-x86_64.AppImage doctor          # any command-line command
 ```
 
 With no arguments it opens the desktop application; with arguments it is the command line and
@@ -38,8 +38,8 @@ system has no FUSE, add `--appimage-extract-and-run` as the first argument.
 ### The installer
 
 ```
-sh ELI_Legal-0.8.7-linux-x86_64.run --verify     # check the file is intact; installs nothing
-sh ELI_Legal-0.8.7-linux-x86_64.run              # install for you
+sh ELI_Legal-0.8.8-linux-x86_64.run --verify     # check the file is intact; installs nothing
+sh ELI_Legal-0.8.8-linux-x86_64.run              # install for you
 ```
 
 It installs the program to `~/.local/opt/eli-legal`, adds the commands `eli-legal` and
@@ -57,7 +57,7 @@ administrator rights. If `~/.local/bin` is not on your `PATH`, it tells you.
 ### The Debian package
 
 ```
-sudo apt install ./eli-legal_0.8.7_amd64.deb
+sudo apt install ./eli-legal_0.8.8_amd64.deb
 ```
 
 Remove it with `sudo apt remove eli-legal`. Your data is kept.
@@ -91,8 +91,9 @@ powershell -ExecutionPolicy Bypass -File install.ps1     # Windows
 This makes a private Python environment and launchers. `./install.sh --no-gui` installs the
 command line and server only. `--uninstall` removes it and keeps your data.
 
-**Scanned pages.** A PDF page that is only an image (a scan, a photographed exhibit) is read by
-OCR on this machine if Tesseract and Poppler are installed (`sudo apt install tesseract-ocr
+**Scanned pages and photographs.** A PDF page that is only an image (a scan, a photographed
+exhibit), and an image file filed on its own (PNG, JPEG, TIFF, BMP, GIF or WebP), is read by
+OCR on this machine: images need Tesseract, PDF pages need Tesseract and Poppler (`sudo apt install tesseract-ocr
 poppler-utils`; on macOS `brew install tesseract poppler`; on Windows the Tesseract installer
 and Poppler for Windows, both on the PATH). Without them such a page is never skipped: it is
 reported unread and the run holds until a person supplies its text or, having checked the

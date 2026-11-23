@@ -4,15 +4,17 @@ Governed legal case preparation: it takes the papers in a dispute, establishes w
 
 ## New in this version
 
-- **Real matters can be opened and approved.** *Open a matter* now asks, on its first page, whether a matter is practice (the default: never relied on, and every report says so) or real. A real matter's work starts, is approved and leaves only under a deployment authorisation in force. On **Governance → Deployment** an authorisation is proposed with each piece of evidence as the document itself (the design review, the lawyer's validation of the legal-system packs, the security assessment, the accuracy evaluation, the impact assessments, the oversight plan), signed by a provider lead and by a different deployer lead, and revoked at once when needed. It is pinned to this version, its policy, models, workflow, legal-system packs and sources: a change to any voids it until approved again. Also `eli-legal deployment`, `eli-legal matter create --real` and the API.
-- **A real report's law is checked again at release.** Preparing or sending a release on a real matter checks every authority the report relies on at that moment, not only in the daily checks: an overruling not yet seen, a source that cannot be reached, or a case that needs a person's citator check stops the release there and suspends the report.
-- **Screens for preservation holds and incidents.** On the Case page, *Preservation holds…* shows what is kept from deletion and why, and places or releases a hold. On **Governance → Incidents**, *When it became known…* records awareness (the reporting deadline counts from it) and *Owner and stand-in…* names who owns an incident and who is told if half the time passes undecided.
+- **Photographs and scans filed as images are read.** A PNG, JPEG, TIFF (every page), BMP, GIF or WebP filed on its own is read by OCR on this machine, known by its contents whatever its name, and each passage is marked (OCR) with the confidence of the reading. A reading below 80%, or one that finds no text, holds the run until a person checks it against the original; nothing is guessed. An image left unread by an earlier version is read again before the next run. On the server a filed document is read on a worker thread, so a long scan holds up no one else.
+- **The people who must act are told.** When a run stops for a person (holds to clear, a restart once every hold is cleared, a report ready for review, a report returned, an approved report suspended), everyone on the matter who is allowed to act on it is told, wherever they are signed in: "🔔 N waiting for you" in the desktop header, and a bell with a notice and an **Open** button in the browser, within about ten seconds. Nobody is asked to do what they may not do; each notice goes once the work is done and is written to the audit trail. Nothing is sent outside ELI Legal.
+- **The desktop window fits the screen.** It opens to the size of your screen; a page bigger than the window scrolls; rows of buttons and the header wrap rather than widen it. The edge between the sidebar and the page, and the dividers on Home and Review, can be dragged, and the window remembers its size and where you left them.
+- **Smaller things.** Ctrl+C stops `eli-legal serve` without a traceback; the first-administrator hint gives a real example; a law package shipped with ELI Legal no longer offers *Approve* (it is used as shipped and needs a lawyer's validation recorded instead), and the desktop says so before asking for a passphrase. The manuals no longer say there is no OCR or rate limiting, and the server manual lists what the browser does not do yet.
 
 ## Still to know
 
 - Benchmarks measure retrieval and linking against answers fixed in advance on public legislation. They are not a measure of accuracy on real matters, which has not been done. Before a real matter is relied on, an authorisation needs that evaluation as evidence, and a lawyer's validation of the legal-system packs.
 - Case law's later treatment (overruled, distinguished) needs a licensed citator source; the open databases ELI Legal reads do not supply it, so a case's standing goes to a person.
-- Tesseract and Poppler are not included in the installers; install them for scanned pages and pasted exhibits to be read.
+- Tesseract and Poppler are not included in the installers: install Tesseract for photographs and scans to be read, and Poppler as well for scanned PDF pages.
+- Nothing is encrypted at rest: keep the data folder on an encrypted disk.
 - A repeal of part of a subsection, or of words within it, is not detected; a consolidated EU text is documentation, not the authentic text.
 
 ## Which file
@@ -40,6 +42,6 @@ Every one of them includes the desktop application, the server with its browser 
 - **Windows:** the program ran the synthetic dispute; the setup program was installed silently, started and uninstalled. The desktop application was not opened by a person.
 - **macOS (Intel and Apple silicon):** the program ran the synthetic dispute. The disk images were not opened by a person.
 - The test suite (desktop application, server, browser application, security, the whole lifecycle, the benchmarks) passes on Linux, Windows and macOS.
-- **The desktop application:** the practice-or-real choice on *Open a matter* and the Deployment page are tested; a real matter's report refused at release once its authority is overruled is tested end to end.
+- **New in this version:** images read by OCR (and an image read with too little confidence, or not at all, held), notifications reaching only those who can act and going when the work is done, two people signed in to the server each seeing their own, and the resized desktop window are tested.
 
 Installation and first steps: [docs/6_manuals/01_installation.md](https://github.com/ShadowESC95/ELI_Legal/blob/@TAG@/docs/6_manuals/01_installation.md).
