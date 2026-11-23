@@ -106,6 +106,7 @@ PAGES: dict[str, tuple[str, str]] = {
     "review": ("Review and approve", "Read the report, then approve or return it"),
     "audit": ("Record of actions", "Who did what and when; it cannot be altered"),
     "governance": ("Compliance", "What the law asks of this system and of you"),
+    "released": ("Released to me", "Approved reports released to you, to read or save"),
     "sources": ("Legal sources", "Where the law comes from"),
     "laws": ("Laws and standards", "The rules applied to each kind of case"),
     "settings": ("Settings", "People, the AI model, the network and more"),

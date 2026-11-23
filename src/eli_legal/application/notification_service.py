@@ -34,6 +34,7 @@ from eli_legal.domain.models import (
     Run,
     utcnow,
 )
+from eli_legal.domain.release import ReleasePackage
 from eli_legal.security import access, authn
 
 # Events after which the work waiting for someone may have changed.
@@ -56,6 +57,8 @@ TRIGGERS = frozenset(
         "reliance_block_opened",
         "reliance_block_extended",
         "reliance_block_resolved",
+        "delivery_receipt",
+        "report_collected",
         "matter_updated",
         "matter_closed",
     }
@@ -189,6 +192,23 @@ class NotificationService:
                                                  ["restart"])  # fmt: skip
         if latest:
             self._party_holds(matter, run, able, wanted)
+        for package in ctx.store.list(ReleasePackage, mid, run_id=rid):
+            if package.status != "delivery_attempted":
+                continue
+            for recipient in package.recipients:
+                uid = recipient.recipient_id
+                user = ctx.store.get_user(uid)
+                if user is None or not user.active or uid in package.collected:
+                    continue
+                if uid != matter.owner_user_id and uid not in matter.authorised_user_ids:
+                    continue
+                wanted[(uid, "report_released")] = (
+                    f"{name}: a report was released to you",
+                    f"Approved version {package.report_version}. Read it, or take a copy as PDF, "
+                    "Word or Markdown, in Released to me.",
+                    "released",
+                    ["read", "save as PDF", "save as Word"],
+                )
         blocks = [b for b in ctx.store.list(RelianceBlock, mid, run_id=rid) if b.status == "active"]
         if blocks:
             title = f"{name}: an approved report is suspended from reliance"

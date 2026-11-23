@@ -39,6 +39,7 @@ from eli_legal.gui.tabs.help_tab import HelpTab
 from eli_legal.gui.tabs.home_tab import HomeTab
 from eli_legal.gui.tabs.matter_tab import MatterTab
 from eli_legal.gui.tabs.new_case_tab import NewCaseTab
+from eli_legal.gui.tabs.released_tab import ReleasedTab
 from eli_legal.gui.tabs.review_tab import ReviewTab
 from eli_legal.gui.tabs.settings_tab import SettingsTab
 from eli_legal.gui.tabs.sources_tab import SourcesTab
@@ -147,6 +148,7 @@ class MainWindow(QMainWindow):
             ReviewTab(session),
             AuditTab(session),
             GovernanceTab(session),
+            ReleasedTab(session),
             SourcesTab(session),
             FrameworksTab(session),
             SettingsTab(session, self.sign_out),
@@ -207,7 +209,7 @@ class MainWindow(QMainWindow):
             ("MatterTab", "DocumentsTab", "ChatTab", "WorkflowTab", "AgentsTab", "FindingsTab",
              "ReviewTab"),
         ),
-        ("CHECKING AND RECORDS", ("AuditTab", "GovernanceTab")),
+        ("CHECKING AND RECORDS", ("AuditTab", "GovernanceTab", "ReleasedTab")),
         ("SET-UP", ("SourcesTab", "FrameworksTab", "SettingsTab")),
     )  # fmt: skip
     _PAGE_KEYS = {
@@ -223,6 +225,7 @@ class MainWindow(QMainWindow):
         "review": "ReviewTab",
         "audit": "AuditTab",
         "governance": "GovernanceTab",
+        "released": "ReleasedTab",
         "sources": "SourcesTab",
         "laws": "FrameworksTab",
         "settings": "SettingsTab",

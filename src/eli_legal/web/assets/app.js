@@ -307,7 +307,7 @@
 
   // ── frame ──────────────────────────────────────────────────────────────────
   // The pages, in plain words, as the desktop application names them (GET /v1/words, how_to.pages).
-  const TAB_KEYS = ['start', 'help', 'home', 'matter', 'evidence', 'chat', 'dag', 'agents', 'findings', 'review', 'audit', 'governance', 'sources', 'laws', 'settings'];
+  const TAB_KEYS = ['start', 'help', 'home', 'matter', 'evidence', 'chat', 'dag', 'agents', 'findings', 'review', 'audit', 'governance', 'released', 'sources', 'laws', 'settings'];
   const FILINGS = { name: "Your side's filings", about: 'The cases on which you act for a party: the papers you may read, filing for your side, and holds on your filings that wait for your answer.' };
   const pageOf = (id) => (id === 'filings' ? FILINGS : ((S.w && S.w.how_to && S.w.how_to.pages) || {})[id === 'dag' ? 'workflow' : id] || { name: id, about: '' });
   // A party's people see only their own pages; the tribunal's people see theirs (and their own
@@ -634,6 +634,34 @@
         h('div', { class: 'row' }, h('span', { class: 'muted' }, `Filed for ${c.you_act_for}, under your name.`), h('span', { class: 'spacer' }), btn('File', upload, 'go'))),
       card('Papers on the case', table([['Paper', (d) => d.title || d.filename, 'wide'], ['Kind', (d) => words(d.doc_type)], ['Filed by', (d) => (d.yours ? h('b', null, `${d.filed_by} (your side)`) : d.filed_by)],
         ['Served', (d) => (d.served ? 'on all parties' : 'tribunal only')], ['State', (d) => tag(d.status)], ['', (d) => (d.passages ? btn('Read', () => read(d)) : '')]], c.papers, { empty: 'No papers yet.' })));
+  };
+
+  // ── Released to me ─────────────────────────────────────────────────────────
+  // Approved reports released to the signed-in person: read on screen, or saved as PDF, Word or
+  // Markdown. Every reading and copy is recorded, and each copy carries the person's name.
+  VIEWS.released = async () => {
+    const rows = await api('GET', '/v1/released');
+    const P = (r) => `/v1/matters/${encodeURIComponent(r.matter_id)}/released/${encodeURIComponent(r.release_id)}`;
+    const base = (r) => `${r.matter_name.replace(/[^A-Za-z0-9_-]+/g, '_').slice(0, 60)}_report_v${r.report_version}`;
+    const read = async (r) => {
+      const text = await attempt(() => api('GET', `${P(r)}?format=md`));
+      if (!text || text === true) return;
+      const dialog = h('dialog', null);
+      const close = () => { dialog.close(); dialog.remove(); show(); };
+      fill(dialog, h('h2', null, `${r.matter_name}: report version ${r.report_version}`),
+        h('p', { class: 'muted' }, `SHA-256 ${r.report_hash} · ${r.classification}. Recorded as read by you.`),
+        h('pre', { class: 'report' }, text), h('div', { class: 'row' }, h('span', { class: 'spacer' }), btn('Close', close)));
+      dialog.addEventListener('cancel', (e) => { e.preventDefault(); close(); });
+      document.body.append(dialog);
+      dialog.showModal();
+    };
+    const save = async (r, fmt) => { if (await attempt(() => download('GET', `${P(r)}?format=${fmt}`, `${base(r)}.${fmt}`), 'Saved. The copy carries your name.')) show(); };
+    return card('Reports released to you',
+      h('p', { class: 'muted' }, 'An approved report reaches you here once a named person has released it to you. Nothing is e-mailed. Each reading and each copy is recorded under your name, and each copy is stamped with it; do not pass a copy to anyone the release does not name.'),
+      table([['Case', 'matter_name', 'wide'], ['Version', 'report_version'], ['Released', (r) => when(r.released_at)], ['Approved by', (r) => r.approved_by || ''],
+        ['State', (r) => (r.can_open ? (r.collected ? 'collected' : h('b', null, 'new')) : h('span', { class: 'bad' }, `cannot be opened: ${r.why_not}`))],
+        ['', (r) => (r.can_open ? h('div', { class: 'row' }, btn('Read', () => read(r), 'go'), r.formats.includes('pdf') ? btn('PDF', () => save(r, 'pdf')) : null, btn('Word', () => save(r, 'docx')), btn('Markdown', () => save(r, 'md'))) : '')]],
+      rows, { empty: 'Nothing has been released to you.' }));
   };
 
   // ── Evidence ───────────────────────────────────────────────────────────────

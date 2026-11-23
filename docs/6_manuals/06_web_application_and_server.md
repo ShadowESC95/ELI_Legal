@@ -65,6 +65,8 @@ application:
   suspension, incident awareness and owners, choosing a real rather than a practice matter, and
   re-reading a document. Use the desktop application, the command line or the API for those.
 - **Runs** execute on the server. You can close the browser and come back.
+- **Reports released to you** are on *Released to me*: read them, or download them as PDF, Word or
+  Markdown, each copy stamped with your name (see the [User manual](03_user_manual.md#reports-released-to-you)).
 - **For a party's people**, see [Everyone in the case](#everyone-in-the-case).
 - **Downloads** (the report, a checkpoint, the evidence pack) are saved by your browser. Treat
   them as you would the matter's papers.

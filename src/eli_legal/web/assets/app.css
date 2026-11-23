@@ -106,3 +106,4 @@ header.top button { padding: 3px 10px; }
 .active { color: var(--accent); } .idle { color: var(--mut); }
 .subnav { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
 .subnav button[aria-pressed=true] { background: #22304a; border-color: var(--accent); }
+pre.report { white-space: pre-wrap; max-height: 70vh; overflow: auto; font-size: 13px; }

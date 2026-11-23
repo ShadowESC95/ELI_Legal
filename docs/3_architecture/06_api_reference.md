@@ -160,6 +160,13 @@ request body (`Content-Type: application/octet-stream`); optional query fields `
 | `POST` | `/v1/matters/{matter_id}/notifications/{notification_id}/read` | yes | Mark one of your own notifications as seen; it stays until the work is done. |
 | `POST` | `/v1/notifications/read` | yes | Mark all your notifications as seen. |
 
+### Reports released to you
+
+| Method | Path | Sign-in | What it does |
+|---|---|---|---|
+| `GET` | `/v1/released` | yes | The reports released to you, newest first, and whether each can be opened now and why not. |
+| `GET` | `/v1/matters/{matter_id}/released/{release_id}?format=md\|docx\|pdf` | yes | A copy of a report released to you, stamped with your name; refused unless you are a confirmed recipient still on the matter, the report is not suspended, and its file still matches the approved SHA-256. Recorded. |
+
 ### A party's own pages
 
 For someone on a matter as one party's representative (prosecution, defence, a party's lawyers, a

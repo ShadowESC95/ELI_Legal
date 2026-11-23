@@ -7,6 +7,7 @@ from typing import Any
 from eli_legal.adapters.local.outbox import OutboxDeliveryAdapter
 from eli_legal.application.chat_service import ChatService
 from eli_legal.application.checks_service import ChecksService
+from eli_legal.application.collection_service import CollectionService
 from eli_legal.application.compliance_service import ComplianceService
 from eli_legal.application.config_service import ConfigService, NetworkControl
 from eli_legal.application.container import AppContext, build_context
@@ -65,6 +66,7 @@ class Services:
     network: NetworkControl
     notifications: NotificationService
     parties: PartyService
+    released: CollectionService
 
     def audit_trail(self, *, actor_id: str, matter_id: str | None = None) -> list[dict[str, Any]]:
         """Audit events for a matter, or (with the global right) those that belong to no matter:
@@ -146,4 +148,5 @@ def build_services(
         network=NetworkControl(ctx),
         notifications=notifications,
         parties=PartyService(ctx, ingestion),
+        released=CollectionService(ctx),
     )

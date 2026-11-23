@@ -170,6 +170,9 @@ def run(args: argparse.Namespace, services: Services | None = None) -> int:
             file=sys.stderr,
         )
         return 2
+    from eli_legal.adapters.local.renditions import ensure_typesetter
+
+    typesetter = ensure_typesetter()  # on the main thread, before any request; kept alive below
     print(banner(config, cert), flush=True)
     server_config = hardened(create_app(sv, config), config, cert, key)
     sockets = None
@@ -188,6 +191,7 @@ def run(args: argparse.Namespace, services: Services | None = None) -> int:
     finally:
         stop.set()
         _logged(sv, "server_stopped", config)
+        del typesetter
     print("ELI Legal server stopped.", flush=True)
     return 0
 

@@ -24,6 +24,10 @@ _STATES: dict[str, str] = {
     "approved_for_reliance": "Approved for reliance",
     "rejected": "Rejected",
     "returned_for_correction": "Returned for correction",
+    # releases
+    "approved_for_delivery": "Approved, not yet released",
+    "delivery_attempted": "Ready to collect",
+    "delivery_failed": "Staging failed",
     # steps
     "pending": "Not reached yet",
     "ok": "Done",

@@ -8,7 +8,7 @@ import pytest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 QtWidgets = pytest.importorskip("PySide6.QtWidgets", reason="the desktop application needs PySide6")
 from PySide6 import QtCore  # noqa: E402
-from PySide6.QtWidgets import QInputDialog, QMessageBox  # noqa: E402
+from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox  # noqa: E402
 
 from eli_legal.application.matter_service import hash_passphrase  # noqa: E402
 from eli_legal.application.services import build_services  # noqa: E402
@@ -126,6 +126,7 @@ def test_the_application_has_the_specialised_tabs_and_nothing_else(desk):
         "Review",
         "Audit Trail",
         "Governance",
+        "Released to me",
         "Sources",
         "Laws & Standards",
         "Settings",
@@ -133,7 +134,7 @@ def test_the_application_has_the_specialised_tabs_and_nothing_else(desk):
         "Start a new case",
     ):
         assert any(wanted in t for t in titles), wanted
-    assert len(titles) == 15
+    assert len(titles) == 16
     for unwanted in (
         "Images",
         "Screen",
@@ -955,3 +956,48 @@ def test_a_judge_starts_the_server_from_the_application_and_closing_it_stops_it(
     assert not d.session.server.running
     stopped = [e for e in d.sv.ctx.audit.events() if e["event_type"] == "server_stopped"]
     assert stopped and stopped[-1]["actor_id"] == "system"
+
+
+def test_a_report_released_to_you_is_read_and_saved_from_released_to_me(
+    desk, monkeypatch, tmp_path
+):
+    from eli_legal.demo_run import resolve_demo_holds
+    from eli_legal.gui.tabs.released_tab import ReleasedTab
+    from eli_legal.workflows.case_preparation import warning_id
+
+    d = desk()
+    with authn.established(SECRETARY, "gui-passphrase"):
+        rid = d.sv.runs.start(d.mid, actor_id=SECRETARY).run_id
+    with authn.established(ARBITRATOR, "gui-passphrase", step_up=True):
+        resolve_demo_holds(d.sv, d.mid, rid)
+        d.sv.runs.resume(d.mid, rid, actor_id=ARBITRATOR, reason="Holds resolved; rebuild it.")
+        report = d.sv.runs.summary(d.mid, rid, actor_id=ARBITRATOR)["report"]
+        d.sv.reviews.decide(
+            d.mid,
+            rid,
+            actor_id=ARBITRATOR,
+            decision=ReviewDecision.APPROVE,
+            reasons="Checked each finding against its source; limits accepted.",
+            report_hash=report["sha256"],
+            acknowledged=[warning_id(w) for w in report["warnings"]],
+        )
+        pkg = d.sv.releases.prepare(
+            d.mid, rid, actor_id=ARBITRATOR, recipients=[(ARBITRATOR, "Aoife Keane", "collect")]
+        )
+        d.sv.delivery.distribute(
+            d.mid, pkg.release_id, actor_id=ARBITRATOR, confirmed_recipient_ids=[ARBITRATOR]
+        )
+    page = d.page(ReleasedTab)
+    page.refresh()
+    page.list.selectRow(0)
+    page._read()
+    assert "Case analysis memorandum" in page.reader.toPlainText()
+    target = tmp_path / "copy.docx"
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a, **k: (str(target), ""))
+    page._save("docx")
+    assert target.read_bytes().startswith(b"PK")
+    collected = [e for e in d.sv.ctx.audit.events() if e["event_type"] == "report_collected"]
+    assert [(e["actor_id"], e["payload"]["format"]) for e in collected] == [
+        (ARBITRATOR, "read"),
+        (ARBITRATOR, "docx"),
+    ]

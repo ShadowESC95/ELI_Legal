@@ -73,14 +73,25 @@ PARTY_ROUTES = {
 
 
 @pytest.fixture(scope="module")
-def world(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
+def world(tmp_path_factory: pytest.TempPathFactory) -> Any:
+    import eli_legal.settings as settings_module
     from eli_legal.application.services import build_services
     from eli_legal.demo import build_demo_workspace
     from eli_legal.demo_run import demo_settings, setup_demo
-    from eli_legal.security import authn
+    from eli_legal.security import authn, hard_offline
 
-    authn.install_harness("sweep")
     root = tmp_path_factory.mktemp("sweep")
+    # The sweep really calls every route, so nothing it is allowed to do may reach beyond its own
+    # folder or outlive it: settings a route would save go to the sweep's own file, and hard
+    # offline (allowed to the technical administrator) is recorded but not applied to the process.
+    patch = pytest.MonkeyPatch()
+    patch.setattr(settings_module, "ENV_FILE", root / ".env")
+    patch.setattr(
+        hard_offline,
+        "go_offline",
+        lambda: hard_offline.OfflineState(False, "nothing (the sweep)", "not applied in a test"),
+    )
+    authn.install_harness("sweep")
     ws = build_demo_workspace(root / "demo")
     sv = build_services(demo_settings(root, ws), install_network_guard=False)
     mid = setup_demo(sv, ws)
@@ -161,7 +172,15 @@ def world(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
         "name": "control_register",
         "ref": "model_x",
     }
-    return {"sv": sv, "mid": mid, "other": other.matter_id, "ids": ids, "tokens": tokens}
+    yield {
+        "sv": sv,
+        "mid": mid,
+        "other": other.matter_id,
+        "ids": ids,
+        "tokens": tokens,
+        "root": root,
+    }
+    patch.undo()
 
 
 def _routes(app: Any) -> list[tuple[str, str]]:
@@ -375,3 +394,11 @@ def test_an_evidence_pack_carries_only_what_its_exporter_may_read(world):
     for uid in (C_SOL, R_BAR, TECH, OUTSIDE, GOV, ARB):
         got = client.post(path, headers={"Authorization": f"Bearer {tokens[uid]}"})
         assert got.status_code in (403, 404), (uid, got.status_code)
+
+
+def test_the_sweep_changes_nothing_outside_its_own_folder(world):
+    """The settings the technical administrator saved went to the sweep's own file."""
+    from pathlib import Path
+
+    assert (world["root"] / ".env").exists()
+    assert Path(".env").resolve() != (world["root"] / ".env").resolve()

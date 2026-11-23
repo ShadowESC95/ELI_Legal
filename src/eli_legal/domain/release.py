@@ -32,6 +32,8 @@ class ReleasePackage:
     approved_by: str | None = None
     approved_at: datetime | None = None
     created_at: datetime = field(default_factory=utcnow)
+    # Who has collected it, and when first (a recipient's id → an ISO time).
+    collected: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(slots=True, frozen=True)

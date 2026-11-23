@@ -148,14 +148,14 @@ def test_a_person_can_sign_in_read_the_matter_and_take_a_decision_in_the_browser
         )
     )
     assert (
-        len(tabs) == 15
+        len(tabs) == 16
         and "Start a new case" in tabs[0]
         and "How to use" in tabs[1]
         and "Home" in tabs[2]
         and all(
             any(w in t for t in tabs)
             for w in ("Ask about the case", "Progress", "Who does each step", "Record of actions",
-                      "Compliance", "Settings")
+                      "Compliance", "Released to me", "Settings")
         )
     ), tabs  # fmt: skip
     # How to use: the steps from start to finish, and every word explained.

@@ -163,8 +163,10 @@ challenge at all and raises it with whoever is responsible for oversight.
 ### 7. Release
 
 Name each recipient. The system says who is entitled to the matter and blocks anyone who is not.
-Confirm each one yourself. The report is staged in the outbox for you to send by your usual
-means. The system sends nothing.
+Confirm each one yourself. The system sends nothing: each recipient who has an account is told,
+and collects the report on **Released to me** (see [Reports released to you](#reports-released-to-you)).
+A copy is also staged in the outbox, with its manifest, for anyone without an account, to pass on by
+your usual means.
 
 ## For decision-makers in particular
 
@@ -214,4 +216,19 @@ as **[withheld]** with the reason ("given in confidence by Northwind Logistics L
 neutral only", "privileged"), wherever it would appear: in the document list, a passage, a
 finding, chat, the report. You are told that it exists, never what it says. If you need it, ask
 the matter's lead to change your role or clearance; the request and the change are recorded.
+
+## Reports released to you
+
+When a named person releases an approved report to you, you are told (the "waiting for you"
+button on the desktop, the bell in the browser) and it appears on **Released to me**. Nothing is
+e-mailed. Select it and **Read it**, or **Save as PDF…**, **Save as Word…** or **Save as
+Markdown…**. Each copy is made as you take it and is stamped at the top with your name, the time,
+the release and the approved report's SHA-256: the approved Markdown report is the authoritative
+text and a PDF or Word copy is a rendition of it. Every reading and copy is recorded under your
+name. Do not pass a copy to anyone the release does not name.
+
+You cannot open it if you are no longer on the matter, if the report has been suspended from
+reliance (a problem was found later with an authority it relies on), or if its file no longer
+matches the version that was approved; the page says which. A party's people never receive a
+tribunal's or a neutral's report.
 
