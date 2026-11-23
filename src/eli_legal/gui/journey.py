@@ -50,12 +50,31 @@ class JourneyBar(QFrame):
         outer.addLayout(top)
         self.track = QHBoxLayout()
         self.track.setSpacing(4)
+        self.track.addStretch(1)  # the stage buttons go before it
         holder = QWidget()
         holder.setLayout(self.track)
         outer.addWidget(holder)
+        # Eight stage buttons, made once and kept: refreshing changes their words and colour, and
+        # never destroys and rebuilds widgets while the window may be closing.
         self.stage_buttons: list[QPushButton] = []
+        self._keys: list[str] = []
         self._page = ""
         self.hide()
+
+    def _button(self, index: int) -> QPushButton:
+        while len(self.stage_buttons) <= index:
+            b = QPushButton("")
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            position = len(self.stage_buttons)
+            b.clicked.connect(lambda _c=False, i=position: self._open(i))
+            self.track.insertWidget(position, b)
+            self.stage_buttons.append(b)
+            self._keys.append("")
+        return self.stage_buttons[index]
+
+    def _open(self, index: int) -> None:
+        if index < len(self._keys) and self._keys[index]:
+            self.go(STAGE_PAGES.get(self._keys[index], "home"))
 
     def refresh(self) -> None:
         sv, mid, actor = self.session.sv, self.session.matter_id, self.session.user_id
@@ -68,24 +87,21 @@ class JourneyBar(QFrame):
         if guide is None:
             self.hide()
             return
-        for b in self.stage_buttons:
-            b.deleteLater()
-        self.stage_buttons.clear()
         current = next((s for s in guide.stages if s.state == "current"), None)
-        for number, stage in enumerate(guide.stages, start=1):
+        for index, stage in enumerate(guide.stages):
             colour = _COLOUR.get(stage.state, theme.IDLE)
-            b = QPushButton(f"{number}. {stage.title} {_MARK.get(stage.state, '')}".strip())
+            b = self._button(index)
+            self._keys[index] = stage.key
+            b.setText(f"{index + 1}. {stage.title} {_MARK.get(stage.state, '')}".strip())
             b.setToolTip(stage.detail or stage.title)
-            b.setCursor(Qt.CursorShape.PointingHandCursor)
             weight = "2px" if stage is current else "1px"
             b.setStyleSheet(
                 f"QPushButton {{ border: {weight} solid {colour}; border-radius: 12px; "
                 f"color: {colour}; padding: 3px 10px; background: transparent; }}"
             )
-            b.clicked.connect(lambda _c=False, key=stage.key: self.go(STAGE_PAGES.get(key, "home")))
-            self.track.addWidget(b)
-            self.stage_buttons.append(b)
-        self.track.addStretch(1)
+            b.show()
+        for extra in self.stage_buttons[len(guide.stages) :]:
+            extra.hide()
         stage_text = (
             f"Stage {guide.stages.index(current) + 1} of {len(guide.stages)}: {current.title}"
             if current

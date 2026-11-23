@@ -146,7 +146,9 @@ class Zoom(QObject):
         """Listen for Ctrl and the wheel where it arrives, on what has appeared since last time:
         each window, and each scrolling area (its viewport), list and number box."""
         for widget in self.app.allWidgets():
-            if _prop(widget, "zoomWatched"):
+            # A widget on its way out (a window closing, a part replaced) is left alone: touching
+            # one whose C++ side is being destroyed is what crashes a program on Windows.
+            if not _alive(widget) or _prop(widget, "zoomWatched"):
                 continue
             kind = widget.metaObject().className()
             if "WebEngine" in kind or "Quick" in kind:
@@ -202,3 +204,12 @@ def current() -> Zoom | None:
 
 def level() -> float:
     return _zoom.level if _zoom is not None else 1.0
+
+
+def _alive(widget: QObject) -> bool:
+    """Whether a widget's C++ side still exists (its Python handle can outlive it)."""
+    try:
+        from shiboken6 import isValid
+    except ImportError:  # pragma: no cover - PySide6 always brings it
+        return True
+    return bool(isValid(widget))
