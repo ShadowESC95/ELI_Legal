@@ -422,6 +422,7 @@ class MatterService:
         reviewers: Sequence[str] = (),
         sources: Sequence[str] = (),
         real: bool = False,
+        retention_days: int | None = None,
     ) -> Matter:
         """Open a matter. Its law and standards packages are the recommended ones for its kind
         and legal system, plus any named in ``frameworks``; or only those named, when
@@ -458,6 +459,7 @@ class MatterService:
             status=MatterStatus.ACTIVE,
             profile=profile,
             real=real,
+            retention_days=None if retention_days is None else _retention_days(retention_days),
             governing_law=governing_law or jurisdiction,
             forum=forum,
             procedural_rules=procedural_rules,
@@ -847,9 +849,19 @@ class MatterService:
         forum: str | None = None,
         procedural_rules: str | None = None,
         add_parties: Sequence[tuple[str, str]] = (),
+        retention_days: int | None = None,
+        organisation_retention: bool = False,
     ) -> Matter:
+        """Change a matter's details. ``retention_days`` sets how long its content is kept
+        once closed; ``organisation_retention`` returns it to the organisation's period."""
         matter = self.ctx.matter_for(matter_id, actor_id, "matter.manage")
         changed = []
+        if retention_days is not None:
+            matter.retention_days = _retention_days(retention_days)
+            changed.append("retention_days")
+        elif organisation_retention:
+            matter.retention_days = None
+            changed.append("retention_days")
         if relevant_date is not None:
             matter.relevant_date = relevant_date
             changed.append("relevant_date")
@@ -901,3 +913,11 @@ class MatterService:
             payload={"access_revoked": revoked, "deleted": counts},
         )
         return counts
+
+
+def _retention_days(days: int) -> int:
+    """How long a closed matter's content is kept: whole days, from 0 (deleted at the first
+    routine check after closing) to a hundred years."""
+    if not 0 <= int(days) <= 36_500:
+        raise InvalidInput("keep a closed matter's content between 0 and 36,500 days")
+    return int(days)

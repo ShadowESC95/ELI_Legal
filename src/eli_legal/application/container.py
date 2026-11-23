@@ -39,6 +39,7 @@ from eli_legal.ports.embedding import EmbeddingPort
 from eli_legal.ports.inference import InferencePort
 from eli_legal.ports.legal_sources import LegalSourcePort
 from eli_legal.security.authorizer import MatterAuthorizer
+from eli_legal.security.files import private_dir, private_tree
 from eli_legal.security.prompt_injection import PromptInjectionDetector
 from eli_legal.security.rbac import RoleBindings
 from eli_legal.settings import Settings
@@ -170,8 +171,7 @@ class AppContext:
 
     def run_dir(self, matter_id: str, run_id: str) -> Path:
         path = Path(self.settings.artifacts_dir) / "runs" / matter_id / run_id
-        path.mkdir(parents=True, exist_ok=True)
-        return path
+        return private_dir(path)
 
 
 def gguf_inference(
@@ -256,6 +256,10 @@ def build_context(
     # Fail closed: no protected key, no ledger, no governed runtime.
     audit = HmacAuditLedger(settings.audit_db_path, settings.audit_key_file)
     store = Store(settings.db_path)
+    # Case material is its user's alone: what an earlier version left readable by others is
+    # tightened now (folders 0700, files 0600; originals stay read-only).
+    for tree in (settings.data_dir, settings.artifacts_dir):
+        private_tree(tree)
     sources = SourceRegistry(store=store)
     guard = NetworkGuard(
         host for s in sources.list() if s.approved and s.network_required for host in s.hosts

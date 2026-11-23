@@ -1,5 +1,5 @@
 {
-  "policy_version": "0.4.2",
+  "policy_version": "0.5.0",
   "runtime": {
     "network_default": "deny",
     "audit_fail_closed": true,
@@ -10,7 +10,7 @@
     "verification_before_reliance": true,
     "source_content_is_data_not_instruction": true,
     "require_validated_jurisdiction_packs": false,
-    "require_reviewer_distinct_from_operator": false,
+    "require_reviewer_distinct_from_operator": true,
     "model_proposition_verification_validated": false,
     "max_model_chunks": 200,
     "research_passages_per_issue": 4

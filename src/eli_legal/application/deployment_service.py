@@ -278,6 +278,11 @@ class DeploymentService:
             copy = kept / name
             if not copy.is_file() or hashlib.sha256(copy.read_bytes()).hexdigest() != digest:
                 raise InvalidState(f"the evidence for {EVIDENCE.get(k, k)} changed or is missing")
+        if actor_id == a.proposed_by:
+            raise PolicyDenied(
+                "the person who proposed an authorisation cannot also sign it; two other people "
+                "sign, as the provider lead and the deployer lead"
+            )
         other = a.deployer_signed_by if as_lead == "provider" else a.provider_signed_by
         if other == actor_id:
             raise PolicyDenied("the provider lead and the deployer lead must be different people")

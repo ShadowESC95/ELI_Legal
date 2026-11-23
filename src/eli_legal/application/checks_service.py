@@ -645,34 +645,35 @@ class ChecksService:
         )
 
     def _retention(self, actor_id: str, today: date) -> CheckResult:
+        """Delete closed matters' content on time (each matter's own period, else the
+        organisation's), keep what a preservation hold covers, and report open matters idle for
+        longer than the organisation allows."""
         retention = ComplianceService(self.ctx).retention()
-        if retention is None:
-            return CheckResult(
-                "retention",
-                "Retention",
-                "attention",
-                "No retention periods are set, so nothing is deleted on time.",
-                "Governance → Compliance → OA-09: set how long the audit trail and a closed "
-                "matter's documents are kept.",
-            )
         acted: list[str] = []
         items: list[CheckItem] = []
         for matter in self.ctx.store.list_matters():
             if matter.status is not MatterStatus.CLOSED or matter.closed_at is None:
                 continue
-            due = matter.closed_at.date() + timedelta(days=retention.closed_matter_days)
+            own = matter.retention_days is not None
+            days = matter.retention_days if own else (
+                retention.closed_matter_days if retention else None
+            )  # fmt: skip
+            if days is None:
+                continue
+            due = matter.closed_at.date() + timedelta(days=days)
             if due > today:
                 continue
             if not self.ctx.store.list(Document, matter.matter_id) and not self.ctx.vault.has_files(
                 matter.matter_id
             ):
                 continue  # already deleted
+            whose = "this matter's" if own else "the organisation's"
             try:
                 counts = dispose(
                     self.ctx,
                     matter,
                     actor_id=SYSTEM,
-                    why=f"retention of {retention.closed_matter_days} days ended {due.isoformat()}",
+                    why=f"{whose} retention of {days} days ended {due.isoformat()}",
                     event="retention_purge",
                 )
             except PreservationHeld as held:
@@ -689,15 +690,66 @@ class ChecksService:
                 continue  # nothing left to delete but what is preserved
             acted.append(
                 f"Deleted the content of a closed matter ({plain.short_id(matter.matter_id)}) "
-                f"whose {retention.closed_matter_days}-day retention ended on {due.isoformat()}."
+                f"whose {days}-day retention ({whose}) ended on {due.isoformat()}."
+            )
+        idle = self._idle_matters(retention.inactive_matter_days if retention else 0, today)
+        items += idle
+        if retention is None:
+            return CheckResult(
+                "retention",
+                "Retention",
+                "attention",
+                "No retention periods are set for the organisation, so only matters given their "
+                "own period are deleted on time.",
+                "Governance → Compliance → OA-09: set how long the audit trail and a closed "
+                "matter's documents are kept.",
+                items,
+                acted=acted,
             )
         events = self.ctx.audit.report().count
         summary = (
             f"Audit trail kept at least {retention.audit_days} days ({events} events, never "
             f"truncated); closed matters' documents deleted after {retention.closed_matter_days} "
-            "days."
+            "days unless a matter sets its own period."
         )
+        if idle:
+            return CheckResult(
+                "retention",
+                "Retention",
+                "attention",
+                summary + f" {plain.count(len(idle), 'open matter')} idle too long.",
+                "Close a matter that is finished, so its content goes on time; or record on it "
+                "why it stays open.",
+                items,
+                acted=acted,
+            )
         return CheckResult("retention", "Retention", "ok", summary, items=items, acted=acted)
+
+    def _idle_matters(self, days: int, today: date) -> list[CheckItem]:
+        """Open matters with no recorded activity for more than ``days`` days."""
+        if days <= 0:
+            return []
+        latest: dict[str, str] = {}
+        for event in self.ctx.audit.events():
+            mid = event.get("matter_id")
+            if mid and mid != "-" and event.get("event_type") != "notification_sent":
+                latest[mid] = max(latest.get(mid, ""), str(event.get("created_at", "")))
+        out: list[CheckItem] = []
+        for matter in self.ctx.store.list_matters():
+            if matter.status is MatterStatus.CLOSED:
+                continue
+            last = latest.get(matter.matter_id) or matter.created_at.isoformat()
+            since = (today - datetime.fromisoformat(last).date()).days
+            if since > days:
+                out.append(
+                    CheckItem(
+                        f"“{matter.name}” has had no recorded activity for {since} days "
+                        f"(the organisation allows {days}).",
+                        matter.matter_id,
+                        "idle: close it, or record why it stays open",
+                    )
+                )
+        return out
 
     def _open_work(self, actor_id: str, today: date) -> CheckResult:
         items: list[CheckItem] = []

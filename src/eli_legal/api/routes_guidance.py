@@ -136,6 +136,7 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
                 audit_days=body.audit_days,
                 closed_matter_days=body.closed_matter_days,
                 notes=body.notes,
+                inactive_matter_days=body.inactive_matter_days,
             )
         )
 

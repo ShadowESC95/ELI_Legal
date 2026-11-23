@@ -147,6 +147,7 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
             reviewers=body.reviewers,
             sources=body.sources,
             real=body.real,
+            retention_days=body.retention_days,
         )
         return js(m)
 
@@ -157,7 +158,8 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
 
     @app.patch("/v1/matters/{matter_id}")
     def update_matter(matter_id: str, body: schemas.MatterUpdate, actor: Actor) -> Any:
-        """Change the relevant date, issues, forum or rules, or add parties."""
+        """Change the relevant date, issues, forum or rules, add parties, or set how long the
+        matter's content is kept once it is closed."""
         return js(
             sv.matters.update(
                 matter_id,
@@ -167,6 +169,8 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
                 forum=body.forum,
                 procedural_rules=body.procedural_rules,
                 add_parties=[(p.name, p.role) for p in body.add_parties],
+                retention_days=body.retention_days,
+                organisation_retention=body.organisation_retention,
             )
         )
 

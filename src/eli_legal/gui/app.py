@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QInputDialog,
     QLineEdit,
     QMessageBox,
+    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
@@ -31,7 +32,8 @@ from eli_legal.gui import theme
 from eli_legal.gui.main_window import MainWindow
 from eli_legal.gui.session import Session
 from eli_legal.gui.widgets import label
-from eli_legal.security import hard_offline
+from eli_legal.security import authn, hard_offline
+from eli_legal.security.files import private_process
 from eli_legal.settings import ENV_FILE, Settings
 
 
@@ -80,12 +82,44 @@ class FirstRunDialog(QDialog):
         form.addRow("Name", self.name)
         form.addRow("Passphrase (10+ characters)", self.first)
         form.addRow("Repeat it", self.second)
+        # Chosen now, not left unset: until it is chosen nothing is deleted on time. Suggested:
+        # six years (a common limitation period); the audit trail at least six months.
+        form.addRow(
+            label(
+                "How long is the record kept? Check these against your own rules; you can change "
+                "them later in Compliance (OA-09).",
+                "muted",
+                wrap=True,
+            )
+        )
+        self.audit_days = self._days(2190, minimum=183)
+        self.closed_days = self._days(2190)
+        self.idle_days = self._days(365)
+        self.idle_days.setSpecialValueText("never")
+        form.addRow("Keep the audit trail", self.audit_days)
+        form.addRow("Keep a closed matter's documents", self.closed_days)
+        form.addRow("Report an open matter idle for", self.idle_days)
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
         buttons.accepted.connect(self._check)
         buttons.rejected.connect(self.reject)
         form.addRow(buttons)
+
+    @staticmethod
+    def _days(value: int, *, minimum: int = 0) -> QSpinBox:
+        box = QSpinBox()
+        box.setRange(minimum, 36_500)
+        box.setSuffix(" days")
+        box.setValue(value)
+        return box
+
+    def retention(self) -> dict[str, int]:
+        return {
+            "audit_days": self.audit_days.value(),
+            "closed_matter_days": self.closed_days.value(),
+            "inactive_matter_days": self.idle_days.value(),
+        }
 
     def _check(self) -> None:
         if self.first.text() != self.second.text():
@@ -254,6 +288,7 @@ def main(argv: list[str] | None = None) -> int:
     # Ctrl+C in the terminal that started it closes the program, as it does any other. Qt's
     # event loop otherwise keeps Python from acting on it, and each press only prints an error.
     signal.signal(signal.SIGINT, signal.SIG_DFL)
+    private_process()  # files and folders this program creates are its user's alone
     if Settings().hard_offline:
         hard_offline.relaunch_sandboxed_if_needed()  # macOS only; returns elsewhere
     app = create_application(argv)
@@ -275,9 +310,19 @@ def main(argv: list[str] | None = None) -> int:
         first = FirstRunDialog()
         if first.exec() != QDialog.DialogCode.Accepted:
             return 0
+        admin = first.user_id.text().strip()
         services.users.bootstrap_admin(
-            first.user_id.text().strip(), first.name.text().strip(), passphrase=first.first.text()
+            admin, first.name.text().strip(), passphrase=first.first.text()
         )
+        # The administrator has just chosen the passphrase: this is that person, confirmed.
+        with authn.established(admin, "gui-passphrase", step_up=True):
+            r = first.retention()
+            services.compliance.set_retention(
+                actor_id=admin,
+                audit_days=r["audit_days"],
+                closed_matter_days=r["closed_matter_days"],
+                inactive_matter_days=r["inactive_matter_days"],
+            )
     session = Session(services)
     while True:
         dialog = SignInDialog(services)

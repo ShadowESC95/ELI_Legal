@@ -15,6 +15,7 @@ from typing import Any
 from eli_legal.domain.errors import AuditIntegrityError, MissingAuditKey
 from eli_legal.domain.models import AuditEvent, utcnow
 from eli_legal.security import authn
+from eli_legal.security.files import private_dir, private_file
 
 _log = logging.getLogger(__name__)
 
@@ -120,10 +121,11 @@ class HmacAuditLedger:
         self.anchor_file = (
             Path(anchor_file) if anchor_file else self.key_file.with_suffix(".head.json")
         )
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        private_dir(self.db_path.parent)
         self._lock = threading.RLock()
         self._listeners: list[Callable[[AuditEvent], None]] = []
         self._init_db()
+        private_file(self.db_path)
 
     def subscribe(self, listener: Callable[[AuditEvent], None]) -> None:
         """Be told of each event once it is signed into the chain. A listener that fails is

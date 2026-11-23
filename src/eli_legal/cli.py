@@ -29,6 +29,7 @@ from eli_legal.domain.enums import (
 )
 from eli_legal.domain.errors import EliLegalError
 from eli_legal.security import access
+from eli_legal.security.files import private_process
 from eli_legal.settings import Settings
 
 
@@ -120,11 +121,64 @@ def cmd_init(args: argparse.Namespace) -> int:
         print(f"created audit key: {key}  (back it up separately from the database)")
     sv = _services(args)
     if args.admin:
+        retention = _initial_retention(args)
         phrase = _new_passphrase(args, args.admin)
         sv.users.bootstrap_admin(args.admin, args.name or args.admin, passphrase=phrase)
         print(f"created first administrator: {args.admin}  (now: eli-legal login {args.admin})")
+        if retention is not None:
+            from eli_legal.security import authn
+
+            # The administrator just chose the passphrase: this is that person, confirmed.
+            with authn.established(args.admin, "cli-init", step_up=True):
+                record = sv.compliance.set_retention(
+                    actor_id=args.admin,
+                    audit_days=retention["audit_days"],
+                    closed_matter_days=retention["closed_matter_days"],
+                    inactive_matter_days=retention["inactive_matter_days"],
+                )
+            print(f"retention: {record.summary}")
+        else:
+            print(
+                "retention: not set yet, so nothing is deleted on time. Set it with "
+                "eli-legal compliance retention --audit-days N --closed-days N"
+            )
     print(f"store: {settings.db_path}   audit ledger: {settings.audit_db_path}")
     return 0
+
+
+# Offered at set-up, never applied unseen: six years is a common limitation period, and the
+# audit trail may not be kept less than six months (AI Act Art. 19(1), 26(6)).
+_SUGGESTED_RETENTION = {"audit_days": 2190, "closed_matter_days": 2190, "inactive_matter_days": 365}
+
+
+def _initial_retention(args: argparse.Namespace) -> dict[str, int] | None:
+    """How long the audit trail and closed matters are kept, chosen when the first
+    administrator is made: from the options, by answering the questions, or put off on purpose."""
+    if args.retention_later:
+        return None
+    given = {
+        "audit_days": args.audit_days,
+        "closed_matter_days": args.closed_matter_days,
+        "inactive_matter_days": args.inactive_matter_days,
+    }
+    if given["audit_days"] is not None and given["closed_matter_days"] is not None:
+        return {k: int(v if v is not None else 0) for k, v in given.items()}
+    if getattr(args, "passphrase_stdin", False) or not sys.stdin.isatty():
+        raise SystemExit(
+            "choose the retention periods: --audit-days N --closed-matter-days N (and optionally "
+            "--inactive-matter-days N), or --retention-later to set them in Compliance afterwards"
+        )
+    questions = {
+        "audit_days": "Keep the audit trail for how many days? (at least 183)",
+        "closed_matter_days": "Keep a closed matter's documents for how many days?",
+        "inactive_matter_days": "Report an open matter idle for how many days? (0: never)",
+    }
+    out: dict[str, int] = {}
+    for key, question in questions.items():
+        suggested = given[key] if given[key] is not None else _SUGGESTED_RETENTION[key]
+        answer = input(f"{question} [{suggested}]: ").strip()
+        out[key] = int(answer) if answer else int(suggested)
+    return out
 
 
 def cmd_login(args: argparse.Namespace) -> int:
@@ -408,6 +462,7 @@ def cmd_matter(args: argparse.Namespace) -> int:
             reviewers=args.reviewer or [],
             sources=args.source or [],
             real=args.real,
+            retention_days=args.retention_days,
         )
         print(matter.matter_id)
     elif c == "list":
@@ -485,6 +540,8 @@ def cmd_matter(args: argparse.Namespace) -> int:
             forum=args.forum,
             procedural_rules=args.rules,
             add_parties=[tuple(_pair(p, 2, "NAME:ROLE")) for p in args.party or []],
+            retention_days=args.retention_days,
+            organisation_retention=args.organisation_retention,
         )
     elif c == "close":
         with _confirmed(args, "close this matter"):
@@ -584,7 +641,10 @@ def cmd_compliance(args: argparse.Namespace) -> int:
     elif c == "retention":
         with _confirmed(args, "set the retention periods"):
             record = sv.compliance.set_retention(
-                actor_id=actor, audit_days=args.audit_days, closed_matter_days=args.closed_days
+                actor_id=actor,
+                audit_days=args.audit_days,
+                closed_matter_days=args.closed_days,
+                inactive_matter_days=args.inactive_days,
             )
         print(record.summary)
     elif c == "training":
@@ -620,6 +680,20 @@ def cmd_compliance(args: argparse.Namespace) -> int:
 
 def cmd_checks(args: argparse.Namespace) -> int:
     """Run the routine checks (from cron or a timer, or by hand), or show the latest."""
+    if args.checks_cmd == "timer":
+        from eli_legal import system_timer
+
+        plan = system_timer.plan()
+        if args.install:
+            system_timer.install(plan)
+            print(f"installed: the routine checks run daily ({plan.system})")
+        elif args.remove:
+            system_timer.remove(plan)
+            print(f"removed: the daily routine checks ({plan.system})")
+        else:
+            print(plan.describe())
+            print("\nInstall it with: eli-legal checks timer --install")
+        return 0
     sv = _services(args)
     if args.checks_cmd == "run":
         run = sv.checks.run(actor_id=_actor(args)) if not args.as_system else sv.checks.run()
@@ -1478,6 +1552,18 @@ def build_parser() -> argparse.ArgumentParser:
     p = add("init", cmd_init, "create directories, the audit key and the first administrator")
     p.add_argument("--admin")
     p.add_argument("--name")
+    p.add_argument("--audit-days", type=int, help="days the audit trail is kept (at least 183)")
+    p.add_argument(
+        "--closed-matter-days", type=int, help="days a closed matter's documents are kept"
+    )
+    p.add_argument(
+        "--inactive-matter-days", type=int, help="report an open matter idle this many days"
+    )
+    p.add_argument(
+        "--retention-later",
+        action="store_true",
+        help="set the retention periods afterwards (until then nothing is deleted on time)",
+    )
     add("login", cmd_login, "sign in with your passphrase").add_argument("user_id")
     add("logout", cmd_logout, "end your session")
     add("whoami", cmd_whoami, "show who is signed in")
@@ -1572,6 +1658,11 @@ def build_parser() -> argparse.ArgumentParser:
         "authorisation in force; without this it is a practice matter",
     )
     a.add_argument(
+        "--retention-days",
+        type=int,
+        help="days its content is kept once closed (default: the organisation's period)",
+    )
+    a.add_argument(
         "--framework",
         action="append",
         default=[],
@@ -1625,6 +1716,12 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("pack_id", nargs="*")
     a = s.add_parser("set")
     a.add_argument("matter")
+    a.add_argument("--retention-days", type=int, help="days its content is kept once closed")
+    a.add_argument(
+        "--organisation-retention",
+        action="store_true",
+        help="keep its content for the organisation's period instead of its own",
+    )
     a.add_argument("--relevant-date")
     a.add_argument("--issue", action="append")
     a.add_argument("--forum")
@@ -1862,6 +1959,9 @@ def build_parser() -> argparse.ArgumentParser:
     a = s.add_parser("retention", help="how long the audit trail and closed matters are kept")
     a.add_argument("--audit-days", type=int, required=True)
     a.add_argument("--closed-days", type=int, required=True)
+    a.add_argument(
+        "--inactive-days", type=int, default=0, help="report an open matter idle this long; 0: off"
+    )
     a = s.add_parser("training", help="list training records, or record one")
     a.add_argument("user_id", nargs="?")
     a.add_argument("--course", default="AI literacy and the instructions for use")
@@ -1891,6 +1991,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="run as the system's schedule does (for cron or a timer), without signing in",
     )
     s.add_parser("show")
+    a = s.add_parser(
+        "timer",
+        help="run the checks daily from the system's scheduler, even with the program closed",
+    )
+    a.add_argument("--install", action="store_true")
+    a.add_argument("--remove", action="store_true")
 
     p = add("audit", cmd_audit, "verify or read the audit ledger")
     s = p.add_subparsers(dest="audit_cmd", required=True)
@@ -2020,6 +2126,7 @@ _UNLICENSED_COMMANDS = {"licence", "bundle"}
 
 
 def main(argv: list[str] | None = None) -> int:
+    private_process()  # files and folders this program creates are its user's alone
     args = build_parser().parse_args(argv)
     for stream in (sys.stdout, sys.stderr):
         # A console that cannot show a character (common on Windows) must not stop the program.

@@ -1,0 +1,5 @@
+# Known vulnerabilities the release's pip-audit gate lets through, each with its reason.
+# One per line: <vulnerability id>  <why it does not affect ELI Legal as shipped>
+# Review every entry at each release; remove it as soon as a fixed version exists.
+
+PYSEC-2026-2447  diskcache (no fixed version) is imported only by llama.cpp for its optional prompt cache, which ELI Legal never enables; an attacker would first need write access to the user's own cache folder

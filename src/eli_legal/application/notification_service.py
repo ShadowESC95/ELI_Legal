@@ -183,8 +183,22 @@ class NotificationService:
             title = f"{name}: the report is ready for your review"
             detail = "Read it with its limits, then approve, return for correction, or reject."
             actions = ["approve", "return for correction", "reject", "put on hold"]
-            for user_id in able("report.approve", sorted(matter.reviewer_user_ids)):
+            reviewers = able("report.approve", sorted(matter.reviewer_user_ids))
+            if ctx.policy.require_reviewer_distinct_from_operator:
+                # Whoever ran the work does not review it, so is not asked to.
+                reviewers = [u for u in reviewers if u != run.initiated_by]
+            for user_id in reviewers:
                 wanted[(user_id, "review_required")] = (title, detail, "review", actions)
+            if not reviewers:
+                title = f"{name}: the report needs a reviewer other than the person who ran it"
+                for user_id in able("matter.manage"):
+                    wanted[(user_id, "reviewer_needed")] = (
+                        title,
+                        "Name another reviewer on Case details, one able to approve this kind "
+                        "of matter.",
+                        "matter",
+                        ["name a reviewer"],
+                    )
         elif latest and run.status is RunStatus.RETURNED_FOR_CORRECTION:
             title = f"{name}: the report was returned for correction"
             for user_id in able("workflow.restart"):

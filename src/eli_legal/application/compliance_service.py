@@ -59,6 +59,9 @@ class Retention:
     closed_matter_days: int
     recorded_by: str
     recorded_on: date
+    # An open matter with no recorded activity for this many days is reported by the routine
+    # checks, so it is closed (and its content goes on time) or kept open on purpose. 0: off.
+    inactive_matter_days: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -157,6 +160,7 @@ class ComplianceService:
         return Retention(
             audit_days=int(r.answers["audit_days"]),
             closed_matter_days=int(r.answers["closed_matter_days"]),
+            inactive_matter_days=int(r.answers.get("inactive_matter_days", "0") or 0),
             recorded_by=r.recorded_by,
             recorded_on=r.recorded_at.date(),
         )
@@ -270,7 +274,13 @@ class ComplianceService:
         )
 
     def set_retention(
-        self, *, actor_id: str, audit_days: int, closed_matter_days: int, notes: str = ""
+        self,
+        *,
+        actor_id: str,
+        audit_days: int,
+        closed_matter_days: int,
+        notes: str = "",
+        inactive_matter_days: int = 0,
     ) -> ComplianceRecord:
         """How long the audit trail and a closed matter's content are kept. The audit trail is
         kept at least six months; the routine checks delete closed matters' content on time."""
@@ -283,17 +293,25 @@ class ComplianceService:
             )
         if closed_matter_days < 0:
             raise InvalidInput("a closed matter's content cannot be kept for less than no time")
+        if inactive_matter_days < 0:
+            raise InvalidInput("give the days without activity as 0 (off) or more")
         return self._save(
             ComplianceRecord(
                 action_id=action.action_id,
                 recorded_by=actor_id,
                 summary=(
                     f"Audit trail kept {audit_days} days; a closed matter's documents kept "
-                    f"{closed_matter_days} days."
+                    f"{closed_matter_days} days"
+                    + (
+                        f"; an open matter idle for {inactive_matter_days} days is reported."
+                        if inactive_matter_days
+                        else "."
+                    )
                 ),
                 answers={
                     "audit_days": str(audit_days),
                     "closed_matter_days": str(closed_matter_days),
+                    "inactive_matter_days": str(inactive_matter_days),
                 },
                 notes=notes.strip(),
             ),

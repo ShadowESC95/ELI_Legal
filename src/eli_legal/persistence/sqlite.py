@@ -44,6 +44,7 @@ from eli_legal.domain.models import (
 from eli_legal.domain.release import ReleasePackage
 from eli_legal.persistence import codec
 from eli_legal.persistence.migrations import MIGRATIONS
+from eli_legal.security.files import private_dir, private_file
 
 T = TypeVar("T")
 
@@ -124,14 +125,18 @@ class Store:
     def __init__(self, db_path: str | Path) -> None:
         self.db_path = Path(db_path)
         if str(db_path) != ":memory:":
-            self.db_path.parent.mkdir(parents=True, exist_ok=True)
+            private_dir(self.db_path.parent)
         self._lock = threading.RLock()
         self._con = sqlite3.connect(str(db_path), check_same_thread=False, isolation_level=None)
         self._con.execute("PRAGMA foreign_keys=ON")
         if str(db_path) != ":memory:":
             self._con.execute("PRAGMA journal_mode=WAL")
         self._con.execute("PRAGMA synchronous=FULL")
+        # Deleted content is overwritten with zeros in the file, not left in free pages.
+        self._con.execute("PRAGMA secure_delete=ON")
         self._migrate()
+        if str(db_path) != ":memory:":
+            private_file(self.db_path)
 
     # ── infrastructure ───────────────────────────────────────────────────────
     def _migrate(self) -> None:
@@ -384,6 +389,26 @@ class Store:
                     f"DELETE FROM {spec.table} WHERE matter_id=?", (matter_id,)
                 ).rowcount
         return counts
+
+    def compact(self) -> dict[str, Any]:
+        """After a deletion: leave none of the deleted content in the file. Deleted rows are
+        already overwritten (secure_delete); this merges the search index so no deleted passage
+        survives in it, rebuilds the file (VACUUM) and empties the write-ahead log."""
+        if str(self.db_path) == ":memory:":
+            return {"vacuumed": False, "wal_truncated": False, "error": "in memory"}
+        out: dict[str, Any] = {"vacuumed": False, "wal_truncated": False, "error": ""}
+        with self._lock:
+            try:
+                self._con.execute("INSERT INTO chunks_fts(chunks_fts) VALUES('optimize')")
+                self._con.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                self._con.execute("VACUUM")
+                out["vacuumed"] = True
+                busy = self._con.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+                out["wal_truncated"] = bool(busy) and int(busy[0]) == 0
+            except sqlite3.Error as exc:  # tried again after the next deletion or check
+                out["error"] = str(exc)[:200]
+        private_file(self.db_path)
+        return out
 
     # ── global registries (users, sources) ───────────────────────────────────
     def put_registry(self, kind: str, record_id: str, obj: Any) -> None:

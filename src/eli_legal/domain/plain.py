@@ -465,6 +465,7 @@ _METHODS = {
     "gui-passphrase": "desktop sign-in with passphrase",
     "web-session": "browser sign-in with passphrase",
     "cli-session": "command-line sign-in",
+    "cli-init": "set-up at the command line, with the passphrase just chosen",
     "api-token": "API token issued to the person",
     "eli-host": "signed in through ELI v3",
     "system": "the system itself",

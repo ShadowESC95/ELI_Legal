@@ -17,7 +17,9 @@ class RuntimePolicy:
     matter_isolation_required: bool = True
     version: str = "0"
     require_validated_jurisdiction_packs: bool = False
-    require_reviewer_distinct_from_operator: bool = False
+    # The person who ran the work does not review it (separation of duties). On by default; an
+    # organisation may turn it off in its policy file, which is recorded like any change.
+    require_reviewer_distinct_from_operator: bool = True
     model_proposition_verification_validated: bool = False
     max_model_chunks: int = 200
     research_passages_per_issue: int = 4
@@ -38,7 +40,7 @@ class RuntimePolicy:
                 runtime.get("require_validated_jurisdiction_packs", False)
             ),
             require_reviewer_distinct_from_operator=bool(
-                runtime.get("require_reviewer_distinct_from_operator", False)
+                runtime.get("require_reviewer_distinct_from_operator", True)
             ),
             model_proposition_verification_validated=bool(
                 runtime.get("model_proposition_verification_validated", False)

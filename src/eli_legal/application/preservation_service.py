@@ -28,6 +28,7 @@ from eli_legal.application.container import AppContext
 from eli_legal.domain.errors import InvalidInput, InvalidState, NotFound, PolicyDenied
 from eli_legal.domain.models import Document, Matter, PreservationHold, Run, utcnow
 from eli_legal.security import authn
+from eli_legal.security.files import shred
 
 MIN_TEXT = 20
 MANAGES = "compliance.manage"
@@ -85,8 +86,7 @@ def dispose(
                 files_kept.append(name)
                 continue
             files_deleted[name] = hashlib.sha256(path.read_bytes()).hexdigest()
-            path.chmod(0o600)
-            path.unlink()
+            shred(path)
     if not holds:
         for paths in generated.values():
             _prune(Path(ctx.settings.artifacts_dir), paths)
@@ -94,6 +94,8 @@ def dispose(
         e for e in ctx.audit.events(matter_id=mid)
         if e["event_type"] == "evidence_exported" and not e["payload"].get("managed", False)
     ]  # fmt: skip
+    # Nothing of what was deleted is left readable in the database file or its log.
+    erased = ctx.store.compact()
     counts["generated_files_deleted"] = len(files_deleted)
     counts["generated_files_kept"] = len(files_kept)
     counts["exported_elsewhere"] = len(elsewhere)
@@ -122,6 +124,13 @@ def dispose(
         ],  # fmt: skip
         "preservation_holds": [h.hold_id for h in holds],
         "counts": counts,
+        "erasure": {
+            "files": "overwritten with zeros, then removed",
+            "database": "deleted rows overwritten; search index merged; file rebuilt (VACUUM)"
+            if erased["vacuumed"]
+            else f"deleted rows overwritten; rebuild not done ({erased['error']}), retried later",
+            "write_ahead_log_emptied": erased["wal_truncated"],
+        },
     }
     folder = Path(ctx.settings.artifacts_dir) / "disposals" / mid
     folder.mkdir(parents=True, exist_ok=True)

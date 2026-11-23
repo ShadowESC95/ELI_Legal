@@ -90,6 +90,8 @@ class MatterCreate(Strict):
     sources: list[Ident] = Field(default_factory=list, max_length=50)
     # A real matter (real case papers, to be relied on) needs a deployment authorisation.
     real: bool = False
+    # Days its content is kept once closed; absent: the organisation's period.
+    retention_days: int | None = Field(default=None, ge=0, le=36_500)
 
 
 class MatterUpdate(Strict):
@@ -98,6 +100,8 @@ class MatterUpdate(Strict):
     forum: Short | None = None
     procedural_rules: Short | None = None
     add_parties: list[PartyIn] = Field(default_factory=list, max_length=100)
+    retention_days: int | None = Field(default=None, ge=0, le=36_500)
+    organisation_retention: bool = False
 
 
 class IdList(Strict):
@@ -231,6 +235,7 @@ class RetentionIn(Strict):
     audit_days: int = Field(ge=0, le=36_500)
     closed_matter_days: int = Field(ge=0, le=36_500)
     notes: Long = ""
+    inactive_matter_days: int = Field(default=0, ge=0, le=36_500)
 
 
 class TrainingIn(Strict):

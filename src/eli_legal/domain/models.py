@@ -85,6 +85,9 @@ class Matter:
     # training, testing) needs none, holds no real case material, and every report from it says
     # it is not for reliance. Fixed when the matter is opened.
     real: bool = False
+    # How long this matter's content is kept once it is closed, in days. None: the organisation's
+    # period (Compliance, OA-09). Set when the matter is opened, and changeable by its lead.
+    retention_days: int | None = None
     # Each member's role on this matter (eli_legal.security.access.MATTER_ROLES). Someone on the
     # matter with no entry has the narrowest role that keeps what their account allows.
     member_roles: dict[str, str] = field(default_factory=dict)
@@ -469,7 +472,9 @@ class Notification:
 
     matter_id: str
     user_id: str
-    kind: str  # holds_open | restart_needed | review_required | reliance_suspended | returned
+    # holds_open | restart_needed | review_required | reviewer_needed | returned |
+    # reliance_suspended
+    kind: str
     subject_id: str
     title: str
     detail: str = ""

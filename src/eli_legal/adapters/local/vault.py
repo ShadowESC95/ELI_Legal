@@ -13,6 +13,7 @@ from collections.abc import Iterable
 from pathlib import Path
 
 from eli_legal.domain.errors import AuditIntegrityError, NotFound
+from eli_legal.security.files import private_dir, shred
 
 
 class EvidenceVault:
@@ -34,7 +35,7 @@ class EvidenceVault:
         digest = hashlib.sha256(raw).hexdigest()
         target = self._path(matter_id, digest)
         if not target.exists():
-            target.parent.mkdir(parents=True, exist_ok=True)
+            private_dir(target.parent)
             tmp = target.with_suffix(".tmp")
             fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
             with os.fdopen(fd, "wb") as fh:
@@ -80,18 +81,14 @@ class EvidenceVault:
             removed = 0
             for path in sorted(directory.rglob("*"), reverse=True):
                 if path.is_file() and path.name not in kept:
-                    path.chmod(0o600)
-                    path.unlink()
+                    shred(path)
                     removed += 1
                 elif path.is_dir() and not any(path.iterdir()):
                     path.rmdir()
             return removed
         count = sum(1 for p in directory.rglob("*") if p.is_file())
-        for path in directory.rglob("*"):
+        for path in list(directory.rglob("*")):
             if path.is_file():
-                try:
-                    path.chmod(0o600)
-                except OSError:
-                    pass
+                shred(path)
         shutil.rmtree(directory)
         return count

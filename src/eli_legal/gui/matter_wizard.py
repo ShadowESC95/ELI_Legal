@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QRadioButton,
+    QSpinBox,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -184,6 +185,16 @@ class MatterWizard(QWizard):
         form.addRow("Forum", self.forum)
         form.addRow("Procedural rules", self.rules)
         form.addRow(self.has_date, self.relevant)
+        # How long its content is kept once it is closed; 0 here means the organisation's period.
+        self.retention = QSpinBox()
+        self.retention.setRange(0, 36_500)
+        self.retention.setSuffix(" days")
+        self.retention.setSpecialValueText("the organisation's period")
+        self.retention.setToolTip(
+            "How long this matter's documents and their text are kept once it is closed, then "
+            "deleted by the routine checks (unless a preservation hold keeps them)."
+        )
+        form.addRow("Keep its content after closing", self.retention)
         page.box.addLayout(form)
         page.box.addWidget(
             label(
@@ -627,6 +638,7 @@ class MatterWizard(QWizard):
             "governing_law": None if governing.startswith("(") else governing,
             "forum": self.forum.text().strip(),
             "procedural_rules": self.rules.text().strip(),
+            "retention_days": self.retention.value() or None,
             "relevant_date": date(qd.year(), qd.month(), qd.day())
             if self.has_date.isChecked()
             else None,

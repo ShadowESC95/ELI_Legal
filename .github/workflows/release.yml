@@ -43,6 +43,26 @@ jobs:
       # The graphics pack shipped inside the installer, checked against its checksum.
       - run: python scripts/fetch_gpu_pack.py
       - run: PYTHON=python packaging/linux/build.sh
+      # What the installers are built from, as a CycloneDX bill of materials published with the
+      # release; and a known-vulnerability audit of what they ship (the build tools and test
+      # tools are not shipped and not audited). A release is not built over a known, fixable
+      # vulnerability (Cyber Resilience Act, Annex I Part II); an exception is allowed only with
+      # its reason in packaging/audit_exceptions.txt. The tools run from an environment of their
+      # own, so they are neither listed nor audited themselves.
+      - name: Bill of materials and known-vulnerability audit
+        run: |
+          python -m venv "$RUNNER_TEMP/tools"
+          "$RUNNER_TEMP/tools/bin/pip" install --quiet "cyclonedx-bom>=7,<10" "pip-audit>=2.7,<3"
+          VERSION=$(python -c "import eli_legal; print(eli_legal.__version__)")
+          "$RUNNER_TEMP/tools/bin/cyclonedx-py" environment --pyproject pyproject.toml \
+            --mc-type application --of JSON \
+            -o "dist/installers/ELI_Legal-$VERSION-sbom.cdx.json" "$(command -v python)"
+          python -m pip freeze --exclude-editable \
+            | grep -viE '^(pip|setuptools|wheel|pyinstaller|pyinstaller-hooks-contrib|altgraph|macholib|pefile)==' \
+            | grep -v '^-e ' > "$RUNNER_TEMP/shipped.txt"
+          IGNORE=$(grep -Ev '^\s*(#|$)' packaging/audit_exceptions.txt | awk '{print "--ignore-vuln " $1}')
+          "$RUNNER_TEMP/tools/bin/pip-audit" -r "$RUNNER_TEMP/shipped.txt" --no-deps --disable-pip \
+            --progress-spinner off --desc on $IGNORE
       # The built program needs a licence to start. The checks below use an ELI Legal key kept
       # as the ELI_LEGAL_CI_KEY secret, in a key folder of this run's own, thrown away with it.
       - name: A licence for the checks of the built program

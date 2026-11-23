@@ -14,7 +14,11 @@ dependencies = [
   "uvicorn>=0.30,<1",
   "pydantic>=2.8,<3",
   "pydantic-settings>=2.4,<3",
-  "pypdf>=4.2,<7",
+  # Floors set by known vulnerabilities (pip-audit): pypdf below 6.21.4 can be made to loop or
+  # exhaust memory by a crafted PDF; opentelemetry-api (through FastAPI) below 1.45.2 has a
+  # regular-expression denial of service on a request header.
+  "pypdf>=6.21.4,<7",
+  "opentelemetry-api>=1.45.2",
   # eli-sdk is private: builds fetch its wheel with scripts/fetch_eli_sdk.py (PIP_FIND_LINKS).
   "eli-sdk==1.1.0",
 ]
