@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import contextvars
 from collections.abc import Callable
-from typing import TypeVar
+from typing import Any, TypeVar
 
 from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal
 from PySide6.QtWidgets import QInputDialog, QLineEdit, QMessageBox, QWidget
@@ -53,6 +53,7 @@ class Session(QObject):
         self.run_id: str = ""
         self._pool = QThreadPool.globalInstance()
         self._jobs: list[_Job] = []
+        self._server: Any = None  # the server started from this window, if any
 
     # ── identity ─────────────────────────────────────────────────────────────
     def sign_in(self, user_id: str, passphrase: str, code: str = "") -> User:
@@ -83,6 +84,20 @@ class Session(QObject):
         if action in access.MATTER_ACTIONS:
             return matter is not None and authz.can_matter(matter, self.user_id, action)
         return authz.bindings.can(self.user_id, action)
+
+    @property
+    def server(self) -> Any:
+        """The server this window can start for everyone on a case (Settings → System)."""
+        if self._server is None:
+            from eli_legal.api.hosting import HostedServer
+
+            self._server = HostedServer(self.sv)
+        return self._server
+
+    def stop_server(self) -> None:
+        """On closing: a server started from this window stops with it."""
+        if self._server is not None and self._server.running:
+            self._server.stop(actor_id="system")
 
     # ── what is open ─────────────────────────────────────────────────────────
     @property

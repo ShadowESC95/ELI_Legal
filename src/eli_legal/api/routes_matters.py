@@ -133,7 +133,7 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
             name=body.name,
             purpose=body.purpose,
             jurisdiction=body.jurisdiction,
-            profile=Profile(body.profile),
+            profile=schemas.choice(Profile, body.profile, "profile"),
             governing_law=body.governing_law,
             forum=body.forum,
             procedural_rules=body.procedural_rules,

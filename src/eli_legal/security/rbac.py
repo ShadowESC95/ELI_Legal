@@ -54,6 +54,9 @@ _AUDIT = {"audit.read", "audit.verify", "evidence.export"}
 # papers they are cleared for, file papers for their own side, and answer holds about their own
 # filings. None of these reads the tribunal's analysis, findings or report.
 PARTY_ACTIONS = frozenset({"filing.read", "filing.add", "hold.respond"})
+# Starting the server from the desktop, so everyone on a case can sign in: administrators and
+# the people who decide cases (judges, tribunal members, arbitrators), nobody else.
+_SERVER = {"server.manage"}
 
 # The person who decides: operates, verifies, reviews, releases and can stop the system.
 _DECISION_MAKER = (
@@ -75,9 +78,9 @@ _DECISION_MAKER = (
 # Role permissions are intentionally explicit. Matter membership and the matter's profile are
 # checked separately; holding a role never grants access to every matter.
 DEFAULT_ROLE_ACTIONS: dict[str, set[str]] = {
-    ROLE_JUDGE: set(_DECISION_MAKER),
-    ROLE_TRIBUNAL_MEMBER: set(_DECISION_MAKER),
-    ROLE_ARBITRATOR: set(_DECISION_MAKER),
+    ROLE_JUDGE: _DECISION_MAKER | _SERVER,
+    ROLE_TRIBUNAL_MEMBER: _DECISION_MAKER | _SERVER,
+    ROLE_ARBITRATOR: _DECISION_MAKER | _SERVER,
     ROLE_MEDIATOR: set(_DECISION_MAKER),
     ROLE_CONCILIATOR: set(_DECISION_MAKER),
     # Registrar, clerk or tribunal secretary: runs approved tasks; decides nothing.
@@ -118,6 +121,7 @@ DEFAULT_ROLE_ACTIONS: dict[str, set[str]] = {
     ROLE_REVIEWER: _READ | _VERIFY | _REVIEW,
     ROLE_LEGAL_ADMIN: _DECISION_MAKER
     | _AUDIT
+    | _SERVER
     | {
         "user.manage",
         "source.manage",
@@ -142,7 +146,7 @@ DEFAULT_ROLE_ACTIONS: dict[str, set[str]] = {
     | _AUDIT,
     ROLE_AUDITOR: set(_AUDIT),
     # Technical administration is deliberately not equivalent to legal-matter access.
-    ROLE_SYSTEM_ADMIN: {"audit.verify", "user.manage", "config.manage", "checks.run"},
+    ROLE_SYSTEM_ADMIN: {"audit.verify", "user.manage", "config.manage", "checks.run"} | _SERVER,
     ROLE_READ_ONLY: set(_READ),
 }
 

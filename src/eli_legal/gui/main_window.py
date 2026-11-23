@@ -616,5 +616,6 @@ class MainWindow(QMainWindow):
             self.signing_out = False
             return
         self._save_layout()
+        self.session.stop_server()
         self.session.sign_out()
         event.accept()

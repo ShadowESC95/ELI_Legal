@@ -74,7 +74,7 @@ request body (`Content-Type: application/octet-stream`); optional query fields `
 | `GET` | `/v1/config/models/{ref}/placement` | yes | How that GGUF model would be placed on this machine if it were loaded now: context, layers on the graphics card, and the reasons. Nothing is loaded or changed. |
 | `POST` | `/v1/config/model` | yes | Change the model. A decision, recorded. For GGUF, give the references from the list. |
 | `GET` | `/v1/network` | yes | Whether hard offline is on, what enforces it, and whether it is set for every start. |
-| `POST` | `/v1/network/offline` | yes | Switch hard offline on now: from here until the server stops, the kernel refuses every connection it would open. It keeps answering on its own port. |
+| `POST` | `/v1/network/offline` | config.manage | Switch hard offline on now: from here until the server stops, the kernel refuses every connection it would open. It keeps answering on its own port. |
 | `PUT` | `/v1/network/at-start` | yes | Start hard offline every time, or not. Needs the right to manage the configuration and the passphrase. Switching it off takes effect at the next start. |
 
 ## Matters and documents

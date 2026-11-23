@@ -142,12 +142,18 @@ def pretend_kernel(monkeypatch):
     NetworkGuard().uninstall()
 
 
-def test_anyone_signed_in_can_go_hard_offline_and_it_is_recorded(demo, pretend_kernel):
+def test_only_someone_who_manages_the_configuration_goes_hard_offline_and_it_is_recorded(
+    demo, pretend_kernel
+):
+    """It cuts every approved legal source for everyone on the server, so a registrar, a
+    reviewer or a party may not pull it; someone who manages the configuration may."""
     sv, _mid = demo
-    status = sv.network.go_offline(actor_id="sec.byrne")
+    with pytest.raises(PolicyDenied):
+        sv.network.go_offline(actor_id="sec.byrne")
+    status = sv.network.go_offline(actor_id="admin")
     assert status["hard_offline"] and status["verified"]
     event = [e for e in sv.ctx.audit.events(matter_id="-") if e["event_type"] == "network_mode"][-1]
-    assert event["actor_id"] == "sec.byrne" and event["outcome"] == "on"
+    assert event["actor_id"] == "admin" and event["outcome"] == "on"
     with pytest.raises(NetworkDenied, match="hard offline is on"):
         with sv.ctx.guard.allow(host="www.legislation.gov.uk", reason="a lookup"):
             pass

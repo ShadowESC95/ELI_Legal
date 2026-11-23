@@ -5,6 +5,16 @@ application and the same rules. It also offers an API for programs. It is one co
 
 ## Starting it
 
+**From the desktop application.** An administrator or a judge (or a tribunal member or an
+arbitrator) opens Settings, System, Server; chooses *This computer only* or *Other computers on
+the network*; and presses **Start the server…**, which asks for their passphrase again. For other
+computers the server always uses TLS (a self-signed certificate is made, and its fingerprint
+shown, if there is none) and everyone needs a code from an authenticator app. The panel shows the
+address to give everyone. The server runs while that window is open, on the same data, and stops
+when it closes; starting and stopping are both in the audit trail. Nobody else can start it.
+
+**From the command line:**
+
 | Situation | Command | Then open |
 |---|---|---|
 | Just you, on this machine | `eli-legal serve` | `http://localhost:8443/` |

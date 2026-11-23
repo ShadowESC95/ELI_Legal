@@ -411,6 +411,7 @@ _ACTIONS: dict[str, str] = {
     "framework.manage": "manage the law and standards packages",
     "compliance.manage": "record the organisation's compliance work",
     "checks.run": "run the routine checks",
+    "server.manage": "start and stop the server for everyone on a case",
     "sign_in": "sign in",
     "user.security": "change sign-in security",
 }

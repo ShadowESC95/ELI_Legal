@@ -299,8 +299,12 @@ class NetworkControl:
         }
 
     def go_offline(self, *, actor_id: str) -> dict[str, Any]:
+        """Hard offline until the program stops. It cuts the court's access to every approved
+        legal database for everyone, so only someone who manages the configuration may pull it
+        (a party, a reviewer or an auditor may not)."""
         if actor_id != "system":
             authn.require(actor_id)
+            self.ctx.authorizer().require_global(actor_id, "config.manage")
         st = hard_offline.go_offline()
         self.ctx.log(
             "network_mode",

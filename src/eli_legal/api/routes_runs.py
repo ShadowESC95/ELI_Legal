@@ -106,7 +106,7 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
                 claim_id,
                 actor_id=actor,
                 verification_type=body.check,
-                status=VerificationStatus(body.result),
+                status=schemas.choice(VerificationStatus, body.result, "result"),
                 reason=body.reason,
             )
         )
@@ -192,7 +192,7 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
             matter_id,
             run_id,
             actor_id=actor,
-            decision=ReviewDecision(body.decision),
+            decision=schemas.choice(ReviewDecision, body.decision, "decision"),
             reasons=body.reasons,
             report_hash=body.report_hash,
             acknowledged=body.acknowledged,
@@ -361,7 +361,7 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
                 actor_id=actor,
                 category=body.category,
                 detail=body.detail,
-                severity=IncidentSeverity(body.severity),
+                severity=schemas.choice(IncidentSeverity, body.severity, "severity"),
                 run_id=body.run_id,
             )
         )

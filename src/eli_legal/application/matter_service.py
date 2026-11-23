@@ -475,8 +475,14 @@ class MatterService:
             self._check_member(matter, member)
         for sid in sources:
             self.ctx.sources.require_approved(sid)
+        try:
+            packs = self.ctx.jurisdictions.for_matter(matter)
+        except KeyError as exc:
+            raise InvalidInput(
+                f"no legal-system pack for {matter.governing_law or jurisdiction!r}; installed: "
+                + ", ".join(self.ctx.jurisdictions.codes())
+            ) from exc
         self.ctx.store.put_matter(matter)
-        packs = self.ctx.jurisdictions.for_matter(matter)
         self.ctx.log(
             "matter_created",
             actor_id=actor_id,

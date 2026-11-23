@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Annotated
+from enum import Enum
+from typing import Annotated, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+
+from eli_legal.domain.errors import InvalidInput
 
 Name = Annotated[str, StringConstraints(min_length=1, max_length=200)]
 Short = Annotated[str, StringConstraints(max_length=200)]
@@ -314,3 +317,14 @@ class ReportingIn(Strict):
 
 class OnOff(Strict):
     on: bool
+
+
+E = TypeVar("E", bound=Enum)
+
+
+def choice(kind: type[E], value: str, field: str) -> E:
+    """A value that must be one of a fixed set: refused in plain words, never a server error."""
+    try:
+        return kind(value)
+    except ValueError as exc:
+        raise InvalidInput(f"{field}: one of " + ", ".join(str(m.value) for m in kind)) from exc

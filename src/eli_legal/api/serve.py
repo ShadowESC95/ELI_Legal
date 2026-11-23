@@ -180,11 +180,32 @@ def run(args: argparse.Namespace, services: Services | None = None) -> int:
         state = sv.network.go_offline(actor_id="system")
         print(f"  hard offline: enforced by {state['enforced_by']}", flush=True)
     stop = sv.checks.start_schedule()  # the routine checks, whenever they fall due
+    _logged(sv, "server_started", config)
     try:
         uvicorn.Server(server_config).run(sockets=sockets)
     except KeyboardInterrupt:
         pass  # Ctrl+C: uvicorn has already shut down cleanly; no traceback for an intended stop
     finally:
         stop.set()
+        _logged(sv, "server_stopped", config)
     print("ELI Legal server stopped.", flush=True)
     return 0
+
+
+def _logged(sv: Services, event: str, config: ServerConfig) -> None:
+    """Where the server listened and how it was protected, in the audit trail (AI Act Art. 12)."""
+    sv.ctx.log(
+        event,
+        actor_id="system",
+        matter_id="-",
+        action="server.manage",
+        subject_id="server",
+        outcome=event.removeprefix("server_"),
+        object_type="server",
+        payload={
+            "port": config.port,
+            "exposed": config.exposed,
+            "tls": config.tls,
+            "second_factor": config.require_second_factor,
+        },
+    )

@@ -925,3 +925,33 @@ def test_a_matter_is_opened_as_practice_unless_real_is_chosen_and_deployment_is_
     assert "Deployment" in titles
     governance.refresh()
     assert governance.deployments.rowCount() == 0
+
+
+def test_a_judge_starts_the_server_from_the_application_and_closing_it_stops_it(desk):
+    """Settings → System: an administrator or a judge starts the server for everyone on a case,
+    with the passphrase again; anyone else sees why they cannot; closing the window stops it."""
+    clerk = desk(SECRETARY).page(SettingsTab)
+    assert not clerk.server_start.isEnabled()
+    assert "administrator or a judge" in clerk.server_state.text()
+
+    d = desk()
+    settings = d.page(SettingsTab)
+    assert settings.server_start.isEnabled() and not settings.server_stop.isEnabled()
+    settings.server_port.setMinimum(0)
+    settings.server_port.setValue(0)  # any free port, for the test
+    d.passphrase = "not my passphrase"
+    settings._start_server()
+    assert not d.session.server.running, "a wrong passphrase starts nothing"
+    d.passphrase = PHRASE[ARBITRATOR]
+    settings._start_server()
+    assert d.session.server.running
+    assert (
+        "Running" in settings.server_state.text()
+        and "http://localhost:" in settings.server_state.text()
+    )
+    assert settings.server_stop.isEnabled() and not settings.server_start.isEnabled()
+    d.window.close()
+    d.qt.processEvents()
+    assert not d.session.server.running
+    stopped = [e for e in d.sv.ctx.audit.events() if e["event_type"] == "server_stopped"]
+    assert stopped and stopped[-1]["actor_id"] == "system"

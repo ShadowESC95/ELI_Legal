@@ -205,7 +205,8 @@ than a switch inside the program: nothing running in ELI Legal can undo it.
 
 | Do this | Desktop or browser | Command line |
 |---|---|---|
-| Go hard offline now, until ELI Legal closes | Settings, System, "Go hard offline now" (anyone signed in) | `eli-legal network offline` |
+| Go hard offline now, until ELI Legal closes | Settings, System, "Go hard offline now" (someone who manages the configuration: it cuts every legal source for everyone) | `eli-legal network offline` |
+| Start or stop the server for everyone on a case | Settings, System, Server (an administrator, a judge, a tribunal member or an arbitrator; passphrase again) | `eli-legal serve` |
 | Start hard offline every time | Settings, System, "Start hard offline every time" (needs the right to manage the configuration and your passphrase) | `eli-legal network at-start on` |
 | See what enforces it | The header, and Settings, System | `eli-legal network status` |
 

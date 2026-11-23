@@ -3,14 +3,18 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from PySide6.QtCore import QUrl
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QDialog,
     QFileDialog,
     QInputDialog,
     QLineEdit,
     QMessageBox,
     QPlainTextEdit,
+    QSpinBox,
     QTabWidget,
     QTextBrowser,
     QVBoxLayout,
@@ -173,8 +177,104 @@ class SettingsTab(Tab):
                 row(self.offline_now, self.at_start, None),
             )
         )
+        box.addWidget(self._server_card())
         box.addWidget(card("Network", self.blocked), 1)
         self.inner.addTab(page, "System")
+
+    # ── the server, for everyone on a case ───────────────────────────────────
+    def _server_card(self) -> QWidget:
+        self.server_state = label("", wrap=True, selectable=True)
+        self.server_reach = QComboBox()
+        self.server_reach.addItem("This computer only", False)
+        self.server_reach.addItem(
+            "Other computers on the network (encrypted; everyone needs an authenticator code)",
+            True,
+        )
+        self.server_port = QSpinBox()
+        self.server_port.setRange(1024, 65535)
+        self.server_port.setValue(8443)
+        self.server_start = button("Start the server…", self._start_server, kind="go")
+        self.server_stop = button("Stop the server…", self._stop_server, kind="danger")
+        self.server_open = button("Open it in the browser", self._open_server)
+        return card(
+            "Server",
+            label(
+                "Start the server so that everyone on a case can sign in from their own machine "
+                "with their own account: the tribunal's people, and each party's people. Each "
+                "sees and does only what their role allows. It runs while this window is open, "
+                "on the same data and the same audit trail. Only an administrator or a judge "
+                "can start or stop it; both ask for your passphrase and are recorded.",
+                "muted",
+                wrap=True,
+            ),
+            self.server_state,
+            row(
+                label("Who can reach it"), self.server_reach, label("Port"), self.server_port, None
+            ),
+            row(self.server_start, self.server_stop, self.server_open, None),
+        )
+
+    def _refresh_server(self) -> None:
+        allowed = self.session.may("server.manage")
+        st = self.session.server.status()
+        if st["running"]:
+            reach = (
+                "other computers can connect over TLS, with an authenticator code"
+                if st["exposed"]
+                else "this computer only"
+            )
+            others = "".join(f"<br>From another computer: <b>{u}</b>" for u in st["others"])
+            print_ = (
+                f"<br>Certificate fingerprint (SHA-256): <code>{st['fingerprint']}</code>"
+                "<br>Everyone should compare it with what their browser shows before trusting it."
+                if st["fingerprint"]
+                else ""
+            )
+            self.server_state.setText(
+                f"<b>Running</b>, started by {st['started_by']}: {reach}.<br>On this computer: "
+                f"<b>{st['url']}</b>{others}{print_}"
+            )
+        else:
+            self.server_state.setText(
+                "<b>Not running.</b>"
+                + (
+                    ""
+                    if allowed
+                    else " Only an administrator or a judge can start it; ask one of them."
+                )
+            )
+        for widget in (self.server_reach, self.server_port):
+            widget.setEnabled(allowed and not st["running"])
+        self.server_start.setEnabled(allowed and not st["running"])
+        self.server_stop.setEnabled(allowed and st["running"])
+        self.server_open.setEnabled(st["running"])
+
+    def _start_server(self) -> None:
+        lan = bool(self.server_reach.currentData())
+        what = (
+            "start the server for other computers on the network"
+            if lan
+            else "start the server on this computer"
+        )
+        self.session.decide(
+            self,
+            what,
+            lambda: self.session.server.start(
+                actor_id=self.actor, lan=lan, port=self.server_port.value()
+            ),
+        )
+        self.refresh()
+
+    def _stop_server(self) -> None:
+        self.session.decide(
+            self, "stop the server", lambda: self.session.server.stop(actor_id=self.actor)
+        )
+        self.refresh()
+
+    def _open_server(self) -> None:
+        st = self.session.server.status()
+        if st["running"]:
+            QDesktopServices.openUrl(QUrl(st["url"]))
 
     def refresh(self) -> None:
         ctx = self.sv.ctx
@@ -262,6 +362,10 @@ class SettingsTab(Tab):
         self.at_start.setChecked(status["at_every_start"])
         self.at_start.blockSignals(False)
         self.at_start.setEnabled(self.session.may("config.manage"))
+        self.offline_now.setEnabled(
+            not status["hard_offline"] and self.session.may("config.manage")
+        )
+        self._refresh_server()
 
     # ── hard offline ─────────────────────────────────────────────────────────
     def _go_offline(self) -> None:
