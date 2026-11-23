@@ -1,5 +1,5 @@
 {
-  "policy_version": "0.4.0",
+  "policy_version": "0.4.1",
   "runtime": {
     "network_default": "deny",
     "audit_fail_closed": true,
@@ -28,6 +28,9 @@
     "document.ingest",
     "document.read",
     "document.waive",
+    "filing.read",
+    "filing.add",
+    "hold.respond",
     "source.search_approved",
     "source.retrieve_approved",
     "source.manage",

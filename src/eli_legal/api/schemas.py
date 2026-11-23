@@ -120,6 +120,14 @@ class HoldResolveIn(Strict):
     reason: Long
 
 
+class HoldAnswerIn(Strict):
+    """A party's answer to a hold on its own filing: refiled, withdraw or explain."""
+
+    kind: Ident
+    reasons: Long
+    replacement_document_id: Ident | None = None
+
+
 class VerificationIn(Strict):
     check: Ident
     result: Ident

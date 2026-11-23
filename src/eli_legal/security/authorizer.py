@@ -7,11 +7,19 @@ from eli_legal.domain.enums import MatterStatus
 from eli_legal.domain.errors import AuthenticationFailed, MatterAccessDenied, PolicyDenied
 from eli_legal.domain.models import AuditEvent, Matter
 from eli_legal.domain.policy import RuntimePolicy
-from eli_legal.domain.profiles import OVERSIGHT_ROLES, profile_spec
+from eli_legal.domain.profiles import OVERSIGHT_ROLES, ProfileSpec, profile_spec
 from eli_legal.ports.audit import AuditPort
 from eli_legal.security import access, authn
 from eli_legal.security.matter_guard import require_matter_access
-from eli_legal.security.rbac import RoleBindings
+from eli_legal.security.rbac import PARTY_ACTIONS, RoleBindings
+
+
+def _usable_roles(spec: ProfileSpec, action: str) -> frozenset[str]:
+    """The account roles that count on a matter of this profile, for this action. A party's
+    people (prosecution, defence, a party's lawyers) count only for what a party may do there."""
+    usable = spec.roles | OVERSIGHT_ROLES
+    return usable | spec.party_roles if action in PARTY_ACTIONS else usable
+
 
 # What may still be done on a closed matter: account for past use, nothing else.
 _CLOSED_MATTER_ACTIONS = frozenset({"matter.read", "audit.read", "audit.verify", "evidence.export"})
@@ -92,7 +100,7 @@ class MatterAuthorizer:
                 reason="not_authorised_by_policy",
             )
         spec = profile_spec(matter.profile)
-        usable = spec.roles | OVERSIGHT_ROLES
+        usable = _usable_roles(spec, action)
         if not self.bindings.can(user_id, action, roles=usable):
             held_any = self.bindings.can(user_id, action)
             self._deny(
@@ -148,7 +156,7 @@ class MatterAuthorizer:
 
     def can_matter(self, matter: Matter, user_id: str, action: str) -> bool:
         spec = profile_spec(matter.profile)
-        if not self.bindings.can(user_id, action, roles=spec.roles | OVERSIGHT_ROLES):
+        if not self.bindings.can(user_id, action, roles=_usable_roles(spec, action)):
             return False
         if not (user_id == matter.owner_user_id or user_id in matter.authorised_user_ids):
             return False

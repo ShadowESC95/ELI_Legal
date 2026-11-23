@@ -72,6 +72,35 @@ class IngestionService:
         document_date: date | None = None,
     ) -> Document:
         self.ctx.authorizer().require_matter(matter, actor_id, "document.ingest")
+        return self.register_checked(
+            matter=matter,
+            actor_id=actor_id,
+            filename=filename,
+            raw=raw,
+            doc_type=doc_type,
+            party_id=party_id,
+            access_scope=access_scope,
+            custodian=custodian,
+            title=title,
+            document_date=document_date,
+        )
+
+    def register_checked(
+        self,
+        *,
+        matter: Matter,
+        actor_id: str,
+        filename: str,
+        raw: bytes,
+        doc_type: DocumentType | None = None,
+        party_id: str | None = None,
+        access_scope: AccessScope = AccessScope.ALL_PARTIES,
+        custodian: str = "",
+        title: str = "",
+        document_date: date | None = None,
+    ) -> Document:
+        """``register``, once the caller has decided this person may file it (a party's
+        representative filing for their own side is decided by the party service)."""
         if party_id and party_id not in {p.party_id for p in matter.parties}:
             raise InvalidState(f"party {party_id} is not a party to this matter")
         sha256, vault_ref = self.ctx.vault.store(matter.matter_id, raw)

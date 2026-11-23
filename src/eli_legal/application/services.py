@@ -19,6 +19,7 @@ from eli_legal.application.ingestion_service import IngestionService
 from eli_legal.application.matter_service import MatterService, UserService
 from eli_legal.application.monitoring_service import MonitoringService
 from eli_legal.application.notification_service import NotificationService
+from eli_legal.application.party_service import PartyService
 from eli_legal.application.preservation_service import PreservationService
 from eli_legal.application.release_service import ReleaseService
 from eli_legal.application.reliance_service import RelianceService
@@ -63,6 +64,7 @@ class Services:
     guidance: GuidanceService
     network: NetworkControl
     notifications: NotificationService
+    parties: PartyService
 
     def audit_trail(self, *, actor_id: str, matter_id: str | None = None) -> list[dict[str, Any]]:
         """Audit events for a matter, or (with the global right) those that belong to no matter:
@@ -109,6 +111,7 @@ def build_services(
         install_network_guard=install_network_guard,
     )
     notifications = NotificationService(ctx)
+    ingestion = IngestionService(ctx)
     # Each event signed into the ledger may change who must act; the ledger tells the service.
     listen = getattr(ctx.audit, "subscribe", None)
     if callable(listen):
@@ -118,7 +121,7 @@ def build_services(
         users=UserService(ctx),
         matters=MatterService(ctx),
         sources=SourceService(ctx),
-        ingestion=IngestionService(ctx),
+        ingestion=ingestion,
         runs=RunService(ctx),
         verification=VerificationService(ctx),
         holds=HoldService(ctx),
@@ -142,4 +145,5 @@ def build_services(
         guidance=GuidanceService(ctx),
         network=NetworkControl(ctx),
         notifications=notifications,
+        parties=PartyService(ctx, ingestion),
     )

@@ -160,6 +160,19 @@ request body (`Content-Type: application/octet-stream`); optional query fields `
 | `POST` | `/v1/matters/{matter_id}/notifications/{notification_id}/read` | yes | Mark one of your own notifications as seen; it stays until the work is done. |
 | `POST` | `/v1/notifications/read` | yes | Mark all your notifications as seen. |
 
+### A party's own pages
+
+For someone on a matter as one party's representative (prosecution, defence, a party's lawyers, a
+party acting for themselves). Every other matter route refuses them.
+
+| Method | Path | Sign-in | What it does |
+|---|---|---|---|
+| `GET` | `/v1/party/cases` | yes | The cases on which you act for a party, and how many of your side's filings wait for your answer. |
+| `GET` | `/v1/party/cases/{matter_id}` | yes | One case as your side sees it: the parties, the papers you may read, and holds on your side's filings with any answers. |
+| `POST` | `/v1/party/cases/{matter_id}/filings?filename=…&doc_type=…&title=…&confidential=…` | yes | File a paper (the body is the file) for the party you act for; served on all parties, or with `confidential=true` for the tribunal only. |
+| `GET` | `/v1/party/cases/{matter_id}/filings/{document_id}/passages` | yes | A paper's text, passage by passage, if you may read it. |
+| `POST` | `/v1/party/cases/{matter_id}/holds/{hold_id}/answer` | passphrase | Answer a hold on your side's filing: `kind` `refiled` (with `replacement_document_id`), `withdraw` or `explain`, and `reasons`. The tribunal decides the hold. |
+
 ## Runs, findings, review and release
 
 | Method | Path | Sign-in | What it does |

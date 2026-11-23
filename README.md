@@ -62,6 +62,13 @@ observer or auditor) that can only narrow what their account allows, and a **cle
 material. Anything they are not cleared for (the neutral's own notes, what one party gave in
 confidence, privileged work) is withheld from them everywhere it could appear, with the reason,
 never the content; someone who acts for one party never sees what another gave in confidence.
+
+Everyone in a case signs in with their own account. On a court's, tribunal's or neutral's matter
+the parties' people (prosecution, defence, a claimant's or respondent's lawyers, a party acting for
+themselves) join as **one party's representative**: from their own screen on the server they file
+their side's papers, read what is served on all parties, and answer holds on their own filings
+when they are told an answer is wanted. The tribunal reads the answer and decides; its analysis
+is never shown to a party.
 Observers and auditors see contact, bank, card and identity numbers masked.
 
 ## Which legal systems

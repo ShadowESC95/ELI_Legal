@@ -1,7 +1,7 @@
 import pytest
 
 from eli_legal.domain.enums import ActorType, Profile, ReviewDecision
-from eli_legal.domain.errors import MatterAccessDenied, NotFound, PolicyDenied
+from eli_legal.domain.errors import InvalidInput, MatterAccessDenied, NotFound, PolicyDenied
 from eli_legal.domain.models import Claim, Matter
 from eli_legal.security.authorizer import MatterAuthorizer
 from eli_legal.security.rbac import DEFAULT_ROLE_ACTIONS, RoleBindings
@@ -33,11 +33,15 @@ def test_role_and_matter_membership_are_both_required():
 
 
 def test_a_partys_lawyer_cannot_enter_the_tribunals_matter_even_if_added(demo):
+    """A party's lawyer may join the tribunal's matter only as that party's representative
+    (tests/integration/test_parties.py), and even then never reads the tribunal's matter."""
     sv, mid = demo
     sv.users.add_user(
         actor_id="admin", user_id="sol.reid", display_name="P Reid", roles=["solicitor"]
     )
     with pytest.raises(PolicyDenied, match="valid on a adjudicator matter"):
+        sv.matters.grant(mid, actor_id=A, user_id="sol.reid", matter_role="case_worker")
+    with pytest.raises(InvalidInput, match="which party"):
         sv.matters.grant(mid, actor_id=A, user_id="sol.reid")
     matter = sv.matters.get(mid, A)
     matter.authorised_user_ids.add("sol.reid")  # even if membership were forced in
@@ -45,6 +49,11 @@ def test_a_partys_lawyer_cannot_enter_the_tribunals_matter_even_if_added(demo):
     with pytest.raises(PolicyDenied):
         sv.matters.get(mid, "sol.reid")
     assert _denials(sv, mid)[-1]["payload"]["reason"] == "role_not_valid_for_profile"
+    sv.matters.grant(mid, actor_id=A, user_id="sol.reid", party="Harbour Freight Ltd")
+    with pytest.raises(PolicyDenied):  # added properly, for a party: still not the tribunal's
+        sv.matters.get(mid, "sol.reid")
+    with pytest.raises(PolicyDenied):
+        sv.matters.documents(mid, "sol.reid")
 
 
 def test_unauthorised_matter_access_is_denied_and_recorded(demo):

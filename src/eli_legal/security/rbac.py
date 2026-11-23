@@ -23,6 +23,8 @@ ROLE_GOVERNANCE = "governance_officer"
 ROLE_AUDITOR = "auditor"
 ROLE_SYSTEM_ADMIN = "system_admin"
 ROLE_READ_ONLY = "read_only"
+ROLE_PROSECUTOR = "prosecutor"
+ROLE_SELF_REPRESENTED = "self_represented"
 
 _READ = {"matter.read", "document.read"}
 _OPERATE = {
@@ -48,6 +50,10 @@ _CONTROL = {
     "incident.manage",
 }
 _AUDIT = {"audit.read", "audit.verify", "evidence.export"}
+# What a party's people do on a court's, tribunal's or neutral's matter, and nothing more: read the
+# papers they are cleared for, file papers for their own side, and answer holds about their own
+# filings. None of these reads the tribunal's analysis, findings or report.
+PARTY_ACTIONS = frozenset({"filing.read", "filing.add", "hold.respond"})
 
 # The person who decides: operates, verifies, reviews, releases and can stop the system.
 _DECISION_MAKER = (
@@ -78,14 +84,26 @@ DEFAULT_ROLE_ACTIONS: dict[str, set[str]] = {
     ROLE_TRIBUNAL_SECRETARY: _READ
     | _OPERATE
     | {"matter.create", "workflow.hold", "workflow.stop", "report.export"},
-    ROLE_SUPERVISING_SOLICITOR: set(_DECISION_MAKER),
-    ROLE_IN_HOUSE_COUNSEL: set(_DECISION_MAKER),
+    ROLE_SUPERVISING_SOLICITOR: _DECISION_MAKER | PARTY_ACTIONS,
+    ROLE_IN_HOUSE_COUNSEL: _DECISION_MAKER | PARTY_ACTIONS,
     ROLE_SOLICITOR: _READ
     | _OPERATE
     | _VERIFY
+    | PARTY_ACTIONS
     | {"report.review", "report.export", "report.prepare_release", "workflow.hold"},
+    # Prosecutes for the state: prepares the prosecution's case like a solicitor, and on the
+    # court's matter acts for the prosecution as a party.
+    ROLE_PROSECUTOR: _READ
+    | _OPERATE
+    | _VERIFY
+    | PARTY_ACTIONS
+    | {"report.review", "report.export", "report.prepare_release", "workflow.hold"},
+    # A party with no lawyer (a litigant in person, an unrepresented defendant): on the court's
+    # matter they file their own papers and answer for them, as a lawyer for a party would.
+    ROLE_SELF_REPRESENTED: set(PARTY_ACTIONS),
     ROLE_BARRISTER: _READ
     | _VERIFY
+    | PARTY_ACTIONS
     | {
         "facts.extract",
         "issues.map",
@@ -96,7 +114,7 @@ DEFAULT_ROLE_ACTIONS: dict[str, set[str]] = {
         "report.export",
         "workflow.hold",
     },
-    ROLE_PARALEGAL: _READ | _OPERATE,
+    ROLE_PARALEGAL: _READ | _OPERATE | PARTY_ACTIONS,
     ROLE_REVIEWER: _READ | _VERIFY | _REVIEW,
     ROLE_LEGAL_ADMIN: _DECISION_MAKER
     | _AUDIT

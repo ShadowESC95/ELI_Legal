@@ -230,7 +230,7 @@ def test_a_matter_can_be_opened_with_its_team_reviewers_and_sources_in_one_step(
     assert matter.reviewer_user_ids == {"judge.a", "judge.c"}
     count = len(sv.ctx.store.list_matters())
     _add(sv, "sol.x", ["solicitor"])
-    with pytest.raises(PolicyDenied):  # a party's lawyer: nothing is created
+    with pytest.raises(InvalidInput):  # a party's lawyer, for no named party: nothing is created
         sv.matters.create(
             actor_id="judge.a",
             name="C v D",

@@ -45,6 +45,7 @@ from . import (
     routes_matters,
     routes_notifications,
     routes_oversight,
+    routes_parties,
     routes_runs,
 )
 from .auth import Access
@@ -143,6 +144,7 @@ def create_app(services: Services | None = None, config: ServerConfig | None = N
         routes_frameworks,
         routes_guidance,
         routes_notifications,
+        routes_parties,
     ):
         module.register(app, sv, cfg, access)
 

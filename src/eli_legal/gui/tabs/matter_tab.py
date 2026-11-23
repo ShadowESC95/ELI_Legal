@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
     QDialogButtonBox,
+    QInputDialog,
     QLineEdit,
     QListWidget,
     QListWidgetItem,
@@ -143,8 +144,17 @@ class MatterTab(Tab):
         matter = self.session.matter
         if matter is None:
             self.heading.setText("No matter is open")
+            acting = self.sv.parties.cases(self.actor)
             self.summary.setText(
-                "Open a matter to begin, or ask someone who owns one to grant you access."
+                (
+                    f"You act for a party on {len(acting)} case(s): "
+                    + "; ".join(f"{c['name']} (for {c['party_name']})" for c in acting)
+                    + ". A party's pages (your side's filings, and holds waiting for your answer) "
+                    "are in the browser: sign in to the server whose address your administrator "
+                    "gave you."
+                )
+                if acting
+                else "Open a matter to begin, or ask someone who owns one to grant you access."
             )
             self.note.setText("")
             self.sources.setText("")
@@ -224,26 +234,62 @@ class MatterTab(Tab):
         if matter is None:
             return
         spec = profile_spec(matter.profile)
+        people = {u.user_id: u for u in self.sv.users.directory(self.actor)}
         candidates = [
-            (u.user_id, f"{u.display_name} ({u.user_id}) — {', '.join(sorted(u.roles))}", False)
-            for u in self.sv.users.directory(self.actor)
+            (
+                u.user_id,
+                f"{u.display_name} ({u.user_id}) — {', '.join(sorted(u.roles))}"
+                + ("" if any(spec.allows_role(r) for r in u.roles) else " — for one party"),
+                False,
+            )
+            for u in people.values()
             if u.active
             and u.user_id not in matter.authorised_user_ids
-            and any(spec.allows_role(r) for r in u.roles)
+            and any(spec.allows_role(r) or spec.allows_party_role(r) for r in u.roles)
         ]
         dialog = PickDialog(
             self,
             "Grant access",
-            f"People whose roles are valid on a matter for: {spec.label}.",
+            f"People whose roles are valid on a matter for: {spec.label}. Those marked “for one "
+            "party” (prosecution, defence, a party's lawyers, a party acting for themselves) join "
+            "as that party's representative: they file its papers and answer for them, and see "
+            "none of the analysis.",
             candidates,
         )
         if dialog.exec() == QDialog.DialogCode.Accepted:
             for uid in dialog.chosen():
-                self._grant_one(uid)
+                user = people[uid]
+                if any(spec.allows_role(r) for r in user.roles):
+                    self._grant_one(uid)
+                else:
+                    party = self._which_party(uid)
+                    if party:
+                        self._grant_one(uid, matter_role="party", party=party)
 
-    def _grant_one(self, user_id: str) -> None:
+    def _which_party(self, user_id: str) -> str | None:
+        matter = self.session.matter
+        names = [p.name for p in matter.parties] if matter else []
+        if not names:
+            QMessageBox.information(self, "No parties", "Name the parties on the matter first.")
+            return None
+        name, ok = QInputDialog.getItem(
+            self,
+            "Acts for which party?",
+            f"{user_id} joins as one party's representative. Which party do they act for?",
+            names,
+            0,
+            False,
+        )
+        return name if ok and name else None
+
+    def _grant_one(
+        self, user_id: str, *, matter_role: str | None = None, party: str | None = None
+    ) -> None:
         self.session.attempt(
-            self, lambda: self.sv.matters.grant(self.mid, actor_id=self.actor, user_id=user_id)
+            self,
+            lambda: self.sv.matters.grant(
+                self.mid, actor_id=self.actor, user_id=user_id, matter_role=matter_role, party=party
+            ),
         )
 
     def _change_role(self) -> None:
@@ -258,10 +304,16 @@ class MatterTab(Tab):
         ]
         dialog = PickDialog(self, "Role on this matter", f"Tick one role for {uid}.", items)
         if dialog.exec() == QDialog.DialogCode.Accepted and len(dialog.chosen()) == 1:
+            role = dialog.chosen()[0]
+            party = None
+            if role == "party" and not matter.member_parties.get(uid):
+                party = self._which_party(uid)
+                if not party:
+                    return
             self.session.attempt(
                 self,
                 lambda: self.sv.matters.set_member(
-                    self.mid, actor_id=self.actor, user_id=uid, matter_role=dialog.chosen()[0]
+                    self.mid, actor_id=self.actor, user_id=uid, matter_role=role, party=party
                 ),
             )
 

@@ -61,6 +61,19 @@ Three things decide what someone may do on a matter, and all three must agree:
 | Assistant | Adds documents, starts the analysis | Material before all parties, and privileged work |
 | Observer | Reads | Material before all parties, with contact, bank, card and identity numbers masked |
 | Auditor | Reads and verifies the matter's audit trail; exports its evidence pack | No document content or findings |
+| One party's representative | Files papers for the party they act for; answers holds on that party's filings | What is served on all parties, and their own side's papers; none of the tribunal's analysis |
+
+**Everyone in a case signs in with their own account.** On a court's, tribunal's or neutral's
+matter, the people of each party (a prosecutor, the defence, a claimant's or respondent's
+solicitor or barrister, in-house counsel, a paralegal, or a party acting for themselves, account
+role *Party acting for themselves*) join as **one party's representative**, always acting for a
+named party. Give them an account (`eli-legal user add pat --name "Pat Byrne" --role prosecutor`,
+then `eli-legal passphrase pat`), then add them to the matter:
+`eli-legal matter grant M pat --acts-for "The People"` (the role on the matter is *party* by
+itself), or **Grant access…** on Case details, which asks which party they act for. They sign in
+to the server from their own machine and see only their side's pages (see the
+[Web application and server](06_web_application_and_server.md#everyone-in-the-case)). They are
+never a named reviewer and decide nothing.
 
 Someone who **acts for a party** never sees what another party gave in confidence. The lead may
 widen or narrow anyone's clearance (`eli-legal matter role M USER --reads …`, or the Case details page).

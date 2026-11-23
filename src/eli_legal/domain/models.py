@@ -306,6 +306,19 @@ class RunStep:
 
 
 @dataclass(slots=True)
+class HoldAnswer:
+    """A party's answer to a hold on one of its own filings. It closes nothing: the tribunal
+    reads it and then decides the hold."""
+
+    by: str  # the party's representative who answered
+    party_id: str
+    kind: str  # "refiled" (a readable copy was filed), "withdraw" (asks to withdraw it), "explain"
+    reasons: str
+    replacement_document_id: str | None = None
+    at: datetime = field(default_factory=utcnow)
+
+
+@dataclass(slots=True)
 class Hold:
     matter_id: str
     run_id: str
@@ -320,6 +333,7 @@ class Hold:
     resolved_by: str | None = None
     resolution: HoldResolution | None = None
     resolution_reason: str = ""
+    answers: list[HoldAnswer] = field(default_factory=list)  # from the party that filed it
 
 
 @dataclass(slots=True)

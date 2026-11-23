@@ -12,6 +12,20 @@ from dataclasses import dataclass
 from .enums import Profile
 
 # Roles that exist to oversee the system rather than to work a matter. Valid under any profile.
+# The people of a party to a dispute: they may join a court's, tribunal's or neutral's matter only
+# as that party's people (see ``ProfileSpec.party_roles``).
+PARTY_SIDE_ROLES = frozenset(
+    {
+        "prosecutor",
+        "supervising_solicitor",
+        "solicitor",
+        "barrister",
+        "in_house_counsel",
+        "paralegal",
+        "self_represented",
+    }
+)
+
 OVERSIGHT_ROLES = frozenset(
     {"legal_admin", "governance_officer", "auditor", "reviewer", "read_only"}
 )
@@ -30,9 +44,16 @@ class ProfileSpec:
     audiences: tuple[str, ...]
     regulatory_note: str
     disclaimer: str
+    # Who may join as one party's people (prosecution, defence, a claimant's or respondent's
+    # lawyers, a party acting for themselves): only in the matter role "party", acting for a
+    # named party, and only to file, read what they are cleared for and answer for their filings.
+    party_roles: frozenset[str] = frozenset()
 
     def allows_role(self, role: str) -> bool:
         return role in self.roles or role in OVERSIGHT_ROLES
+
+    def allows_party_role(self, role: str) -> bool:
+        return role in self.party_roles
 
 
 PROFILES: dict[Profile, ProfileSpec] = {
@@ -54,6 +75,7 @@ PROFILES: dict[Profile, ProfileSpec] = {
             "Decision support only. This memorandum does not decide the dispute and proposes no "
             "outcome. The tribunal alone determines the facts, the law and the result."
         ),
+        party_roles=PARTY_SIDE_ROLES,
     ),
     Profile.NEUTRAL_FACILITATOR: ProfileSpec(
         profile=Profile.NEUTRAL_FACILITATOR,
@@ -74,12 +96,20 @@ PROFILES: dict[Profile, ProfileSpec] = {
             "settlement terms. Material received in confidence from one party is not disclosed "
             "in any shared output."
         ),
+        party_roles=PARTY_SIDE_ROLES,
     ),
     Profile.PARTY_REPRESENTATIVE: ProfileSpec(
         profile=Profile.PARTY_REPRESENTATIVE,
         label="Party's legal representative",
         roles=frozenset(
-            {"supervising_solicitor", "solicitor", "barrister", "paralegal", "in_house_counsel"}
+            {
+                "supervising_solicitor",
+                "solicitor",
+                "barrister",
+                "paralegal",
+                "in_house_counsel",
+                "prosecutor",
+            }
         ),
         reviewer_roles=frozenset(
             {"supervising_solicitor", "solicitor", "barrister", "in_house_counsel"}

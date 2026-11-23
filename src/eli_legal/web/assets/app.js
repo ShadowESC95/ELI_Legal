@@ -169,7 +169,12 @@
     S.user = s.user; S.csrf = s.csrf;
     S.need2fa = s.second_factor_required && !s.user.second_factor;
     if (!S.need2fa) {
-      [S.sys, S.wf, S.matters, S.w] = await Promise.all([api('GET', '/v1/system'), api('GET', '/v1/workflow'), api('GET', '/v1/matters'), api('GET', '/v1/words')]);
+      [S.sys, S.wf, S.matters, S.w, S.party] = await Promise.all([api('GET', '/v1/system'), api('GET', '/v1/workflow'), api('GET', '/v1/matters'), api('GET', '/v1/words'), api('GET', '/v1/party/cases')]);
+      // Someone who acts for a party (prosecution, defence, a party's lawyers, a party in person)
+      // has their own pages: their side's filings, and holds on them waiting for their answer.
+      S.partyOnly = !S.matters.length && S.party.length > 0;
+      if (S.party.length && !S.party.some((c) => c.matter_id === S.pcase)) S.pcase = S.party[0].matter_id;
+      if (S.partyOnly || (S.party.some((c) => c.waiting) && !S.tab)) S.tab = 'filings';
       if (S.matters.length) await openMatter(S.matters[S.matters.length - 1].matter_id, false);
     }
     render();
@@ -214,6 +219,7 @@
   }
   async function openNote(n) {
     await attempt(() => api('POST', `/v1/matters/${encodeURIComponent(n.matter_id)}/notifications/${encodeURIComponent(n.notification_id)}/read`));
+    if (n.page === 'filings') { S.pcase = n.matter_id; S.tab = 'filings'; render(); pollNotes(); return; }
     if (!S.matter || S.matter.matter_id !== n.matter_id) await openMatter(n.matter_id, false);
     if (n.run_id && (!S.run || S.run.run_id !== n.run_id)) await openRun(n.run_id, false);
     goTo(n.page);
@@ -254,7 +260,7 @@
   async function signOut() {
     try { await api('POST', '/v1/auth/logout', undefined, { quiet: true }); } catch { /* already gone */ }
     clearInterval(S.notePoll);
-    Object.assign(S, { user: null, csrf: null, matter: null, run: null, matters: [], runs: [], notes: null });
+    Object.assign(S, { user: null, csrf: null, matter: null, run: null, matters: [], runs: [], notes: null, party: [], partyOnly: false, pcase: null });
     document.title = 'ELI Legal';
     render();
   }
@@ -302,8 +308,12 @@
   // ── frame ──────────────────────────────────────────────────────────────────
   // The pages, in plain words, as the desktop application names them (GET /v1/words, how_to.pages).
   const TAB_KEYS = ['start', 'help', 'home', 'matter', 'evidence', 'chat', 'dag', 'agents', 'findings', 'review', 'audit', 'governance', 'sources', 'laws', 'settings'];
-  const pageOf = (id) => ((S.w && S.w.how_to && S.w.how_to.pages) || {})[id === 'dag' ? 'workflow' : id] || { name: id, about: '' };
-  const TABS = () => TAB_KEYS.map((id) => [id, pageOf(id).name, pageOf(id).about]);
+  const FILINGS = { name: "Your side's filings", about: 'The cases on which you act for a party: the papers you may read, filing for your side, and holds on your filings that wait for your answer.' };
+  const pageOf = (id) => (id === 'filings' ? FILINGS : ((S.w && S.w.how_to && S.w.how_to.pages) || {})[id === 'dag' ? 'workflow' : id] || { name: id, about: '' });
+  // A party's people see only their own pages; the tribunal's people see theirs (and their own
+  // filings page too, if they also act for a party on another case).
+  const tabKeys = () => (S.partyOnly ? ['filings', 'help', 'settings'] : S.party && S.party.length ? ['filings', ...TAB_KEYS] : TAB_KEYS);
+  const TABS = () => tabKeys().map((id) => [id, pageOf(id).name, pageOf(id).about]);
   // What a word means, for the pointer to rest on: column headings, and anything given a title.
   const explain = (word) => {
     const terms = (S.w && S.w.glossary) || {};
@@ -317,10 +327,15 @@
     clearInterval(S.poll); S.poll = null;
     if (!S.user) { fill(root, signInView()); return; }
     if (S.need2fa) { fill(root, enrolView()); return; }
-    const pick = h('select', { 'aria-label': 'Matter', onchange: (e) => attempt(() => openMatter(e.target.value)) },
-      S.matters.length ? S.matters.map((m) => h('option', { value: m.matter_id, selected: S.matter && m.matter_id === S.matter.matter_id }, `${m.name}  ·  ${say(m.status).toLowerCase()}`))
-        : h('option', { value: '' }, 'No matter yet'));
-    const profile = S.matter ? S.sys.profiles.find((p) => p.profile === S.matter.profile) : null;
+    if (!S.tab || !tabKeys().includes(S.tab)) S.tab = tabKeys()[0] === 'filings' && S.partyOnly ? 'filings' : 'home';
+    const mine = S.party && S.party.find((c) => c.matter_id === S.pcase);
+    const pick = S.partyOnly
+      ? h('select', { 'aria-label': 'Case', onchange: (e) => { S.pcase = e.target.value; S.tab = 'filings'; render(); } },
+        S.party.map((c) => h('option', { value: c.matter_id, selected: c.matter_id === S.pcase }, `${c.name}  ·  for ${c.party_name}`)))
+      : h('select', { 'aria-label': 'Matter', onchange: (e) => attempt(() => openMatter(e.target.value)) },
+        S.matters.length ? S.matters.map((m) => h('option', { value: m.matter_id, selected: S.matter && m.matter_id === S.matter.matter_id }, `${m.name}  ·  ${say(m.status).toLowerCase()}`))
+          : h('option', { value: '' }, 'No matter yet'));
+    const profile = S.partyOnly ? (mine ? { label: `${mine.for} · you act for ${mine.party_name}` } : null) : S.matter ? S.sys.profiles.find((p) => p.profile === S.matter.profile) : null;
     const model = S.sys.model.active_model_id;
     fill(root, 
       h('header', { class: 'top' }, h('span', { class: 'brand' }, 'ELI Legal'), h('span', { class: 'muted' }, 'Case'), pick,
@@ -552,6 +567,73 @@
           if (v && await attempt(() => api('POST', `${M()}/close`, { reason: v.reason, purge_content: v.purge }), 'Matter closed.')) { S.matters = await api('GET', '/v1/matters'); again(); }
         }, 'danger')));
     return h('div', { class: 'cols' }, left, right);
+  };
+
+  // ── A party's own page ─────────────────────────────────────────────────────
+  // For the prosecution, the defence, a party's lawyers or a party acting for themselves, signed in
+  // with their own account: the papers they may read, filing for their side, and answering holds
+  // on their side's filings. The tribunal decides each hold; its analysis is not shown here.
+  VIEWS.filings = async () => {
+    if (!S.party || !S.party.length) return card(FILINGS.name, h('p', { class: 'muted' }, 'You do not act for a party on any case.'));
+    const id = S.pcase || S.party[0].matter_id;
+    const P = `/v1/party/cases/${encodeURIComponent(id)}`;
+    const c = await api('GET', P);
+    const again = async () => { S.party = await api('GET', '/v1/party/cases'); render(); };
+    const files = h('input', { type: 'file', multiple: true, 'aria-label': 'Papers to file' });
+    const kind = h('select', { 'aria-label': 'Kind' }, h('option', { value: '' }, 'Kind: work it out'), S.sys.document_types.map((t) => h('option', { value: t }, words(t))));
+    const titled = h('input', { placeholder: 'Title (optional)' });
+    const sealed = h('input', { type: 'checkbox' });
+    const upload = async () => {
+      if (!files.files.length) { note('Choose at least one file.'); return; }
+      for (const file of files.files) {
+        const q = new URLSearchParams({ filename: file.name, title: titled.value });
+        if (kind.value) q.set('doc_type', kind.value);
+        if (sealed.checked) q.set('confidential', 'true');
+        const done = await attempt(() => api('POST', `${P}/filings?${q}`, file, { raw: true }));
+        if (done && done !== true) note(`${file.name}: filed, ${words(done.status)}${done.error ? ' — ' + done.error : ''}`, done.status === 'processed' ? 'good' : 'warn');
+      }
+      again();
+    };
+    const read = async (d) => {
+      const ps = await attempt(() => api('GET', `${P}/filings/${encodeURIComponent(d.document_id)}/passages`));
+      if (!ps || ps === true) return;
+      const dialog = h('dialog', null);
+      const close = () => { dialog.close(); dialog.remove(); };
+      fill(dialog, h('h2', null, d.title || d.filename), h('p', { class: 'muted' }, `Filed by ${d.filed_by}; ${d.served ? 'served on all parties' : 'for the tribunal only'}.`),
+        ps.length ? ps.map((p) => h('p', null, h('span', { class: 'muted' }, `${p.locator}  `), p.text)) : h('p', { class: 'muted' }, 'No text could be read from it.'),
+        h('div', { class: 'row' }, h('span', { class: 'spacer' }), btn('Close', close)));
+      dialog.addEventListener('cancel', (e) => { e.preventDefault(); close(); });
+      document.body.append(dialog);
+      dialog.showModal();
+    };
+    const yours = c.papers.filter((d) => d.yours);
+    const answer = async (x, how) => {
+      const copies = yours.filter((d) => d.document_id !== x.document_id);
+      if (how === 'refiled' && !copies.length) { note('File the readable copy first (under “File a paper for your side”), then answer.', 'warn'); return; }
+      const fields = [
+        how === 'refiled' ? { name: 'copy', label: 'The copy you filed', type: 'select', options: copies.map((d) => [d.document_id, d.title || d.filename]) } : null,
+        { name: 'reasons', label: how === 'explain' ? 'Your explanation (recorded under your name)' : 'What you have done, or why (recorded under your name)', type: 'textarea', required: true },
+      ].filter(Boolean);
+      const title = how === 'refiled' ? 'I have filed a readable copy' : how === 'withdraw' ? 'Ask to withdraw this paper' : 'Explain';
+      const v = await ask(title, fields, 'Send to the tribunal', `${x.document}: ${x.why}. The tribunal reads your answer and decides the hold.`);
+      if (v && await attempt(() => api('POST', `${P}/holds/${encodeURIComponent(x.hold_id)}/answer`, { kind: how, reasons: v.reasons, replacement_document_id: how === 'refiled' ? v.copy : null }), 'Sent to the tribunal, recorded under your name.')) again();
+    };
+    const waiting = c.holds.filter((x) => !x.answers.length).length;
+    return h('div', null,
+      card(c.name, facts([['For', c.for], ['Forum', c.forum || '—'], ['You act for', h('b', null, c.you_act_for)], ['Parties', c.parties.map((p) => `${p.name} (${p.role})`).join('; ')], ['State', say(c.status)]]),
+        h('p', { class: 'muted' }, "You see the papers served on all parties, and your own side's. The tribunal's analysis, findings and report are the tribunal's, and are not shown here. Everything you file or answer is recorded under your name.")),
+      card(`Waiting for your answer (${waiting})`,
+        c.holds.length ? c.holds.map((x) => h('div', { class: `card ${x.answers.length ? '' : 'warn'}` },
+          h('strong', null, `${x.document}: ${x.why}`), x.detail ? h('div', { class: 'muted' }, x.detail) : null, h('div', null, x.what_you_can_do),
+          x.answers.length ? h('ul', null, x.answers.map((a) => h('li', null, `${when(a.at)} ${a.by}: ${a.what}. ${a.reasons}`))) : null,
+          x.answers.length ? h('p', { class: 'muted' }, 'Answered. The tribunal decides the hold; you can add to your answer.') : null,
+          h('div', { class: 'row' }, btn('I have filed a readable copy…', () => answer(x, 'refiled'), 'go'), btn('Ask to withdraw it…', () => answer(x, 'withdraw')), btn('Explain…', () => answer(x, 'explain')))))
+          : h('p', { class: 'muted' }, 'Nothing on your filings is held.')),
+      card('File a paper for your side', h('div', { class: 'row' }, files, kind, titled),
+        h('label', { class: 'check' }, sealed, 'For the tribunal only: not served on the other parties'),
+        h('div', { class: 'row' }, h('span', { class: 'muted' }, `Filed for ${c.you_act_for}, under your name.`), h('span', { class: 'spacer' }), btn('File', upload, 'go'))),
+      card('Papers on the case', table([['Paper', (d) => d.title || d.filename, 'wide'], ['Kind', (d) => words(d.doc_type)], ['Filed by', (d) => (d.yours ? h('b', null, `${d.filed_by} (your side)`) : d.filed_by)],
+        ['Served', (d) => (d.served ? 'on all parties' : 'tribunal only')], ['State', (d) => tag(d.status)], ['', (d) => (d.passages ? btn('Read', () => read(d)) : '')]], c.papers, { empty: 'No papers yet.' })));
   };
 
   // ── Evidence ───────────────────────────────────────────────────────────────
@@ -795,7 +877,8 @@
     return h('div', null, h('div', { class: 'row' }, h('span', { class: 'muted' }, 'Run'), runPicker(), h('span', { class: 'chip' }, say(S.run.status))),
       card(`Holds (${holds.length})`, h('p', { class: 'muted' }, 'A hold closes when its check passes, or when a named person decides, with reasons. Nothing reaches review while one is open. Each reason below says what it means and what you can do.'),
         holds.length ? h('ul', null, [...new Set(holds.map((x) => x.reason_code))].map((code) => h('li', null, h('b', null, `${holdWhy(code)}. `), S.w && S.w.holds[code] ? `${S.w.holds[code].why} ${S.w.holds[code].options.join(' ')}` : ''))) : null,
-        table([['Held', (x) => (x.scope === 'claim' ? 'a finding' : `a ${words(x.scope)}`)], ['Why', (x) => h('span', { title: S.w && S.w.holds[x.reason_code] ? `${S.w.holds[x.reason_code].why} ${S.w.holds[x.reason_code].options.join(' ')}` : '' }, holdWhy(x.reason_code))], ['What the system found', (x) => x.detail], ['What', subject, 'wide'], ['', (x) => (x.reason_code === 'held_by_person' ? h('div', { class: 'row' }, btn('Lift the hold…', liftHold)) : h('div', { class: 'row' }, btn('Take out of reliance…', () => resolve(x, 'exclude'), 'danger'), btn('Accept the gap…', () => resolve(x, 'waive'))))]], holds, { empty: 'No open holds.' })),
+        table([['Held', (x) => (x.scope === 'claim' ? 'a finding' : `a ${words(x.scope)}`)], ['Why', (x) => h('span', { title: S.w && S.w.holds[x.reason_code] ? `${S.w.holds[x.reason_code].why} ${S.w.holds[x.reason_code].options.join(' ')}` : '' }, holdWhy(x.reason_code))], ['What the system found', (x) => x.detail], ['What', subject, 'wide'],
+          ['The filing party answered', (x) => ((x.answers || []).length ? x.answers.map((a) => `${when(a.at)} ${a.by}: ${a.kind === 'refiled' ? 'filed a readable copy' : a.kind === 'withdraw' ? 'asks to withdraw it' : 'explains'}. ${a.reasons}`).join(' · ') : '')], ['', (x) => (x.reason_code === 'held_by_person' ? h('div', { class: 'row' }, btn('Lift the hold…', liftHold)) : h('div', { class: 'row' }, btn('Take out of reliance…', () => resolve(x, 'exclude'), 'danger'), btn('Accept the gap…', () => resolve(x, 'waive'))))]], holds, { empty: 'No open holds.' })),
       card(`Checks for you (${tasks.filter((t) => t.status === 'open').length})`, table([['Check', (t) => checkName(t.verification_type)], ['Question', 'question'], ['Finding', (t) => subject({ subject_id: t.claim_id }), 'wide'], ['', (t) => (t.status === 'open' ? btn('Answer…', () => answer(t)) : words(t.status))]], tasks, { empty: 'Nothing is waiting for a person.' })),
       h('div', { class: 'cols' }, card('Report', report ? [facts([['Version', report.version], ['State', h('span', { class: report.release_status === 'approved_for_reliance' ? 'good' : 'warn' }, words(report.release_status))], ['SHA-256', h('span', { class: 'mono' }, report.sha256)]]),
         h('div', { class: 'row' }, btn('Download', () => attempt(() => download('GET', `${R()}/report.md`, `report_${S.run.run_id}.md`)))), h('div', { class: 'scroll' }, h('pre', null, report.text))] : h('p', { class: 'muted' }, 'No report has been drafted for this run yet.')),

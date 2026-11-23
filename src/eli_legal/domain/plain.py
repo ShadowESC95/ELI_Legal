@@ -397,6 +397,9 @@ _ACTIONS: dict[str, str] = {
     "report.prepare_release": "prepare the report's release",
     "report.send": "release the report to the outbox",
     "hold.resolve": "resolve a hold",
+    "hold.respond": "answer a hold on their own side's filing",
+    "filing.read": "read the papers served on them and their own side's",
+    "filing.add": "file papers for the party they act for",
     "verification.override": "overrule an automated check",
     "incident.manage": "open and close incidents",
     "audit.read": "read the audit trail",
@@ -502,6 +505,10 @@ _ROLES: dict[str, tuple[str, str]] = {
     "system_admin": ("Technical administrator", "Manages accounts and settings; has no access "
                      "to any matter."),
     "read_only": ("Read only", "Reads the matters they are given; changes nothing."),
+    "prosecutor": ("Prosecutor", "Prosecutes for the state. On the court's matter acts for "
+                   "the prosecution: files its papers and answers for them."),
+    "self_represented": ("Party acting for themselves", "A party with no lawyer. On the "
+                         "court's matter files their own papers and answers for them."),
 }  # fmt: skip
 
 

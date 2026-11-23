@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from eli_legal.application.party_service import ANSWERS
 from eli_legal.application.reliance_service import BARRED, standing_line
 from eli_legal.domain import plain
 from eli_legal.domain.enums import HoldScope, ReviewDecision, VerificationStatus
@@ -43,6 +44,14 @@ _STATUS_OF_REASON = {
     "verification_conflict": "conflict",
     "verification_missing": "not_run",
 }
+
+
+def _party_name(tab: Tab, party_id: str) -> str:
+    try:
+        matter = tab.sv.matters.get(tab.mid, tab.actor)
+    except Exception:  # noqa: BLE001 - only a name for display
+        return "a party"
+    return next((p.name for p in matter.parties if p.party_id == party_id), "a party")
 
 
 def _found(hold: Hold) -> str:
@@ -456,9 +465,22 @@ class ReviewTab(Tab):
             return
         said = plain.hold_explanation(hold.reason_code)
         options = "".join(f"<li>{o}</li>" for o in said.options)
+        answers = "".join(
+            f"<li><b>{escape(a.by)}</b> ({escape(_party_name(self, a.party_id))}), "
+            f"{a.at:%d %b %Y %H:%M}: {escape(ANSWERS.get(a.kind, a.kind))}. "
+            f"{escape(a.reasons)}"
+            + (
+                f" (the copy is {escape(a.replacement_document_id)})"
+                if a.replacement_document_id
+                else ""
+            )
+            + "</li>"
+            for a in hold.answers
+        )
         self.explain.setText(
             f"<b>{said.headline}.</b> {said.why}<br><b>What you can do:</b><ul>{options}</ul>"
-            f"<span style='color:{theme.MUTED}'>The system found: {_found(hold)}</span>"
+            + (f"<b>The party that filed it answered:</b><ul>{answers}</ul>" if answers else "")
+            + f"<span style='color:{theme.MUTED}'>The system found: {_found(hold)}</span>"
         )
 
     def _resolve(self, action: str) -> None:

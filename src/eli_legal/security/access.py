@@ -35,6 +35,7 @@ from eli_legal.security.rbac import (
     _REVIEW,
     _VERIFY,
     DEFAULT_ROLE_ACTIONS,
+    PARTY_ACTIONS,
 )
 from eli_legal.security.redaction import mask_personal_data
 
@@ -135,6 +136,16 @@ MATTER_ROLES: dict[str, MatterRole] = {
             masks=True,
         ),
         _role(
+            "party",
+            "One party's representative",
+            "Acts for one party: files that party's papers, reads what is served on all parties "
+            "and what that party gave in confidence, and answers holds about that party's "
+            "filings. Sees none of the tribunal's analysis, findings or report, and decides "
+            "nothing.",
+            PARTY_ACTIONS,
+            {AccessScope.ALL_PARTIES, AccessScope.PARTY_CONFIDENTIAL},
+        ),
+        _role(
             "auditor",
             "Auditor",
             "Reads and verifies the matter's audit trail and exports its evidence pack. Sees no "
@@ -172,6 +183,11 @@ def covering_role(account_roles: Iterable[str], *, allow_lead: bool) -> str:
     return "lead" if allow_lead else "decision_maker"
 
 
+def is_party_member(matter: Matter, user_id: str) -> bool:
+    """Whether the person is on the matter as one party's representative."""
+    return matter.member_roles.get(user_id) == "party" and user_id != matter.owner_user_id
+
+
 def matter_role(matter: Matter, user_id: str, account_roles: Iterable[str]) -> str:
     """The person's role on this matter. Empty if they are not on it."""
     if user_id == matter.owner_user_id:
@@ -186,7 +202,7 @@ def matter_role(matter: Matter, user_id: str, account_roles: Iterable[str]) -> s
 
 def permits(matter: Matter, user_id: str, account_roles: Iterable[str], action: str) -> bool:
     """Whether the matter role allows the action. Actions not decided per matter pass."""
-    if action not in MATTER_ACTIONS:
+    if action not in MATTER_ACTIONS and action not in PARTY_ACTIONS:
         return True
     code = matter_role(matter, user_id, account_roles)
     return bool(code) and action in MATTER_ROLES[code].actions
@@ -214,7 +230,14 @@ class Visibility:
             if explicit is not None and code != "lead"
             else (spec.clearance if spec else frozenset())
         )
-        if not account_matter_actions(account_roles) & {"document.read"}:
+        held = {a for r in account_roles for a in DEFAULT_ROLE_ACTIONS.get(r, set())}
+        if code == "party":
+            # Never more than a party may read, whatever clearance was recorded for them; and
+            # nothing at all unless they act for a named party.
+            scopes = scopes & MATTER_ROLES["party"].clearance
+            if not matter.member_parties.get(user_id):
+                scopes = frozenset()
+        if not held & {"document.read", "filing.read"}:
             scopes = frozenset()  # an account that may not read documents reads none here
         return cls(
             matter=matter,

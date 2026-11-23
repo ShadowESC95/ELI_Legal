@@ -68,6 +68,14 @@ record checks), assist (add documents, run), observe (read what is before all pa
 allows. Say whom each person **acts for**, where that matters: they will never see what another
 party gave in confidence.
 
+On a court's, tribunal's or neutral's matter, the parties' own people (prosecution, defence, a
+claimant's or respondent's lawyers, a party acting for themselves) can be added too, each as
+**one party's representative**. They file their side's papers and answer holds on them from their
+own screen on the server; they see what is served on all parties and their own side's papers, and
+none of your analysis. When a hold is about a paper a party filed (it cannot be read, or it carries
+instructions aimed at an AI), that party is asked for its answer; you are told when the answer is
+in, read it beside the hold, and decide the hold yourself.
+
 Name the **reviewer**: tick "I review and approve the report myself", or "Reviews" beside a
 colleague whose account can approve. Without a reviewer, no run will start.
 

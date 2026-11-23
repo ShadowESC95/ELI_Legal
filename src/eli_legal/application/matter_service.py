@@ -656,17 +656,55 @@ class MatterService:
     def _check_member(self, matter: Matter, member: TeamMember) -> User:
         user = self.ctx.user(member.user_id)
         spec = profile_spec(matter.profile)
-        if not any(spec.allows_role(r) for r in user.roles):
-            raise PolicyDenied(
-                f"{member.user_id!r} holds no role that is valid on a {matter.profile.value} matter"
-            )
         if member.matter_role and member.matter_role not in access.MATTER_ROLES:
             raise InvalidInput(
                 f"unknown role on a matter: {member.matter_role!r}; one of "
                 + ", ".join(access.MATTER_ROLES)
             )
+        as_party = member.matter_role == "party" or (
+            not member.matter_role
+            and not any(spec.allows_role(r) for r in user.roles)
+            and any(spec.allows_party_role(r) for r in user.roles)
+        )
+        if as_party:
+            # One party's people on a court's, tribunal's or neutral's matter: prosecution,
+            # defence, a party's lawyers, or a party acting for themselves.
+            if not any(spec.allows_party_role(r) for r in user.roles):
+                raise PolicyDenied(
+                    f"{member.user_id!r} holds no role that may act for a party on a "
+                    f"{matter.profile.value} matter (prosecutor, solicitor, barrister, counsel, "
+                    "paralegal, or a party acting for themselves)"
+                )
+            if not member.party:
+                raise InvalidInput(
+                    f"say which party {member.user_id!r} acts for: a party's representative "
+                    "always acts for one named party"
+                )
+            if member.user_id in matter.reviewer_user_ids:
+                raise InvalidState(
+                    f"{member.user_id!r} is a named reviewer and cannot act for a party"
+                )
+        elif not any(spec.allows_role(r) for r in user.roles):
+            raise PolicyDenied(
+                f"{member.user_id!r} holds no role that is valid on a {matter.profile.value} matter"
+                + (
+                    "; to add them as one party's representative, give their role on the "
+                    "matter as 'party' and say which party they act for"
+                    if any(spec.allows_party_role(r) for r in user.roles)
+                    else ""
+                )
+            )
         self._party_id(matter, member.party)
         return user
+
+    def _member_role(self, matter: Matter, user: User, member: TeamMember) -> str:
+        """The role a newly added person takes on the matter."""
+        if member.matter_role:
+            return member.matter_role
+        spec = profile_spec(matter.profile)
+        if not any(spec.allows_role(r) for r in user.roles):
+            return "party"
+        return access.covering_role(user.roles, allow_lead=False)
 
     def grant(
         self,
@@ -680,10 +718,11 @@ class MatterService:
         """Add someone to the matter, in a role on it. Without a role, they get the narrowest
         one that keeps what their account allows, and never the lead's."""
         matter = self.ctx.matter_for(matter_id, actor_id, "matter.manage")
-        user = self._check_member(matter, TeamMember(user_id, matter_role or "", party))
+        member = TeamMember(user_id, matter_role or "", party)
+        user = self._check_member(matter, member)
         if user_id == matter.owner_user_id:
             return matter
-        code = matter_role or access.covering_role(user.roles, allow_lead=False)
+        code = self._member_role(matter, user, member)
         matter.authorised_user_ids.add(user_id)
         matter.member_roles[user_id] = code
         party_id = self._party_id(matter, party)
@@ -715,8 +754,11 @@ class MatterService:
         if user_id not in matter.authorised_user_ids:
             raise InvalidState(f"{user_id!r} is not on this matter; grant access first")
         changed: dict[str, object] = {"user": user_id}
+        if clear_party and (matter_role or matter.member_roles.get(user_id)) == "party":
+            raise InvalidState("a party's representative always acts for one named party")
         if matter_role is not None:
-            self._check_member(matter, TeamMember(user_id, matter_role, None))
+            acting_for = party or matter.member_parties.get(user_id)
+            self._check_member(matter, TeamMember(user_id, matter_role, acting_for))
             if user_id in matter.reviewer_user_ids and "report.approve" not in (
                 access.MATTER_ROLES[matter_role].actions
             ):

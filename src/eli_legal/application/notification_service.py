@@ -22,17 +22,19 @@ from typing import Any
 
 from eli_legal.application.container import AppContext
 from eli_legal.domain import plain
-from eli_legal.domain.enums import MatterStatus, RunStatus
+from eli_legal.domain.enums import HoldScope, MatterStatus, RunStatus
 from eli_legal.domain.errors import NotFound
 from eli_legal.domain.models import (
     AuditEvent,
+    Document,
+    Hold,
     Matter,
     Notification,
     RelianceBlock,
     Run,
     utcnow,
 )
-from eli_legal.security import authn
+from eli_legal.security import access, authn
 
 # Events after which the work waiting for someone may have changed.
 TRIGGERS = frozenset(
@@ -43,6 +45,10 @@ TRIGGERS = frozenset(
         "run_restarted",
         "hold_raised",
         "hold_resolved",
+        "hold_answered",
+        "access_granted",
+        "access_revoked",
+        "member_role_set",
         "human_verification",
         "review_decision",
         "release_prepared",
@@ -181,6 +187,8 @@ class NotificationService:
             for user_id in able("workflow.restart"):
                 wanted[(user_id, "returned")] = (title, "Correct it, then restart.", "workflow",
                                                  ["restart"])  # fmt: skip
+        if latest:
+            self._party_holds(matter, run, able, wanted)
         blocks = [b for b in ctx.store.list(RelianceBlock, mid, run_id=rid) if b.status == "active"]
         if blocks:
             title = f"{name}: an approved report is suspended from reliance"
@@ -197,6 +205,57 @@ class NotificationService:
                 )
         return wanted
 
+    def _party_holds(self, matter: Matter, run: Run, able: Any, wanted: _Wanted) -> None:
+        """Holds on a party's own filings: that party's people are asked for their answer, on
+        their own screen; once a party has answered, the tribunal's people who decide holds are
+        told the answer is in."""
+        ctx, mid = self.ctx, matter.matter_id
+        docs = {d.document_id: d for d in ctx.store.list(Document, mid)}
+        waiting: dict[str, list[Hold]] = {}
+        answered: list[Hold] = []
+        for hold in ctx.holds.open_holds(mid, run.run_id):
+            doc = docs.get(hold.subject_id) if hold.scope is HoldScope.DOCUMENT else None
+            if doc is None or not doc.party_id:
+                continue
+            if hold.answers:
+                answered.append(hold)
+            else:
+                waiting.setdefault(doc.party_id, []).append(hold)
+        name = matter.name[:120]
+        party_name = {p.party_id: p.name for p in matter.parties}
+
+        def paper(h: Hold) -> str:
+            d = docs[h.subject_id]
+            return f"{d.title or d.filename}: {plain.hold_reason(h.reason_code)}"
+
+        for party_id, held in waiting.items():
+            members = sorted(
+                u
+                for u, p in matter.member_parties.items()
+                if p == party_id and access.is_party_member(matter, u)
+            )
+            title = f"{name}: the tribunal needs your answer on {plain.count(len(held), 'filing')}"
+            detail = "; ".join(paper(h) for h in held)[:280]
+            actions = ["file a readable copy", "ask to withdraw it", "explain"]
+            for user_id in able("hold.respond", members):
+                wanted[(user_id, "answer_needed")] = (title, detail, "filings", actions)
+        if answered:
+            sides = sorted({party_name.get(h.answers[-1].party_id, "a party") for h in answered})
+            title = (
+                f"{name}: {', '.join(sides)} answered {plain.count(len(answered), 'hold')} on "
+                "their filings; decide them"
+            )
+            detail = "; ".join(
+                f"{paper(h)} — {h.answers[-1].kind}: {h.answers[-1].reasons}" for h in answered
+            )[:280]
+            for user_id in able("hold.resolve"):
+                wanted[(user_id, "party_answered")] = (
+                    title,
+                    detail,
+                    "review",
+                    ["accept the gap", "take it out of the analysis", "restart once re-filed"],
+                )
+
     # ── what a person sees ───────────────────────────────────────────────────
     def inbox(self, actor_id: str, *, include_read: bool = True) -> list[dict[str, Any]]:
         """The signed-in person's notifications that still need them, newest first, across every
@@ -205,7 +264,10 @@ class NotificationService:
         authorizer = self.ctx.authorizer()
         out: list[dict[str, Any]] = []
         for matter in self.ctx.store.list_matters():
-            if not authorizer.can_matter(matter, actor_id, "matter.read"):
+            if not (
+                authorizer.can_matter(matter, actor_id, "matter.read")
+                or authorizer.can_matter(matter, actor_id, "filing.read")
+            ):
                 continue
             self.refresh_matter(matter.matter_id)
             for note in self.ctx.store.list(Notification, matter.matter_id):

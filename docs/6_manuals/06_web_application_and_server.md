@@ -55,12 +55,42 @@ application:
   suspension, incident awareness and owners, choosing a real rather than a practice matter, and
   re-reading a document. Use the desktop application, the command line or the API for those.
 - **Runs** execute on the server. You can close the browser and come back.
+- **For a party's people**, see [Everyone in the case](#everyone-in-the-case).
 - **Downloads** (the report, a checkpoint, the evidence pack) are saved by your browser. Treat
   them as you would the matter's papers.
 - **Loading a corpus** takes a folder name inside the server's import folder, not a file from
   your machine.
 - The page loads nothing from any other site and stores nothing in your browser beyond the
   session cookie.
+
+## Everyone in the case
+
+Each person in a case signs in with their own account, from their own machine: the tribunal's
+people (judge, panel members, registrar) and each party's people (prosecution, defence, a
+claimant's or respondent's solicitor or barrister, or a party acting for themselves). To let them
+reach the server from their own machines, start it for the network with TLS
+(`eli-legal serve --lan --self-signed`, or a proper certificate); every account then needs a code
+from an authenticator app, and each person is walked through setting one up at their first
+sign-in. How to give a party's people an account and add them to the matter is in the
+[Administrator manual](04_administrator_manual.md).
+
+Someone who acts for a party sees one page, **Your side's filings**, for each case they are on:
+
+- **The case**: the forum, the parties, and which party they act for.
+- **Waiting for your answer**: each hold on a paper their side filed, with why it is held (it
+  could not be read, a page was read badly, it carries instructions aimed at an AI) and what they
+  can do. They answer with their passphrase: *I have filed a readable copy* (after filing it),
+  *Ask to withdraw it*, or *Explain*. The answer is shown to the tribunal beside the hold; the
+  tribunal decides the hold. The bell tells them when an answer is wanted, and the tribunal's
+  people who decide holds when it is in.
+- **File a paper for your side**: always filed for the party they act for, under their name;
+  served on all parties, or, if ticked, for the tribunal only.
+- **Papers on the case**: what is served on all parties and their own side's papers, to read.
+  Another party's confidential papers are not listed at all.
+
+The tribunal's analysis (findings, checks, runs, the report, chat, the record of actions) is not
+shown to a party, and every other page and route refuses them by the same rules that refuse
+anyone else.
 
 ## The API
 
