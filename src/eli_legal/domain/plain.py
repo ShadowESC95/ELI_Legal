@@ -448,6 +448,13 @@ _EVENTS: dict[tuple[str, str], str] = {
     ("sign_in", "account_locked"): "Account locked after failed attempts",
     ("access_denied", "denied"): "Refused: not permitted",
     ("cross_matter_access", "denied"): "Refused: a record from another matter",
+    ("database_encrypted", "encrypted"): "Encrypted a database written by an earlier version",
+    ("database_encrypted", "not_converted"): "Could not encrypt a database (it stays as it was)",
+    ("database_encrypted", "conversion_completed"): "Finished encrypting a database",
+    (
+        "database_encrypted",
+        "conversion_restored",
+    ): "Put back a database whose encryption was cut short",
     ("routine_check", "ok"): "Routine checks: all clear",
     ("routine_check", "attention"): "Routine checks: something needs attention",
 }

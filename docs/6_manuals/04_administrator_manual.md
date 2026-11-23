@@ -226,9 +226,19 @@ Switching "every time" off takes effect at the next start.
 Back up, together and while the program is stopped or idle:
 
 - `data/` (both databases and the document vault),
-- `secrets/` (the audit key),
+- `secrets/` (the audit key, `database.key`, and the closed matters' archive keys),
 - `artifacts/` (reports, evidence packs),
 - `.env` and `config/` if you have them.
+
+**The databases are encrypted** (SQLCipher, AES-256) with `secrets/database.key`. **Lose that key
+and the databases are lost**: no one, ELI Legal included, can open them without it. Back up the
+`secrets/` folder every time you back up `data/`, but store the two copies apart (another disk,
+another place): a backup holding both is no more protected than the machine itself. On Windows
+the key is also wrapped for the Windows account that runs ELI Legal, so restore it under that
+account. To move to another machine or account, or simply to be safe, export the key once with
+`eli-legal database-key --out <file>` and keep that file somewhere safe and apart (a password
+manager, a safe); restoring is putting it back as `secrets/database.key`. `eli-legal doctor` and
+the routine checks say whether the databases are encrypted.
 
 Keep one copy of the audit key separately from the databases. Someone who holds both the ledger
 and the key can rewrite history; someone who holds neither cannot run the system.

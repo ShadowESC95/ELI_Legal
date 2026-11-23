@@ -21,6 +21,9 @@ dependencies = [
   "opentelemetry-api>=1.45.2",
   # eli-sdk is private: builds fetch its wheel with scripts/fetch_eli_sdk.py (PIP_FIND_LINKS).
   "eli-sdk==1.1.0",
+  # The working database and the audit ledger are encrypted at rest with SQLCipher
+  # (persistence/connect.py). Prebuilt for Linux x86_64, Windows x64 and both kinds of Mac.
+  "sqlcipher3-wheels>=0.5.7,<0.6",
 ]
 
 [project.optional-dependencies]

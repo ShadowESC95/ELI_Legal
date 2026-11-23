@@ -20,6 +20,7 @@ Generated from the program by `scripts/generate_reference_docs.py`. Do not edit 
 | `eli-legal second-factor remove <user_id>` | remove yours, or (administrator) someone else's |
 | `eli-legal unlock <user_id>` | unlock an account locked after failed sign-ins |
 | `eli-legal doctor` | check the installation |
+| `eli-legal database-key --out FILE` | write the databases' encryption key to a new file, for safekeeping off the machine (without it the databases cannot be opened elsewhere); restore by putting it back as `secrets/database.key` |
 | `eli-legal show-policy` | print the runtime policy |
 | `eli-legal jurisdictions` | list jurisdiction packs |
 | `eli-legal user` | manage users |

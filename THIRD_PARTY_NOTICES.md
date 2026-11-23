@@ -32,6 +32,7 @@ distribution; an installer must ship them.
 | PySide6_Essentials | 6.11.2 | LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only |
 | python-dotenv | 1.2.4 | BSD-3-Clause |
 | shiboken6 | 6.11.2 | LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only |
+| sqlcipher3-wheels | 0.5.7 | zlib/libpng |
 | starlette | 1.7.0 | BSD-3-Clause |
 | typing_extensions | 4.16.0 | PSF-2.0 |
 | typing-inspection | 0.4.4 | MIT |
@@ -47,6 +48,14 @@ own build, as that licence requires; the installer must not prevent this. Source
 and PySide6 is available from the Qt Project (https://download.qt.io/ and
 https://code.qt.io/). Anyone distributing ELI Legal must keep this notice and the licence
 texts with it.
+
+## SQLCipher and OpenSSL
+
+The databases are encrypted with SQLCipher (Community Edition, © Zetetic LLC, BSD-3-Clause
+licence, https://www.zetetic.net/sqlcipher/), through the sqlcipher3-wheels package (zlib/libpng
+licence), whose extension module includes SQLite (public domain) and OpenSSL 3 (Apache License
+2.0, https://www.openssl.org/source/license.html). Anyone distributing ELI Legal must keep these
+notices and licence texts with it.
 
 ## Models
 

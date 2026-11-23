@@ -14,6 +14,7 @@ from typing import Any
 
 from eli_legal.domain.errors import AuditIntegrityError, MissingAuditKey
 from eli_legal.domain.models import AuditEvent, utcnow
+from eli_legal.persistence.connect import open_database, will_encrypt
 from eli_legal.security import authn
 from eli_legal.security.files import private_dir, private_file
 
@@ -109,8 +110,13 @@ class HmacAuditLedger:
         *,
         anchor_file: str | Path | None = None,
         retired_key_files: tuple[str | Path, ...] = (),
+        db_key: bytes | None = None,
     ) -> None:
         self.db_path = Path(db_path)
+        # The ledger's file is encrypted with the databases' key where there is one
+        # (persistence/connect.py); its chain is signed with the audit key either way.
+        self._db_key = db_key
+        self.encrypted = will_encrypt(self.db_path, db_key)
         self.key_file = Path(key_file)
         self.key = self._load_key(self.key_file)
         self.key_id = key_id_of(self.key)
@@ -147,7 +153,7 @@ class HmacAuditLedger:
         return key
 
     def _connect(self) -> sqlite3.Connection:
-        con = sqlite3.connect(self.db_path, isolation_level=None)
+        con = open_database(self.db_path, self._db_key, isolation_level=None)
         con.execute("PRAGMA journal_mode=WAL")
         con.execute("PRAGMA synchronous=FULL")
         return con

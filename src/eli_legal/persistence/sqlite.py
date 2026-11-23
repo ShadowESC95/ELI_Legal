@@ -44,6 +44,7 @@ from eli_legal.domain.models import (
 )
 from eli_legal.domain.release import ReleasePackage
 from eli_legal.persistence import codec
+from eli_legal.persistence.connect import DB_ERRORS, open_database, will_encrypt
 from eli_legal.persistence.migrations import MIGRATIONS
 from eli_legal.security.files import private_dir, private_file
 
@@ -123,12 +124,15 @@ _List = list
 
 
 class Store:
-    def __init__(self, db_path: str | Path) -> None:
+    def __init__(self, db_path: str | Path, *, key: bytes | None = None) -> None:
+        """``key``: the 256-bit key it is encrypted with (persistence/connect.py). Without one
+        (a cache of public legislation, a test) it is plain SQLite."""
         self.db_path = Path(db_path)
         if str(db_path) != ":memory:":
             private_dir(self.db_path.parent)
         self._lock = threading.RLock()
-        self._con = sqlite3.connect(str(db_path), check_same_thread=False, isolation_level=None)
+        self.encrypted = will_encrypt(db_path, key)
+        self._con = open_database(db_path, key, check_same_thread=False, isolation_level=None)
         self._con.execute("PRAGMA foreign_keys=ON")
         if str(db_path) != ":memory:":
             self._con.execute("PRAGMA journal_mode=WAL")
@@ -458,7 +462,7 @@ class Store:
         with self._lock:
             try:
                 busy = self._con.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
-            except sqlite3.Error:
+            except DB_ERRORS:
                 return False
         return bool(busy) and int(busy[0]) == 0
 
@@ -477,7 +481,7 @@ class Store:
                 out["vacuumed"] = True
                 busy = self._con.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
                 out["wal_truncated"] = bool(busy) and int(busy[0]) == 0
-            except sqlite3.Error as exc:  # tried again after the next deletion or check
+            except DB_ERRORS as exc:  # tried again after the next deletion or check
                 out["error"] = str(exc)[:200]
         private_file(self.db_path)
         return out
