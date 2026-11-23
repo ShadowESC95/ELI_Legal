@@ -305,7 +305,16 @@ class ReasonDialog(QDialog):
     @classmethod
     def ask(cls, parent: QWidget, title: str, prompt: str, **kwargs: Any) -> str | None:
         dialog = cls(parent, title, prompt, **kwargs)
-        return dialog.reason() if dialog.exec() == QDialog.DialogCode.Accepted else None
+        accepted = dialog.exec() == QDialog.DialogCode.Accepted
+        reason = dialog.reason()
+        # The caller reads its own fields (a tick box, a choice, a date) once this returns, and
+        # by then the dialog may be gone, taking its children with it. They are taken out of it
+        # first, so they live as long as the caller holds them.
+        for _caption, widget in kwargs.get("extra", ()):
+            widget.hide()
+            widget.setParent(None)
+        dialog.deleteLater()
+        return reason if accepted else None
 
 
 def chip(text: str, colour: str = theme.TEXT) -> QLabel:

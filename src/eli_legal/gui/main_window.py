@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+import threading
 from typing import Any
 
-from PySide6.QtCore import QByteArray, QSize, Qt, QTimer
+from PySide6.QtCore import QByteArray, QObject, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QCloseEvent, QGuiApplication
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
     QFrame,
     QHBoxLayout,
+    QLabel,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
@@ -23,9 +25,14 @@ from PySide6.QtWidgets import (
 )
 
 from eli_legal import __version__
+from eli_legal.adapters.local.usage import Usage, UsageMeter
+from eli_legal.adapters.local.usage import details as usage_details
+from eli_legal.adapters.local.usage import summary as usage_summary
 from eli_legal.domain import glossary, how_to, plain
+from eli_legal.domain.enums import MatterStatus
 from eli_legal.domain.profiles import profile_spec
 from eli_legal.gui import theme, zoom
+from eli_legal.gui.closed_cases import ClosedCasesDialog
 from eli_legal.gui.journey import JourneyBar
 from eli_legal.gui.session import Session
 from eli_legal.gui.tabs.agents_tab import AgentsTab
@@ -58,6 +65,15 @@ BOUNDARIES = (
     "in good standing when the source last said so. It does not mean the statement is true or "
     "that the authority governs the case."
 )
+
+
+_CLOSED = "__closed_cases__"  # the case list's last entry: the closed cases
+
+
+class _UsageReader(QObject):
+    """Carries a reading from the thread that took it to the interface thread."""
+
+    ready = Signal(object)
 
 
 class Pages(QTabWidget):
@@ -187,6 +203,19 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(
             "Decision support only. Nothing here may be relied on until a named reviewer has approved it."
         )
+        # How busy the machine is, and how much of it ELI Legal uses: read every few seconds off
+        # the interface thread (a graphics driver can take a moment to answer).
+        self.usage = QLabel("")
+        self.usage.setProperty("class", "muted")
+        self.statusBar().addPermanentWidget(self.usage)
+        self._meter = UsageMeter()
+        self._reader = _UsageReader(self)
+        self._reader.ready.connect(self._show_usage)
+        self._reading = False
+        self.usage_timer = QTimer(self)
+        self.usage_timer.timeout.connect(self._read_usage)
+        self.usage_timer.start(3000)
+        QTimer.singleShot(1000, self._read_usage)
         session.changed.connect(self.refresh)
         session.busy.connect(self._busy)
         self.refresh()
@@ -385,10 +414,13 @@ class MainWindow(QMainWindow):
             menu.addAction(action)
 
         file_menu = self.menuBar().addMenu("&File")
+        add(file_menu, "Closed cases…", self.closed_cases)
+        file_menu.addSeparator()
         add(file_menu, "Sign out", self.sign_out)
         add(file_menu, "Quit", self.close, "Ctrl+Q")
         view = self.menuBar().addMenu("&View")
         add(view, "Refresh", self.refresh, "F5")
+        add(view, "Show or hide processor, memory and graphics card use", self._toggle_usage)
         control = zoom.current()
         if control is not None:
             # Shortcuts are the zoom's own, so they work in every window; the menu shows them.
@@ -446,12 +478,18 @@ class MainWindow(QMainWindow):
         self.matter_box.blockSignals(True)
         self.matter_box.clear()
         self.matter_box.addItem("— no matter open —", "")
+        closed = 0
         for listed in matters:
+            if listed.status is MatterStatus.CLOSED and listed.matter_id != session.matter_id:
+                closed += 1  # off the list, not gone: File → Closed cases
+                continue
             self.matter_box.addItem(
                 f"{listed.name}  ·  {plain.state(listed.status).lower()}", listed.matter_id
             )
             if listed.matter_id == session.matter_id:
                 self.matter_box.setCurrentIndex(self.matter_box.count() - 1)
+        if closed:
+            self.matter_box.addItem(f"Closed cases ({closed})…", _CLOSED)
         self.matter_box.blockSignals(False)
         matter = session.matter
         self.profile.setText(profile_spec(matter.profile).label if matter else "")
@@ -540,8 +578,48 @@ class MainWindow(QMainWindow):
 
     def _matter_chosen(self) -> None:
         chosen = self.matter_box.currentData() or ""
+        if chosen == _CLOSED:
+            self.refresh()  # back to the case that was open, then the list of closed ones
+            self.closed_cases()
+            return
         if chosen != self.session.matter_id:
             self.session.set_matter(chosen)
+
+    def closed_cases(self) -> None:
+        if not self.session.user_id:
+            return
+        ClosedCasesDialog(self, self.session).exec()
+        self.refresh()
+
+    # ── resource use ─────────────────────────────────────────────────────────
+    def _read_usage(self) -> None:
+        if self._reading or not self.usage.isVisible():
+            return
+        self._reading = True
+        meter, reader = self._meter, self._reader
+
+        def work() -> None:
+            try:
+                reading = meter.read()
+            except Exception:  # noqa: BLE001 - a failed reading is tried again on the next tick
+                reading = None
+            try:
+                reader.ready.emit(reading)
+            except RuntimeError:  # the window closed meanwhile
+                pass
+
+        threading.Thread(target=work, name="eli-legal-usage", daemon=True).start()
+
+    def _show_usage(self, reading: object) -> None:
+        self._reading = False
+        if isinstance(reading, Usage):
+            self.usage.setText(usage_summary(reading))
+            self.usage.setToolTip(usage_details(reading))
+
+    def _toggle_usage(self) -> None:
+        self.usage.setVisible(not self.usage.isVisible())
+        if self.usage.isVisible():
+            self._read_usage()
 
     # ── work waiting for this person ─────────────────────────────────────────
     def check_waiting(self) -> None:

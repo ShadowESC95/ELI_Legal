@@ -7,6 +7,7 @@ for reads and is refused for writes.
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import re
 import sqlite3
@@ -388,6 +389,65 @@ class Store:
                 counts[spec.table] = con.execute(
                     f"DELETE FROM {spec.table} WHERE matter_id=?", (matter_id,)
                 ).rowcount
+        return counts
+
+    def export_matter_content(self, matter_id: str) -> dict[str, Any]:
+        """Every row of a matter's content (what ``purge_matter_content`` deletes), column by
+        column, so it can be archived and later put back exactly as it was."""
+        out: dict[str, Any] = {}
+        tables = ["chunks"] + [s.table for s in _SPECS.values() if s.table not in _KEPT_ON_PURGE]
+        with self._tx() as con:
+            for table in tables:
+                cursor = con.execute(f"SELECT * FROM {table} WHERE matter_id=?", (matter_id,))
+                columns = [c[0] for c in cursor.description]
+                out[table] = {
+                    "columns": columns,
+                    "rows": [
+                        [
+                            {"b64": base64.b64encode(v).decode("ascii")}
+                            if isinstance(v, (bytes, bytearray, memoryview))
+                            else v
+                            for v in row
+                        ]
+                        for row in cursor.fetchall()
+                    ],
+                }
+        return out
+
+    def import_matter_content(self, matter_id: str, content: dict[str, Any]) -> dict[str, int]:
+        """Put back what ``export_matter_content`` took, for this matter only, and rebuild its
+        search index. Returns how many rows went into each table."""
+        allowed = {"chunks"} | {s.table for s in _SPECS.values() if s.table not in _KEPT_ON_PURGE}
+        counts: dict[str, int] = {}
+        with self._tx() as con:
+            for table, block in content.items():
+                if table not in allowed:
+                    raise ValueError(f"an archive may not write to {table}")
+                columns = list(block["columns"])
+                if "matter_id" not in columns:
+                    raise ValueError(f"{table}: rows without a matter id")
+                at = columns.index("matter_id")
+                marks = ",".join("?" * len(columns))
+                names = ",".join(columns)
+                n = 0
+                for row in block["rows"]:
+                    values = [
+                        base64.b64decode(v["b64"]) if isinstance(v, dict) and "b64" in v else v
+                        for v in row
+                    ]
+                    if values[at] != matter_id:
+                        raise ValueError("an archive row belongs to another matter")
+                    con.execute(
+                        f"INSERT OR REPLACE INTO {table} ({names}) VALUES ({marks})", values
+                    )
+                    n += 1
+                counts[table] = n
+            con.execute("DELETE FROM chunks_fts WHERE matter_id=?", (matter_id,))
+            con.execute(
+                "INSERT INTO chunks_fts (text, chunk_id, matter_id, document_id) "
+                "SELECT text, chunk_id, matter_id, document_id FROM chunks WHERE matter_id=?",
+                (matter_id,),
+            )
         return counts
 
     def empty_log(self) -> bool:

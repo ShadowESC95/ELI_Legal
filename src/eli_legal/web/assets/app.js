@@ -333,8 +333,10 @@
       ? h('select', { 'aria-label': 'Case', onchange: (e) => { S.pcase = e.target.value; S.tab = 'filings'; render(); } },
         S.party.map((c) => h('option', { value: c.matter_id, selected: c.matter_id === S.pcase }, `${c.name}  ·  for ${c.party_name}`)))
       : h('select', { 'aria-label': 'Matter', onchange: (e) => attempt(() => openMatter(e.target.value)) },
-        S.matters.length ? S.matters.map((m) => h('option', { value: m.matter_id, selected: S.matter && m.matter_id === S.matter.matter_id }, `${m.name}  ·  ${say(m.status).toLowerCase()}`))
-          : h('option', { value: '' }, 'No matter yet'));
+        S.matters.length ? [
+          ...S.matters.filter((m) => m.status !== 'closed').map((m) => h('option', { value: m.matter_id, selected: S.matter && m.matter_id === S.matter.matter_id }, `${m.name}  ·  ${say(m.status).toLowerCase()}`)),
+          ...(S.matters.some((m) => m.status === 'closed') ? [h('optgroup', { label: 'Closed cases' }, S.matters.filter((m) => m.status === 'closed').map((m) => h('option', { value: m.matter_id, selected: S.matter && m.matter_id === S.matter.matter_id }, m.name)))] : []),
+        ] : h('option', { value: '' }, 'No matter yet'));
     const profile = S.partyOnly ? (mine ? { label: `${mine.for} · you act for ${mine.party_name}` } : null) : S.matter ? S.sys.profiles.find((p) => p.profile === S.matter.profile) : null;
     const model = S.sys.model.active_model_id;
     fill(root, 
@@ -562,10 +564,15 @@
       h('div', { class: 'row' }, btn('Set reviewers…', () => choose('Named reviewers', 'Who must approve before anything is relied on', m.authorised_user_ids.map((u) => [u, name(u)]), m.reviewer_user_ids, 'reviewers'))),
       h('h3', null, 'Approved legal sources'), list(m.approved_source_ids),
       h('div', { class: 'row' }, btn('Set sources…', () => choose('Legal sources for this matter', 'Approved sources', sources.filter((s) => s.approved).map((s) => [s.source_id, s.name]), m.approved_source_ids, 'sources', 'Only sources that have been approved can be used.')),
-        h('span', { class: 'spacer' }), btn('Close matter…', async () => {
-          const v = await ask('Close this matter', [{ name: 'reason', label: 'Reasons', type: 'textarea', required: true }, { name: 'purge', label: 'Also delete the documents and extracted text (the audit trail is kept)', type: 'checkbox' }], 'Close matter');
-          if (v && await attempt(() => api('POST', `${M()}/close`, { reason: v.reason, purge_content: v.purge }), 'Matter closed.')) { S.matters = await api('GET', '/v1/matters'); again(); }
-        }, 'danger')));
+        h('span', { class: 'spacer' }), m.status === 'closed'
+          ? btn('Reopen…', async () => {
+            const v = await ask('Reopen this matter', [{ name: 'reason', label: 'Why it is being reopened', type: 'textarea', required: true }, { name: 'team', label: 'Give its team access again (anyone suspended or removed since is left out)', type: 'checkbox', value: true }], 'Reopen', 'An archived matter’s content is checked, fingerprint by fingerprint, and put back.');
+            if (v && await attempt(() => api('POST', `${M()}/reopen`, { reason: v.reason, restore_team: v.team }), 'Matter reopened.')) { S.matters = await api('GET', '/v1/matters'); again(); }
+          })
+          : btn('Close matter…', async () => {
+            const v = await ask('Close this matter', [{ name: 'reason', label: 'Reasons', type: 'textarea', required: true }, { name: 'fate', label: 'Its content', type: 'select', value: 'archive', options: [['archive', 'Archive it, encrypted: out of the way, restored if it is reopened'], ['keep', 'Keep it as it is'], ['purge', 'Delete it now, for good (cannot be undone)']] }], 'Close matter', 'Closing ends everyone’s access but yours. The record of runs, reviews, releases, holds, incidents and the audit trail is kept whatever happens to its content.');
+            if (v && await attempt(() => api('POST', `${M()}/close`, { reason: v.reason, purge_content: v.fate === 'purge', archive: v.fate === 'archive' }), 'Matter closed.')) { S.matters = await api('GET', '/v1/matters'); again(); }
+          }, 'danger')));
     return h('div', { class: 'cols' }, left, right);
   };
 

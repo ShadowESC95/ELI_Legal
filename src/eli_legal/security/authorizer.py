@@ -22,7 +22,11 @@ def _usable_roles(spec: ProfileSpec, action: str) -> frozenset[str]:
 
 
 # What may still be done on a closed matter: account for past use, nothing else.
-_CLOSED_MATTER_ACTIONS = frozenset({"matter.read", "audit.read", "audit.verify", "evidence.export"})
+# What a closed matter still allows: reading its record and history, and its lead's decisions
+# about the closure itself (archive, reopen, delete its content, preservation holds).
+_CLOSED_MATTER_ACTIONS = frozenset(
+    {"matter.read", "audit.read", "audit.verify", "evidence.export", "matter.close"}
+)
 
 
 @dataclass(slots=True)

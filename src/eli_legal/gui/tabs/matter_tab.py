@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QCheckBox,
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QInputDialog,
@@ -541,18 +541,43 @@ class MatterTab(Tab):
     def _close(self) -> None:
         if not self.mid:
             return
-        purge = QCheckBox("Also delete the documents, their text and the search index")
+        fate = QComboBox()
+        fate.addItem("Archive it, encrypted: out of the way, restored if it is reopened", "archive")
+        fate.addItem("Keep it as it is, in the working database", "keep")
+        fate.addItem("Delete it now, for good (cannot be undone)", "purge")
         reason = ReasonDialog.ask(
             self,
             "Close this matter",
-            "Closing ends everyone's access but yours. The record of runs, reviews, releases, holds, incidents and the audit ledger is kept either way.",
-            extra=[("", purge)],
+            "Closing ends everyone's access but yours and takes the matter off the case list. "
+            "File → Closed cases lists it, and can reopen it. Its record of runs, reviews, "
+            "releases, holds, incidents and the audit ledger is kept whatever happens to its "
+            "content.",
+            extra=[("Its content", fate)],
         )
-        if reason:
-            self.session.decide(
+        if not reason:
+            return
+        choice = fate.currentData()
+        done = self.session.decide(
+            self,
+            "close this matter",
+            lambda: self.sv.matters.close(
+                self.mid,
+                actor_id=self.actor,
+                purge_content=choice == "purge",
+                archive=choice == "archive",
+                reason=reason,
+            ),
+        )
+        if done is not None:
+            QMessageBox.information(
                 self,
-                "close this matter",
-                lambda: self.sv.matters.close(
-                    self.mid, actor_id=self.actor, purge_content=purge.isChecked(), reason=reason
-                ),
+                "Closed",
+                {
+                    "archive": "Closed, and its content archived, encrypted, out of the working "
+                    "database.",
+                    "keep": "Closed. Its content is kept as it was.",
+                    "purge": "Closed, and its content deleted.",
+                }[choice]
+                + "\n\nIt is no longer on the case list once you open another. File → Closed "
+                "cases lists it, and can reopen it.",
             )

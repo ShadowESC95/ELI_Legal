@@ -114,7 +114,13 @@ class Reasoned(Strict):
 
 class CloseIn(Strict):
     purge_content: bool = False
+    archive: bool = False  # sealed, encrypted, out of the working database; restored on reopening
     reason: Long
+
+
+class ReopenIn(Strict):
+    reason: Long
+    restore_team: bool = True
 
 
 class ResumeIn(Strict):

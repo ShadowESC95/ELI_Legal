@@ -37,6 +37,9 @@ from eli_legal.gui.tabs.workflow_tab import WorkflowTab  # noqa: E402
 from eli_legal.gui.widgets import ReasonDialog  # noqa: E402
 from eli_legal.security import authn, totp  # noqa: E402
 
+# The reason dialog as it really is; most tests answer it with a stub.
+_REAL_ASK = ReasonDialog.__dict__["ask"]
+
 PHRASE = {
     ARBITRATOR: "arbitrator passphrase",
     SECRETARY: "secretary passphrase",
@@ -1108,3 +1111,64 @@ def test_the_journey_bar_shows_every_stage_and_takes_you_to_the_next_step(desk):
     assert "Stage 4 of 8: Holds and checks" in clerk.window.journey.where.text()
     assert clerk.window.journey.next.isHidden(), "the registrar does not resolve holds"
     assert "Aoife Keane" in clerk.window.journey.waiting.text()
+
+
+def _answer_reason(qt, answered: list[str]) -> None:
+    """Answer the next reason dialog as a person would: type the reason, press OK."""
+
+    def attempt() -> None:
+        for widget in qt.topLevelWidgets():
+            if isinstance(widget, ReasonDialog) and widget.isVisible():
+                widget.text.setPlainText("Award issued; the time for any challenge has passed.")
+                answered.append(widget.windowTitle())
+                widget.accept()
+                return
+        QtCore.QTimer.singleShot(20, attempt)
+
+    QtCore.QTimer.singleShot(0, attempt)
+
+
+def test_closing_through_the_real_dialog_archives_it_off_the_list_and_it_reopens(desk, monkeypatch):
+    from eli_legal.gui.closed_cases import ClosedCasesDialog
+    from eli_legal.gui.tabs.matter_tab import MatterTab
+
+    d = desk()
+    monkeypatch.setattr(ReasonDialog, "ask", _REAL_ASK)  # no stub: the dialog that crashed
+    answered: list[str] = []
+    page = d.page(MatterTab)
+    _answer_reason(d.qt, answered)
+    page._close()  # its content: archived, the first choice
+    assert answered == ["Close this matter"] and not d.warnings
+    matter = d.sv.ctx.store.get_matter(d.mid)
+    assert matter.status.value == "closed" and d.sv.ctx.archive.has(d.mid)
+
+    d.session.set_matter("")
+    d.qt.processEvents()
+    box = d.window.matter_box
+    items = [box.itemText(i) for i in range(box.count())]
+    assert not any(matter.name in item for item in items), "off the case list"
+    assert items[-1] == "Closed cases (1)…"
+
+    dialog = ClosedCasesDialog(d.window, d.session)
+    assert dialog.table.rowCount() == 1
+    assert dialog.table.item(0, 2).text() == "Archived, encrypted"
+    assert dialog.reopen_button.isEnabled() and not dialog.archive_button.isEnabled()
+    _answer_reason(d.qt, answered)
+    dialog._reopen()
+    assert answered[-1].startswith("Reopen") and not d.warnings
+    assert d.sv.ctx.store.get_matter(d.mid).status.value != "closed"
+    assert d.session.matter_id == d.mid and not d.sv.ctx.archive.has(d.mid)
+    assert d.sv.matters.documents(d.mid, ARBITRATOR), "its papers are back"
+
+
+def test_the_status_bar_shows_processor_memory_and_graphics_use(desk):
+    d = desk()
+    d.window._read_usage()
+    for _ in range(200):
+        d.qt.processEvents()
+        if d.window.usage.text():
+            break
+        QtCore.QThread.msleep(20)
+    text = d.window.usage.text()
+    assert text.startswith("CPU ") or text.startswith(("RAM", "Unified")), text
+    assert "Processor:" in d.window.usage.toolTip()

@@ -223,12 +223,40 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
 
     @app.post("/v1/matters/{matter_id}/close")
     def close(matter_id: str, body: schemas.CloseIn, actor: Actor) -> Any:
-        """Close the matter, optionally deleting its documents and extracted text. The audit trail is kept. A decision."""
+        """Close the matter. Its content is kept, archived (encrypted, out of the working database, restored if it is reopened) or deleted. The audit trail is kept. A decision."""
         return js(
             sv.matters.close(
-                matter_id, actor_id=actor, purge_content=body.purge_content, reason=body.reason
+                matter_id,
+                actor_id=actor,
+                purge_content=body.purge_content,
+                archive=body.archive,
+                reason=body.reason,
             )
         )
+
+    @app.get("/v1/closed-matters")
+    def closed_matters(actor: Actor) -> Any:
+        """The closed matters this person may see: where each one's content is, and until when it is kept."""
+        return js(sv.matters.closed_overview(actor))
+
+    @app.post("/v1/matters/{matter_id}/reopen")
+    def reopen(matter_id: str, body: schemas.ReopenIn, actor: Actor) -> Any:
+        """Reopen a closed matter: its archived content checked and restored, its team given access again if asked. A decision."""
+        return js(
+            sv.matters.reopen(
+                matter_id, actor_id=actor, reason=body.reason, restore_team=body.restore_team
+            )
+        )
+
+    @app.post("/v1/matters/{matter_id}/archive")
+    def archive(matter_id: str, body: schemas.Reasoned, actor: Actor) -> Any:
+        """Archive a closed matter's content: encrypted, out of the working database, restored if it is reopened. A decision."""
+        return js(sv.matters.archive(matter_id, actor_id=actor, reason=body.reason))
+
+    @app.post("/v1/matters/{matter_id}/delete-content")
+    def delete_content(matter_id: str, body: schemas.Reasoned, actor: Actor) -> Any:
+        """Delete a closed matter's content for good (its archive's key, if archived). Refused under a preservation hold. A decision."""
+        return js(sv.matters.delete_content(matter_id, actor_id=actor, reason=body.reason))
 
     # ── documents ────────────────────────────────────────────────────────────
     @app.get("/v1/matters/{matter_id}/documents")

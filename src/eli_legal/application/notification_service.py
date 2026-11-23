@@ -61,6 +61,7 @@ TRIGGERS = frozenset(
         "report_collected",
         "matter_updated",
         "matter_closed",
+        "matter_reopened",
     }
 )
 

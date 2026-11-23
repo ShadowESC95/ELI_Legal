@@ -84,8 +84,10 @@ procedures should be checked and, if needed, extended to mention AI-assisted pre
 Practical points:
 - **Access requests.** The system can show which documents and findings mention a name (search
   in Findings and Evidence). It has no dedicated data-subject export.
-- **Erasure.** Closing a matter with deletion removes content. The audit ledger is kept by
-  design; it holds identifiers and hashes, and user identities.
+- **Erasure.** Closing a matter with deletion removes content; a closed matter's archive is
+  erased by destroying its key ("Delete its content for good" in Closed cases, or when its
+  retention ends), which makes every copy unreadable, backups included. The audit ledger is kept
+  by design; it holds identifiers and hashes, and user identities.
 - **User data.** Users are data subjects too. Sign-in events and decisions are kept in the
   ledger permanently; tell them.
 

@@ -27,6 +27,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
+from eli_legal.application import archive_service
 from eli_legal.application.compliance_service import ComplianceService
 from eli_legal.application.container import AppContext
 from eli_legal.application.incident_service import needs_escalation, reporting_deadline
@@ -663,11 +664,36 @@ class ChecksService:
             due = matter.closed_at.date() + timedelta(days=days)
             if due > today:
                 continue
+            whose = "this matter's" if own else "the organisation's"
+            if self.ctx.archive.has(matter.matter_id):
+                try:
+                    archive_service.destroy(
+                        self.ctx,
+                        matter,
+                        actor_id=SYSTEM,
+                        why=f"{whose} retention of {days} days ended {due.isoformat()}",
+                        event="retention_purge",
+                    )
+                except PreservationHeld as held:
+                    items.append(
+                        CheckItem(
+                            f"A closed matter ({plain.short_id(matter.matter_id)}) is past its "
+                            f"retention period and its archive is kept: {held}",
+                            matter.matter_id,
+                            "kept under a preservation hold",
+                        )
+                    )
+                    continue
+                acted.append(
+                    f"Destroyed the archive of a closed matter ({plain.short_id(matter.matter_id)}) "
+                    f"whose {days}-day retention ({whose}) ended on {due.isoformat()}: its key is "
+                    "gone, so no copy of it can be read."
+                )
+                continue
             if not self.ctx.store.list(Document, matter.matter_id) and not self.ctx.vault.has_files(
                 matter.matter_id
             ):
                 continue  # already deleted
-            whose = "this matter's" if own else "the organisation's"
             try:
                 counts = dispose(
                     self.ctx,

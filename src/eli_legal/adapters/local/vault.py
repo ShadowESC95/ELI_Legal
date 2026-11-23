@@ -65,6 +65,15 @@ class EvidenceVault:
             return False
         return True
 
+    def stored(self, matter_id: str) -> list[str]:
+        """The SHA-256 of every original held for a matter."""
+        directory = self._matter_dir(matter_id)
+        if not directory.exists():
+            return []
+        return sorted(
+            p.name for p in directory.rglob("*") if p.is_file() and not p.name.endswith(".tmp")
+        )
+
     def has_files(self, matter_id: str) -> bool:
         """Whether any original of the matter is still held."""
         directory = self._matter_dir(matter_id)

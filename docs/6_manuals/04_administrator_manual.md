@@ -280,8 +280,37 @@ Still for a person:
 
 ## 9. Closing matters and retention
 
-Closing a matter ends access to it. With "also delete the documents", the documents, extracted
-text and search indexes are removed at once; the decision record and the ledger are kept.
+Closing a matter ends everyone's access but its lead's, takes it off the case list, and asks what
+happens to its content (its documents, extracted text, search index, findings, reports and
+evidence packs); the decision record and the ledger are kept whatever is chosen:
+
+- **Archive it, encrypted** (the default). The content is packed into one file, encrypted with
+  AES-256-GCM under a key of its own, and kept in `archive.sqlite3` beside the working database;
+  the key is kept apart, in the secrets folder (`archive_keys`). The archive is opened again to
+  prove it reads back, and only then is the content removed from the working database and
+  folders, overwritten. It is in parts, each bound to the matter, its place and whether it is the
+  last, so a part altered, moved to another matter, reordered or cut off stops it opening.
+- **Keep it as it is**, in the working database.
+- **Delete it now**, for good (refused while a preservation hold covers it).
+
+**File → Closed cases** (the case list's last entry, "Closed cases (n)…") lists every closed
+matter you may see: where its content is, when it was archived, until when it is kept, whether a
+preservation hold keeps it. From there you can view one (read only), **reopen** it, archive one
+whose content was kept, or delete its content for good. Reopening asks for reasons and your
+passphrase; an archived matter's content is checked, every original's and every file's
+fingerprint, and put back, then the archive is destroyed (one copy of a case, never two); its
+team is given access again with the roles they had, except anyone suspended or removed since,
+who is named. A matter whose content was deleted reopens with its record and history only. In
+the browser, a closed matter is under "Closed cases" in the matter list, with "Reopen…".
+
+When a closed matter's retention period ends, the routine checks destroy its archive's key
+(overwritten, then removed) and then the archive: without the key no copy of it, backups
+included, can be read again. A preservation hold stops that, and the check says so.
+
+**Back up the secrets folder with the data folder**, and keep both on an encrypted disk: an
+archive whose key is lost cannot be opened, and a key kept beside a copy of its archive protects
+nothing. The working database of open matters is not encrypted by ELI Legal; full-disk
+encryption (BitLocker, FileVault, LUKS) protects it.
 
 **Retention is chosen when ELI Legal is set up**, not left for later by accident: the first-run
 window asks how long to keep the audit trail (at least six months; six years suggested), a closed

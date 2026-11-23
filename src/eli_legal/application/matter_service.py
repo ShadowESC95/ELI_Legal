@@ -6,10 +6,12 @@ import secrets
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
+from typing import Any
 
+from eli_legal.application import archive_service
 from eli_legal.application.container import AppContext
 from eli_legal.application.framework_service import default_frameworks
-from eli_legal.application.preservation_service import dispose
+from eli_legal.application.preservation_service import active_holds, dispose
 from eli_legal.domain import plain
 from eli_legal.domain.enums import AccessScope, ActorType, MatterStatus, Profile
 from eli_legal.domain.errors import (
@@ -20,7 +22,17 @@ from eli_legal.domain.errors import (
     PolicyDenied,
     SecondFactorRequired,
 )
-from eli_legal.domain.models import Chunk, Document, Hold, Matter, Party, Run, User, utcnow
+from eli_legal.domain.models import (
+    Chunk,
+    ClosedTeam,
+    Document,
+    Hold,
+    Matter,
+    Party,
+    Run,
+    User,
+    utcnow,
+)
 from eli_legal.domain.profiles import OVERSIGHT_ROLES, profile_spec
 from eli_legal.security import access, authn, totp
 from eli_legal.security.rbac import DEFAULT_ROLE_ACTIONS
@@ -880,17 +892,37 @@ class MatterService:
         return self._save(matter, actor_id, "details_updated", fields=sorted(set(changed)))
 
     def close(
-        self, matter_id: str, *, actor_id: str, purge_content: bool, reason: str
+        self,
+        matter_id: str,
+        *,
+        actor_id: str,
+        purge_content: bool,
+        reason: str,
+        archive: bool = False,
     ) -> dict[str, int]:
-        """Close a matter: end all access and, if asked, delete documents, text and indexes.
+        """Close a matter: end all access and, if asked, archive its content (encrypted, out of
+        the working database, restored if it is reopened) or delete it for good.
 
         Accountability records (runs, reviews, releases, holds, incidents and the audit ledger)
-        are kept. They hold identifiers, hashes and decisions, not document content.
+        are kept. They hold identifiers, hashes and decisions, not document content. Who was on
+        the matter is remembered, so reopening it can give them access again.
         """
         authn.require_step_up(actor_id, "close a matter")
         matter = self.ctx.matter_for(matter_id, actor_id, "matter.close")
+        if matter.status is MatterStatus.CLOSED:
+            raise InvalidState("this matter is already closed")
         if not reason.strip():
             raise InvalidInput("a reason is required to close a matter")
+        if purge_content and archive:
+            raise InvalidInput("a matter's content is either archived or deleted, not both")
+        matter.closed_team = ClosedTeam(
+            status=matter.status,
+            authorised_user_ids=set(matter.authorised_user_ids),
+            reviewer_user_ids=set(matter.reviewer_user_ids),
+            member_roles=dict(matter.member_roles),
+            member_parties=dict(matter.member_parties),
+            member_clearance={k: list(v) for k, v in matter.member_clearance.items()},
+        )
         counts: dict[str, int] = {}
         if purge_content:
             # Refused before anything changes if a preservation hold covers the matter.
@@ -914,7 +946,128 @@ class MatterService:
             object_type="matter",
             payload={"access_revoked": revoked, "deleted": counts},
         )
+        if archive:
+            archive_service.seal(self.ctx, matter, actor_id=actor_id, reason=reason)
         return counts
+
+    # ── closed matters: archive, reopen, delete ──────────────────────────────
+    def _closed(self, matter_id: str, actor_id: str, what: str) -> Matter:
+        authn.require_step_up(actor_id, what)
+        matter = self.ctx.matter_for(matter_id, actor_id, "matter.close")
+        if matter.status is not MatterStatus.CLOSED:
+            raise InvalidState("this matter is not closed")
+        return matter
+
+    def archive(self, matter_id: str, *, actor_id: str, reason: str) -> dict[str, Any]:
+        """Seal a closed matter's content into an encrypted archive and take it out of the
+        working database. Reopening the matter restores it."""
+        if not reason.strip():
+            raise InvalidInput("a reason is required to archive a matter")
+        matter = self._closed(matter_id, actor_id, "archive a matter")
+        return archive_service.seal(self.ctx, matter, actor_id=actor_id, reason=reason)
+
+    def reopen(
+        self, matter_id: str, *, actor_id: str, reason: str, restore_team: bool = True
+    ) -> dict[str, Any]:
+        """Reopen a closed matter: its archived content restored (every fingerprint checked)
+        and, if asked, its team given access again. Anyone suspended or removed since is left
+        out, and named."""
+        if not reason.strip():
+            raise InvalidInput("a reason is required to reopen a matter")
+        matter = self._closed(matter_id, actor_id, "reopen a matter")
+        before = archive_service.content_state(self.ctx, matter)
+        restored = archive_service.restore(self.ctx, matter) if before == "archived" else {}
+        team = matter.closed_team
+        back: list[str] = []
+        left_out: list[str] = []
+        if restore_team and team is not None:
+            for uid in sorted(team.authorised_user_ids - {matter.owner_user_id}):
+                user = self.ctx.store.get_user(uid)
+                (back if user is not None and user.active else left_out).append(uid)
+            keep = set(back) | {matter.owner_user_id}
+            matter.authorised_user_ids = keep
+            matter.reviewer_user_ids = team.reviewer_user_ids & keep
+            matter.member_roles = {k: v for k, v in team.member_roles.items() if k in keep}
+            matter.member_parties = {k: v for k, v in team.member_parties.items() if k in keep}
+            matter.member_clearance = {
+                k: list(v) for k, v in team.member_clearance.items() if k in keep
+            }
+        previous = team.status if team is not None else MatterStatus.ACTIVE
+        matter.status = MatterStatus.ACTIVE if previous is MatterStatus.CLOSED else previous
+        matter.closed_at = None
+        matter.archived_at = None
+        matter.closed_team = None
+        self.ctx.store.put_matter(matter)
+        content = {
+            "archived": "restored from its archive",
+            "kept": "kept while it was closed",
+            "deleted": "deleted while it was closed: the matter's record and history only",
+        }[before]
+        self.ctx.log(
+            "matter_reopened",
+            actor_id=actor_id,
+            matter_id=matter.matter_id,
+            action="matter.close",
+            subject_id=matter.matter_id,
+            outcome="reopened",
+            object_type="matter",
+            output_hash=str(restored.get("archive_sha256", "")) or None,
+            payload={
+                "why": reason,
+                "case_material": content,
+                "restored": restored,
+                "access_given_back": back,
+                "left_out": left_out,
+            },
+        )
+        return {"content": content, "restored": restored, "team": back, "left_out": left_out}
+
+    def delete_content(self, matter_id: str, *, actor_id: str, reason: str) -> dict[str, Any]:
+        """Delete a closed matter's content for good, archived or not. A preservation hold
+        forbids it; the matter's record and history are kept."""
+        if not reason.strip():
+            raise InvalidInput("a reason is required to delete a matter's content")
+        matter = self._closed(matter_id, actor_id, "delete a closed matter's content")
+        why = f"deleted by decision: {reason}"[:200]
+        if self.ctx.archive.has(matter.matter_id):
+            return archive_service.destroy(self.ctx, matter, actor_id=actor_id, why=why)
+        if archive_service.content_state(self.ctx, matter) == "deleted":
+            raise InvalidState("this matter's content is already deleted")
+        counts = dispose(self.ctx, matter, actor_id=actor_id, why=why)
+        self.ctx.store.empty_log()
+        return dict(counts)
+
+    def closed_overview(self, actor_id: str) -> list[dict[str, Any]]:
+        """The closed matters this person may see: where their content is, until when it is
+        kept, and whether a preservation hold keeps it longer."""
+        from eli_legal.application.compliance_service import ComplianceService
+
+        retention = ComplianceService(self.ctx).retention()
+        out: list[dict[str, Any]] = []
+        for matter in self.list_for(actor_id):
+            if matter.status is not MatterStatus.CLOSED:
+                continue
+            days = matter.retention_days if matter.retention_days is not None else (
+                retention.closed_matter_days if retention else None
+            )  # fmt: skip
+            closed = matter.closed_at.date() if matter.closed_at else None
+            out.append(
+                {
+                    "matter_id": matter.matter_id,
+                    "name": matter.name,
+                    "closed_on": closed,
+                    "content": archive_service.content_state(self.ctx, matter),
+                    "archived_on": matter.archived_at.date() if matter.archived_at else None,
+                    "kept_until": closed + timedelta(days=days)
+                    if closed and days is not None
+                    else None,
+                    "held": bool(active_holds(self.ctx, matter.matter_id)),
+                    "team": len(matter.closed_team.authorised_user_ids)
+                    if matter.closed_team
+                    else 0,
+                }
+            )
+        return out
 
 
 def _retention_days(days: int) -> int:

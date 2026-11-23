@@ -17,6 +17,7 @@ from eli_legal.adapters.inference.local import (
     OpenAICompatInference,
     UnavailableInference,
 )
+from eli_legal.adapters.local.archive import MatterArchive
 from eli_legal.adapters.local.hmac_audit import HmacAuditLedger
 from eli_legal.adapters.local.network import NetworkGuard
 from eli_legal.adapters.local.ocr import TesseractOcr
@@ -67,6 +68,7 @@ class AppContext:
     ocr: TesseractOcr = field(default_factory=lambda: TesseractOcr(None, None))
     extra_connectors: dict[str, LegalSourcePort] = field(default_factory=dict)
     _semantic: SemanticIndex | None = field(default=None, repr=False)
+    _archive: MatterArchive | None = field(default=None, repr=False)
 
     @property
     def semantic(self) -> SemanticIndex | None:
@@ -76,6 +78,17 @@ class AppContext:
         if self._semantic is None or self._semantic.embedder is not self.embedder:
             self._semantic = SemanticIndex(self.store, self.embedder)
         return self._semantic
+
+    @property
+    def archive(self) -> MatterArchive:
+        """Closed matters' sealed content: an archive database beside the working one, and
+        each archive's key in the secrets folder beside the audit key."""
+        if self._archive is None:
+            self._archive = MatterArchive(
+                Path(self.settings.db_path).with_name("archive.sqlite3"),
+                Path(self.settings.audit_key_file).parent / "archive_keys",
+            )
+        return self._archive
 
     # ── identity and authorisation ───────────────────────────────────────────
     def authorizer(self) -> MatterAuthorizer:

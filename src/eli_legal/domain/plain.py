@@ -437,6 +437,8 @@ _EVENTS: dict[tuple[str, str], str] = {
     ("matter_updated", "member_role_set"): "Changed a person's role on the matter",
     ("matter_closed", "closed"): "Closed the matter",
     ("matter_closed", "purged"): "Closed the matter and deleted its content",
+    ("matter_archived", "archived"): "Archived the closed matter's content, encrypted",
+    ("matter_reopened", "reopened"): "Reopened the matter",
     ("document_registered", "registered"): "Received a document",
     ("document_processed", "processed"): "Read a document",
     ("sign_in", "signed_in"): "Signed in",

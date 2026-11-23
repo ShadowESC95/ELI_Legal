@@ -95,6 +95,23 @@ class Matter:
     member_parties: dict[str, str] = field(default_factory=dict)
     # Material a member may read, where the lead has set it rather than leaving the role's own.
     member_clearance: dict[str, list[str]] = field(default_factory=dict)
+    # Who was on the matter when it was closed, so reopening it can give them access again.
+    closed_team: ClosedTeam | None = None
+    # When its content was sealed into an encrypted archive and taken out of the working
+    # database (None: not archived). Reopening the matter restores it.
+    archived_at: datetime | None = None
+
+
+@dataclass(slots=True)
+class ClosedTeam:
+    """A closed matter's team and state as they were, kept for reopening it."""
+
+    status: MatterStatus
+    authorised_user_ids: set[str] = field(default_factory=set)
+    reviewer_user_ids: set[str] = field(default_factory=set)
+    member_roles: dict[str, str] = field(default_factory=dict)
+    member_parties: dict[str, str] = field(default_factory=dict)
+    member_clearance: dict[str, list[str]] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
