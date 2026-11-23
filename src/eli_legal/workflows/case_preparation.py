@@ -1010,9 +1010,12 @@ def write_report(
     data_path = directory / f"{stem}.json"
     # Bytes, not text: the hash below is of exactly these bytes, and a text write would change
     # the line endings on Windows and break every later comparison with it.
-    markdown_path.write_bytes(built.markdown.encode("utf-8"))
-    data_path.write_bytes(
-        json.dumps(built.data, indent=2, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    # Sealed on disk (security/sealed.py): the hash is of the plain bytes, as written.
+    ctx.files.write(matter.matter_id, markdown_path, built.markdown.encode("utf-8"))
+    ctx.files.write(
+        matter.matter_id,
+        data_path,
+        json.dumps(built.data, indent=2, sort_keys=True, ensure_ascii=False).encode("utf-8"),
     )
     return Report(
         matter_id=matter.matter_id,

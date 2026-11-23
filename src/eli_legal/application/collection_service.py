@@ -102,7 +102,7 @@ class CollectionService:
         if problem:
             self._refused(matter_id, release_id, actor_id, "not_collectable")
             raise PolicyDenied(problem)
-        text = Path(package.artifact_ref).read_bytes()
+        text = self.ctx.files.read(matter_id, package.artifact_ref)
         if hashlib.sha256(text).hexdigest() != package.report_hash:
             self.ctx.log(
                 "report_integrity_failure",

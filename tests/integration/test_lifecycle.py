@@ -14,6 +14,7 @@ from eli_legal.domain.errors import (
 )
 from eli_legal.domain.models import VerificationResult
 from eli_legal.workflows.case_preparation import warning_id
+from tests.conftest import case_text
 
 A, S = "arb.keane", "sec.byrne"
 
@@ -42,9 +43,17 @@ def test_the_whole_lifecycle_from_ingestion_to_approved_release(lifecycle):
 
 
 def test_approved_report_is_the_reviewed_draft_with_only_its_banner_changed(lifecycle):
-    approved = Path(lifecycle.report_path)
-    draft = approved.with_name(approved.name.replace("_approved", ""))
-    a, d = approved.read_text(encoding="utf-8"), draft.read_text(encoding="utf-8")
+    from eli_legal.security.sealed import FileKeys, SealedFiles
+
+    # ELI Legal's own copies are sealed; the demo handed its runner a readable one.
+    files = SealedFiles(
+        FileKeys(lifecycle.root / "secrets" / "file_keys"), lifecycle.root / "artifacts"
+    )
+    kept = Path(lifecycle.summary["report"]["path"])
+    draft = kept.with_name(kept.name.replace("_approved", ""))
+    a = Path(lifecycle.report_path).read_text(encoding="utf-8")
+    assert a.encode("utf-8") == files.read(lifecycle.matter_id, kept), "handed over exactly"
+    d = files.read(lifecycle.matter_id, draft).decode("utf-8")
     # The demonstration is a practice matter: one status, never "approved for reliance".
     assert "PRACTICE REVIEW COMPLETE — NOT FOR RELIANCE.** Reviewed by Aoife Keane (arb.keane)" in a
     assert "APPROVED FOR RELIANCE" not in a
@@ -207,9 +216,9 @@ def test_a_report_edited_on_disk_cannot_be_approved(held_run):
     sv, mid, rid = held_run
     report = _to_review(sv, mid, rid)
     path = Path(report["path"])
-    path.write_text(
-        path.read_text(encoding="utf-8").replace("not of the essence", "of the essence"),
-        encoding="utf-8",
+    path.chmod(0o600)
+    path.write_text(  # replaced on disk with an altered copy
+        case_text(sv, path).replace("not of the essence", "of the essence"), encoding="utf-8"
     )
     with pytest.raises(AuditIntegrityError, match="no longer matches"):
         _approve(sv, mid, rid, report)

@@ -11,6 +11,7 @@ import pytest
 from eli_legal.adapters.local.ocr import TesseractOcr
 from eli_legal.domain.enums import DocumentStatus, DocumentType, HoldScope
 from eli_legal.domain.models import Document, Hold
+from tests.conftest import case_text
 
 A = "arb.keane"
 EXHIBIT = Path(__file__).parents[1] / "fixtures" / "exhibit_scan.pdf"
@@ -44,7 +45,7 @@ def test_an_image_only_exhibit_page_is_reported_unread_and_holds_the_run(demo):
     holds = _holds(sv, mid, run.run_id, document.document_id)
     assert "pages_not_read" in holds and "page(s) 2" in holds["pages_not_read"].detail
     report = sv.runs.summary(mid, run.run_id, actor_id=A)["report"]
-    text = Path(report["path"]).read_text(encoding="utf-8")
+    text = case_text(sv, report["path"])
     assert "page(s) 2: only an image with no text layer, not read" in text
     sv.holds.resolve(mid, holds["pages_not_read"].hold_id, actor_id=A, action="waive",
                      reason="Checked the original: page 2 is Exhibit C, the invoice, which "
@@ -66,7 +67,7 @@ def test_an_image_only_exhibit_page_is_read_by_ocr_and_marked_as_such(demo):
     run = sv.runs.start(mid, actor_id=A)
     assert "pages_not_read" not in _holds(sv, mid, run.run_id, document.document_id)
     report = Path(sv.runs.summary(mid, run.run_id, actor_id=A)["report"]["path"])
-    assert "were images read by OCR" in report.read_text(encoding="utf-8")
+    assert "were images read by OCR" in case_text(sv, report)
 
 
 @pytest.mark.skipif(not HAVE_OCR, reason="Tesseract and Poppler are not installed here")

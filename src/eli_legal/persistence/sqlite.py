@@ -391,11 +391,19 @@ class Store:
                 ).rowcount
         return counts
 
-    def export_matter_content(self, matter_id: str) -> dict[str, Any]:
-        """Every row of a matter's content (what ``purge_matter_content`` deletes), column by
-        column, so it can be archived and later put back exactly as it was."""
+    def export_matter_content(
+        self, matter_id: str, tables: Sequence[str] | None = None
+    ) -> dict[str, Any]:
+        """Every row of a matter's content (what ``purge_matter_content`` deletes), or of the
+        tables named, column by column, so it can be archived and put back exactly as it was."""
         out: dict[str, Any] = {}
-        tables = ["chunks"] + [s.table for s in _SPECS.values() if s.table not in _KEPT_ON_PURGE]
+        if tables is None:
+            tables = ["chunks"] + [
+                s.table for s in _SPECS.values() if s.table not in _KEPT_ON_PURGE
+            ]
+        known = {"chunks"} | {s.table for s in _SPECS.values()}
+        if not set(tables) <= known:
+            raise ValueError(f"not a matter's table: {sorted(set(tables) - known)}")
         with self._tx() as con:
             for table in tables:
                 cursor = con.execute(f"SELECT * FROM {table} WHERE matter_id=?", (matter_id,))
@@ -449,6 +457,55 @@ class Store:
                 (matter_id,),
             )
         return counts
+
+    def count_rows(self, matter_id: str, tables: Sequence[str]) -> int:
+        known = {"chunks"} | {s.table for s in _SPECS.values()}
+        total = 0
+        for table in tables:
+            if table not in known:
+                raise ValueError(f"not a matter's table: {table}")
+            total += int(
+                self._all(f"SELECT COUNT(*) FROM {table} WHERE matter_id=?", (matter_id,))[0][0]
+            )
+        return total
+
+    def purge_tables(
+        self, matter_id: str, tables: Sequence[str], *, keep_document_ids: Sequence[str] = ()
+    ) -> dict[str, int]:
+        """Delete a matter's rows from the tables named (one kind of its content, see
+        governance/retention.py). Documents in ``keep_document_ids`` keep their record and text."""
+        known = {"chunks"} | {s.table for s in _SPECS.values()}
+        if not set(tables) <= known:
+            raise ValueError(f"not a matter's table: {sorted(set(tables) - known)}")
+        keep = list(dict.fromkeys(keep_document_ids))
+        marks = ",".join("?" * len(keep))
+        spare = f" AND document_id NOT IN ({marks})" if keep else ""
+        counts: dict[str, int] = {}
+        with self._tx() as con:
+            for table in tables:
+                if table == "chunks":
+                    counts["chunks"] = con.execute(
+                        f"DELETE FROM chunks WHERE matter_id=?{spare}", (matter_id, *keep)
+                    ).rowcount
+                    con.execute(
+                        f"DELETE FROM chunks_fts WHERE matter_id=?{spare}", (matter_id, *keep)
+                    )
+                elif table == "documents" and keep:
+                    counts[table] = con.execute(
+                        f"DELETE FROM documents WHERE matter_id=? AND id NOT IN ({marks})",
+                        (matter_id, *keep),
+                    ).rowcount
+                else:
+                    counts[table] = con.execute(
+                        f"DELETE FROM {table} WHERE matter_id=?", (matter_id,)
+                    ).rowcount
+        return counts
+
+    def delete_matter(self, matter_id: str) -> None:
+        """Remove the matter itself (its decision record's retention ended). The audit ledger,
+        a separate database, keeps what happened."""
+        with self._tx() as con:
+            con.execute("DELETE FROM matters WHERE matter_id=?", (matter_id,))
 
     def empty_log(self) -> bool:
         """Move the write-ahead log into the database file and empty it. Returns whether it is

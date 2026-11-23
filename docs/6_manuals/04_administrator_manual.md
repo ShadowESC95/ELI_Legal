@@ -284,12 +284,13 @@ Closing a matter ends everyone's access but its lead's, takes it off the case li
 happens to its content (its documents, extracted text, search index, findings, reports and
 evidence packs); the decision record and the ledger are kept whatever is chosen:
 
-- **Archive it, encrypted** (the default). The content is packed into one file, encrypted with
-  AES-256-GCM under a key of its own, and kept in `archive.sqlite3` beside the working database;
-  the key is kept apart, in the secrets folder (`archive_keys`). The archive is opened again to
-  prove it reads back, and only then is the content removed from the working database and
-  folders, overwritten. It is in parts, each bound to the matter, its place and whether it is the
-  last, so a part altered, moved to another matter, reordered or cut off stops it opening.
+- **Archive it, encrypted** (the default). Each kind of its content (below) is packed into one
+  file, encrypted with AES-256-GCM under a key of its own, and kept in `archive.sqlite3` beside
+  the working database; the keys are kept apart, in the secrets folder (`archive_keys`). Each
+  archive is opened again to prove it reads back, and only then is the content removed from the
+  working database and folders, overwritten. It is in parts, each bound to the matter, the kind,
+  its place and whether it is the last, so a part altered, moved to another matter or kind,
+  reordered or cut off stops it opening.
 - **Keep it as it is**, in the working database.
 - **Delete it now**, for good (refused while a preservation hold covers it).
 
@@ -303,9 +304,33 @@ team is given access again with the roles they had, except anyone suspended or r
 who is named. A matter whose content was deleted reopens with its record and history only. In
 the browser, a closed matter is under "Closed cases" in the matter list, with "Reopen…".
 
-When a closed matter's retention period ends, the routine checks destroy its archive's key
-(overwritten, then removed) and then the archive: without the key no copy of it, backups
-included, can be read again. A preservation hold stops that, and the check says so.
+**Each kind of information is kept for its own period**, counted from the day the case is
+closed. The organisation sets them at set-up and in Governance → Compliance → OA-09 (or
+`eli-legal compliance retention --audit-days N --closed-days N [--analysis-days N]
+[--reports-days N] [--evidence-days N] [--record-days N] [--inactive-days N]`):
+
+| Kind | What it holds | Suggested | Why |
+|---|---|---|---|
+| Audit trail | who did what, when; identifiers and hashes | at least 6 months; 6 years suggested | EU AI Act Arts. 19 and 26(6); never shortened |
+| Papers | the originals, their text and search index | 6 years | professional rules and limitation periods; GDPR Art. 5(1)(e) |
+| Analysis | findings, checks, tasks, run steps, notices | as long as the papers | it quotes them |
+| Reports | every version, the approved one, released copies | as long as the papers | what was relied on; may be longer |
+| Evidence packs | the packs kept in ELI Legal's folder | 10 years | EU AI Act Art. 18 (documentation), Art. 26(6) |
+| Decision record | the case, runs, reviews, approvals, releases, holds, incidents | 10 years | shows a person decided: Arts. 12, 14, 19 |
+
+A case may keep its papers (and what follows them) for a period of its own. When a kind's period
+ends, the routine checks destroy its archive's key (overwritten, then removed) and then the
+archive, or delete it from the working database if it was kept there: no copy of it, backups
+included, can be read again. A preservation hold stops that, and the check says so. The decision
+record goes last, once nothing it accounts for is left, and cannot be set shorter than anything
+it accounts for; when it goes, the case is no longer listed, and the audit trail keeps what
+happened. File → Closed cases shows, for each closed case, where each kind is and until when.
+
+**Every case file is encrypted on disk**, open or closed: the originals in the evidence vault,
+the reports, the copies staged for release and the evidence packs kept in ELI Legal's own folder,
+each under a key per case and kind in the secrets folder (`file_keys`). An evidence pack written
+to a folder you choose, or downloaded from the browser, is plain there: that is a hand-over, and
+it is recorded. Files left by an earlier version are sealed the first time 0.8.16 starts.
 
 **Back up the secrets folder with the data folder**, and keep both on an encrypted disk: an
 archive whose key is lost cannot be opened, and a key kept beside a copy of its archive protects

@@ -73,7 +73,7 @@ class ReleaseService:
         artifact = Path(report.artifact_ref)
         if not artifact.is_file():
             raise FileNotFoundError(artifact)
-        report_hash = hashlib.sha256(artifact.read_bytes()).hexdigest()
+        report_hash = hashlib.sha256(ctx.files.read(mid, artifact)).hexdigest()
         if report_hash != report.sha256:
             raise VerificationGateFailed("the approved report file no longer matches its hash")
         if not recipients:

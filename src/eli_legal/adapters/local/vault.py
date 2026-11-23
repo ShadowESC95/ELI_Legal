@@ -14,11 +14,19 @@ from pathlib import Path
 
 from eli_legal.domain.errors import AuditIntegrityError, NotFound
 from eli_legal.security.files import private_dir, shred
+from eli_legal.security.sealed import FileKeys, is_sealed, seal, unseal, write_private
 
 
 class EvidenceVault:
-    def __init__(self, root: str | Path) -> None:
+    """Original documents, stored once, by the SHA-256 of their content. With ``keys``, each
+    matter's originals are sealed on disk (AES-256-GCM) under its papers key."""
+
+    def __init__(self, root: str | Path, keys: FileKeys | None = None) -> None:
         self.root = Path(root)
+        self.keys = keys
+
+    def _seal(self, matter_id: str, sha256: str, raw: bytes) -> bytes:
+        return raw if self.keys is None else seal(self.keys, matter_id, "papers", sha256, raw)
 
     def _matter_dir(self, matter_id: str) -> Path:
         if not matter_id or any(c in matter_id for c in "/\\.") or matter_id.startswith("-"):
@@ -39,7 +47,7 @@ class EvidenceVault:
             tmp = target.with_suffix(".tmp")
             fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
             with os.fdopen(fd, "wb") as fh:
-                fh.write(raw)
+                fh.write(self._seal(matter_id, digest, raw))
                 fh.flush()
                 os.fsync(fh.fileno())
             os.replace(tmp, target)
@@ -53,7 +61,8 @@ class EvidenceVault:
         target = self._path(matter_id, sha256)
         if not target.exists():
             raise NotFound(f"original not found in vault: {sha256[:12]}")
-        raw = target.read_bytes()
+        blob = target.read_bytes()
+        raw = blob if self.keys is None else unseal(self.keys, matter_id, "papers", sha256, blob)
         if hashlib.sha256(raw).hexdigest() != sha256:
             raise AuditIntegrityError(f"vault content does not match its hash: {sha256[:12]}")
         return raw
@@ -100,4 +109,25 @@ class EvidenceVault:
             if path.is_file():
                 shred(path)
         shutil.rmtree(directory)
+        if self.keys is not None:
+            self.keys.destroy(matter_id, "papers")
         return count
+
+    def seal_existing(self, matter_id: str) -> int:
+        """Seal the originals stored before 0.8.16 (plain), each checked against its hash
+        first. Returns how many were sealed."""
+        if self.keys is None:
+            return 0
+        sealed = 0
+        for digest in self.stored(matter_id):
+            target = self._path(matter_id, digest)
+            blob = target.read_bytes()
+            if is_sealed(blob) or hashlib.sha256(blob).hexdigest() != digest:
+                continue
+            write_private(target, self._seal(matter_id, digest, blob))
+            try:
+                target.chmod(0o400)
+            except OSError:
+                pass
+            sealed += 1
+        return sealed

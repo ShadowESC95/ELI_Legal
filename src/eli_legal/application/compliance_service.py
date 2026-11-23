@@ -22,7 +22,7 @@ from eli_legal import __version__
 from eli_legal.application.container import AppContext
 from eli_legal.domain.enums import ActorType, ClaimKind, ClaimStatus, HoldScope
 from eli_legal.domain.errors import InvalidInput, InvalidState, NotFound
-from eli_legal.domain.models import Chunk, Claim, Hold, utcnow
+from eli_legal.domain.models import Chunk, Claim, Hold, Matter, utcnow
 from eli_legal.domain.profiles import PROFILES
 from eli_legal.governance.compliance import (
     MIN_AUDIT_RETENTION_DAYS,
@@ -55,13 +55,41 @@ _PLANTED = (
 
 @dataclass(frozen=True, slots=True)
 class Retention:
+    """How long each kind of information is kept (governance/retention.py), as the organisation
+    recorded it (OA-09). Periods run from the day a matter is closed."""
+
     audit_days: int
-    closed_matter_days: int
+    closed_matter_days: int  # the case papers
     recorded_by: str
     recorded_on: date
     # An open matter with no recorded activity for this many days is reported by the routine
     # checks, so it is closed (and its content goes on time) or kept open on purpose. 0: off.
     inactive_matter_days: int = 0
+    # None: as long as the papers (a record made before 0.8.16 sets none of these).
+    analysis_days: int | None = None
+    reports_days: int | None = None
+    evidence_days: int | None = None
+    # None: the decision record is kept with no end.
+    record_days: int | None = None
+
+    def days_for(self, kind: str, matter: Matter | None = None) -> int | None:
+        """The days a closed matter keeps this kind; a matter's own period applies to its papers
+        and to what follows the papers."""
+        papers = (
+            matter.retention_days
+            if matter is not None and matter.retention_days is not None
+            else self.closed_matter_days
+        )
+        own = {
+            "papers": papers,
+            "analysis": self.analysis_days,
+            "reports": self.reports_days,
+            "evidence": self.evidence_days,
+            "record": self.record_days,
+        }[kind]
+        if kind == "record":
+            return own
+        return papers if own is None else own
 
 
 @dataclass(frozen=True, slots=True)
@@ -161,6 +189,10 @@ class ComplianceService:
             audit_days=int(r.answers["audit_days"]),
             closed_matter_days=int(r.answers["closed_matter_days"]),
             inactive_matter_days=int(r.answers.get("inactive_matter_days", "0") or 0),
+            analysis_days=_days(r.answers.get("analysis_days")),
+            reports_days=_days(r.answers.get("reports_days")),
+            evidence_days=_days(r.answers.get("evidence_days")),
+            record_days=_days(r.answers.get("record_days")),
             recorded_by=r.recorded_by,
             recorded_on=r.recorded_at.date(),
         )
@@ -281,9 +313,16 @@ class ComplianceService:
         closed_matter_days: int,
         notes: str = "",
         inactive_matter_days: int = 0,
+        analysis_days: int | None = None,
+        reports_days: int | None = None,
+        evidence_days: int | None = None,
+        record_days: int | None = None,
     ) -> ComplianceRecord:
-        """How long the audit trail and a closed matter's content are kept. The audit trail is
-        kept at least six months; the routine checks delete closed matters' content on time."""
+        """How long each kind of information is kept: the audit trail (at least six months), and
+        from a matter's closing its papers, analysis, reports, evidence packs and decision record
+        (governance/retention.py). None: the analysis, reports and evidence packs as long as the
+        papers; the decision record with no end. The decision record is kept at least as long as
+        anything it accounts for. The routine checks delete each kind on time."""
         action = self.action("OA-09")
         self._authorise(actor_id, "set the retention periods")
         if audit_days < MIN_AUDIT_RETENTION_DAYS:
@@ -295,13 +334,33 @@ class ComplianceService:
             raise InvalidInput("a closed matter's content cannot be kept for less than no time")
         if inactive_matter_days < 0:
             raise InvalidInput("give the days without activity as 0 (off) or more")
+        others = {"analysis": analysis_days, "reports": reports_days, "evidence": evidence_days}
+        for name, value in (*others.items(), ("decision record", record_days)):
+            if value is not None and not 0 <= value <= 36_500:
+                raise InvalidInput(f"keep the {name} between 0 and 36,500 days")
+        longest = max([closed_matter_days, *(v for v in others.values() if v is not None)])
+        if record_days is not None and record_days < longest:
+            raise InvalidInput(
+                f"the decision record must be kept at least as long as what it accounts for "
+                f"({longest} days)"
+            )
         return self._save(
             ComplianceRecord(
                 action_id=action.action_id,
                 recorded_by=actor_id,
                 summary=(
-                    f"Audit trail kept {audit_days} days; a closed matter's documents kept "
-                    f"{closed_matter_days} days"
+                    f"Audit trail kept {audit_days} days; from a matter's closing, its papers "
+                    f"kept {closed_matter_days} days"
+                    + "".join(
+                        f", its {name} {value} days"
+                        for name, value in (
+                            ("analysis", analysis_days),
+                            ("reports", reports_days),
+                            ("evidence packs", evidence_days),
+                            ("decision record", record_days),
+                        )
+                        if value is not None
+                    )
                     + (
                         f"; an open matter idle for {inactive_matter_days} days is reported."
                         if inactive_matter_days
@@ -312,6 +371,16 @@ class ComplianceService:
                     "audit_days": str(audit_days),
                     "closed_matter_days": str(closed_matter_days),
                     "inactive_matter_days": str(inactive_matter_days),
+                    **{
+                        key: str(value)
+                        for key, value in (
+                            ("analysis_days", analysis_days),
+                            ("reports_days", reports_days),
+                            ("evidence_days", evidence_days),
+                            ("record_days", record_days),
+                        )
+                        if value is not None
+                    },
                 },
                 notes=notes.strip(),
             ),
@@ -694,3 +763,7 @@ def _evaluate() -> dict[str, Any]:
             "unexpected_holds": len(unexpected),
             "missed": missed,
         }
+
+
+def _days(value: str | None) -> int | None:
+    return int(value) if value else None

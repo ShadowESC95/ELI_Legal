@@ -28,11 +28,11 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from eli_legal.application import archive_service
-from eli_legal.application.compliance_service import ComplianceService
+from eli_legal.application.compliance_service import ComplianceService, Retention
 from eli_legal.application.container import AppContext
 from eli_legal.application.incident_service import needs_escalation, reporting_deadline
 from eli_legal.application.ingestion_service import READER_VERSION
-from eli_legal.application.preservation_service import PreservationHeld, dispose
+from eli_legal.application.preservation_service import PreservationHeld, active_holds, dispose
 from eli_legal.application.reliance_service import no_longer_confirmed, open_or_extend
 from eli_legal.domain import plain
 from eli_legal.domain.enums import (
@@ -54,6 +54,7 @@ from eli_legal.domain.models import (
     utcnow,
 )
 from eli_legal.governance.registers import check_registers
+from eli_legal.governance.retention import CONTENT, KINDS
 from eli_legal.security import access, authn
 
 log = logging.getLogger("eli_legal.checks")
@@ -645,6 +646,107 @@ class ChecksService:
             items,
         )
 
+    def _retire(
+        self,
+        matter: Matter,
+        retention: Retention | None,
+        today: date,
+        acted: list[str],
+        items: list[CheckItem],
+    ) -> None:
+        """Each kind of a closed matter's content goes when its own period ends: its archive's key
+        destroyed, or the kind deleted from the working database. A preservation hold keeps it.
+        The decision record goes last, once nothing it accounts for is left."""
+        mid = matter.matter_id
+        short = plain.short_id(mid)
+        closed = matter.closed_at.date() if matter.closed_at else today
+        whose = "this matter's" if matter.retention_days is not None else "the organisation's"
+
+        def days(kind: str) -> int | None:
+            if retention is not None:
+                return retention.days_for(kind, matter)
+            return None if kind == "record" else matter.retention_days
+
+        due: list[str] = []
+        periods: dict[str, int] = {}
+        for kind in CONTENT:
+            d = days(kind.code)
+            if d is not None and closed + timedelta(days=d) <= today:
+                due.append(kind.code)
+                periods[kind.code] = d
+
+        def period(codes: list[str]) -> str:
+            spans = sorted({periods[c] for c in codes})
+            ended = max(closed + timedelta(days=periods[c]) for c in codes)
+            return (
+                f"{'/'.join(map(str, spans))}-day retention ({whose}) ended on {ended.isoformat()}"
+            )
+
+        archived = [k for k in due if self.ctx.archive.has(mid, k)]
+        live = [
+            k for k in due if k not in archived and archive_service.live(self.ctx, matter, KINDS[k])
+        ]
+
+        def names(codes: list[str]) -> str:
+            return ", ".join(KINDS[c].name.lower() for c in codes)
+
+        if archived:
+            try:
+                archive_service.destroy(
+                    self.ctx, matter, actor_id=SYSTEM, kinds=archived, event="retention_purge",
+                    why=f"{whose} retention of {'/'.join(str(periods[c]) for c in archived)} "
+                    f"days ended: {', '.join(archived)}",
+                )  # fmt: skip
+                acted.append(
+                    f"Destroyed the archived {names(archived)} of a closed matter ({short}) whose "
+                    f"{period(archived)}: their keys are gone, so no copy can be read."
+                )
+            except PreservationHeld as held:
+                items.append(
+                    CheckItem(
+                        f"A closed matter ({short}) is past its retention for its "
+                        f"{names(archived)}, and its archive is kept: {held}",
+                        mid,
+                        "kept under a preservation hold",
+                    )
+                )
+        if live:
+            try:
+                counts = dispose(
+                    self.ctx, matter, actor_id=SYSTEM, kinds=live, event="retention_purge",
+                    why=f"{whose} retention of {'/'.join(str(periods[c]) for c in live)} days "
+                    f"ended: {', '.join(live)}",
+                )  # fmt: skip
+                if any(v for k, v in counts.items() if k != "preserved_documents"):
+                    acted.append(
+                        f"Deleted the {names(live)} of a closed matter ({short}) whose "
+                        f"{period(live)}."
+                    )
+            except PreservationHeld as held:
+                items.append(
+                    CheckItem(
+                        f"A closed matter ({short}) is past its retention period and kept: {held}",
+                        mid,
+                        "kept under a preservation hold",
+                    )
+                )
+        record = days("record")
+        if record is not None and closed + timedelta(days=record) <= today:
+            left = [
+                k.code
+                for k in CONTENT
+                if self.ctx.archive.has(mid, k.code) or archive_service.live(self.ctx, matter, k)
+            ]
+            if not left and not active_holds(self.ctx, mid):
+                archive_service.forget_record(
+                    self.ctx, matter, actor_id=SYSTEM,
+                    why=f"the decision record's retention of {record} days ended",
+                )  # fmt: skip
+                acted.append(
+                    f"Removed the decision record of a closed matter ({short}) as its "
+                    f"{record}-day retention ended; the audit trail keeps what happened."
+                )
+
     def _retention(self, actor_id: str, today: date) -> CheckResult:
         """Delete closed matters' content on time (each matter's own period, else the
         organisation's), keep what a preservation hold covers, and report open matters idle for
@@ -655,69 +757,7 @@ class ChecksService:
         for matter in self.ctx.store.list_matters():
             if matter.status is not MatterStatus.CLOSED or matter.closed_at is None:
                 continue
-            own = matter.retention_days is not None
-            days = matter.retention_days if own else (
-                retention.closed_matter_days if retention else None
-            )  # fmt: skip
-            if days is None:
-                continue
-            due = matter.closed_at.date() + timedelta(days=days)
-            if due > today:
-                continue
-            whose = "this matter's" if own else "the organisation's"
-            if self.ctx.archive.has(matter.matter_id):
-                try:
-                    archive_service.destroy(
-                        self.ctx,
-                        matter,
-                        actor_id=SYSTEM,
-                        why=f"{whose} retention of {days} days ended {due.isoformat()}",
-                        event="retention_purge",
-                    )
-                except PreservationHeld as held:
-                    items.append(
-                        CheckItem(
-                            f"A closed matter ({plain.short_id(matter.matter_id)}) is past its "
-                            f"retention period and its archive is kept: {held}",
-                            matter.matter_id,
-                            "kept under a preservation hold",
-                        )
-                    )
-                    continue
-                acted.append(
-                    f"Destroyed the archive of a closed matter ({plain.short_id(matter.matter_id)}) "
-                    f"whose {days}-day retention ({whose}) ended on {due.isoformat()}: its key is "
-                    "gone, so no copy of it can be read."
-                )
-                continue
-            if not self.ctx.store.list(Document, matter.matter_id) and not self.ctx.vault.has_files(
-                matter.matter_id
-            ):
-                continue  # already deleted
-            try:
-                counts = dispose(
-                    self.ctx,
-                    matter,
-                    actor_id=SYSTEM,
-                    why=f"{whose} retention of {days} days ended {due.isoformat()}",
-                    event="retention_purge",
-                )
-            except PreservationHeld as held:
-                items.append(
-                    CheckItem(
-                        f"A closed matter ({plain.short_id(matter.matter_id)}) is past its "
-                        f"retention period and kept: {held}",
-                        matter.matter_id,
-                        "kept under a preservation hold",
-                    )
-                )
-                continue
-            if not any(v for k, v in counts.items() if k != "preserved_documents"):
-                continue  # nothing left to delete but what is preserved
-            acted.append(
-                f"Deleted the content of a closed matter ({plain.short_id(matter.matter_id)}) "
-                f"whose {days}-day retention ({whose}) ended on {due.isoformat()}."
-            )
+            self._retire(matter, retention, today, acted, items)
         idle = self._idle_matters(retention.inactive_matter_days if retention else 0, today)
         items += idle
         if retention is None:

@@ -2,7 +2,6 @@
 
 import dataclasses
 import json
-from pathlib import Path
 
 import pytest
 
@@ -21,7 +20,7 @@ from eli_legal.domain.errors import InvalidInput, VerificationGateFailed
 from eli_legal.domain.models import Claim
 from eli_legal.legal.frameworks import load_shipped, pack_to_dict
 from eli_legal.workflows.case_preparation import build_report
-from tests.conftest import FakeInference
+from tests.conftest import FakeInference, case_text
 from tests.evaluation.test_model_mode import SCRIPT
 
 
@@ -32,9 +31,7 @@ def _org_pack(pack_id="org-policy", **changes):
 
 
 def _report(sv, mid, rid):
-    return Path(sv.runs.summary(mid, rid, actor_id=ARBITRATOR)["report"]["path"]).read_text(
-        encoding="utf-8"
-    )
+    return case_text(sv, sv.runs.summary(mid, rid, actor_id=ARBITRATOR)["report"]["path"])
 
 
 def test_every_shipped_package_reads_and_names_only_controls_that_exist():

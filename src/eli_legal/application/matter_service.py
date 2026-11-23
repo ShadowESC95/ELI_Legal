@@ -34,6 +34,7 @@ from eli_legal.domain.models import (
     utcnow,
 )
 from eli_legal.domain.profiles import OVERSIGHT_ROLES, profile_spec
+from eli_legal.governance.retention import CONTENT, RECORD
 from eli_legal.security import access, authn, totp
 from eli_legal.security.rbac import DEFAULT_ROLE_ACTIONS
 
@@ -977,6 +978,11 @@ class MatterService:
         matter = self._closed(matter_id, actor_id, "reopen a matter")
         before = archive_service.content_state(self.ctx, matter)
         restored = archive_service.restore(self.ctx, matter) if before == "archived" else {}
+        absent = [
+            k.name.lower()
+            for k in CONTENT
+            if archive_service.kind_state(self.ctx, matter, k) == "deleted"
+        ]
         team = matter.closed_team
         back: list[str] = []
         left_out: list[str] = []
@@ -1003,6 +1009,10 @@ class MatterService:
             "kept": "kept while it was closed",
             "deleted": "deleted while it was closed: the matter's record and history only",
         }[before]
+        if before != "deleted" and absent:
+            content += (
+                f" (not there, deleted as its retention ended or never made: {', '.join(absent)})"
+            )
         self.ctx.log(
             "matter_reopened",
             actor_id=actor_id,
@@ -1011,7 +1021,7 @@ class MatterService:
             subject_id=matter.matter_id,
             outcome="reopened",
             object_type="matter",
-            output_hash=str(restored.get("archive_sha256", "")) or None,
+            output_hash=None,
             payload={
                 "why": reason,
                 "case_material": content,
@@ -1029,17 +1039,20 @@ class MatterService:
             raise InvalidInput("a reason is required to delete a matter's content")
         matter = self._closed(matter_id, actor_id, "delete a closed matter's content")
         why = f"deleted by decision: {reason}"[:200]
-        if self.ctx.archive.has(matter.matter_id):
-            return archive_service.destroy(self.ctx, matter, actor_id=actor_id, why=why)
         if archive_service.content_state(self.ctx, matter) == "deleted":
             raise InvalidState("this matter's content is already deleted")
-        counts = dispose(self.ctx, matter, actor_id=actor_id, why=why)
-        self.ctx.store.empty_log()
-        return dict(counts)
+        done: dict[str, Any] = {}
+        if self.ctx.archive.has(matter.matter_id):
+            done.update(archive_service.destroy(self.ctx, matter, actor_id=actor_id, why=why))
+        if archive_service.content_state(self.ctx, matter) == "kept":
+            done.update(dispose(self.ctx, matter, actor_id=actor_id, why=why))
+            self.ctx.store.empty_log()
+        return done
 
     def closed_overview(self, actor_id: str) -> list[dict[str, Any]]:
-        """The closed matters this person may see: where their content is, until when it is
-        kept, and whether a preservation hold keeps it longer."""
+        """The closed matters this person may see: each kind of their content (governance/
+        retention.py), where it is and until when it is kept, and whether a preservation hold
+        keeps it longer."""
         from eli_legal.application.compliance_service import ComplianceService
 
         retention = ComplianceService(self.ctx).retention()
@@ -1047,10 +1060,26 @@ class MatterService:
         for matter in self.list_for(actor_id):
             if matter.status is not MatterStatus.CLOSED:
                 continue
-            days = matter.retention_days if matter.retention_days is not None else (
-                retention.closed_matter_days if retention else None
-            )  # fmt: skip
             closed = matter.closed_at.date() if matter.closed_at else None
+
+            def until(kind: str, m: Matter = matter, c: date | None = closed) -> date | None:
+                if c is None:
+                    return None
+                if retention is not None:
+                    days = retention.days_for(kind, m)
+                else:
+                    days = None if kind == "record" else m.retention_days
+                return c + timedelta(days=days) if days is not None else None
+
+            kinds = {
+                k.code: {
+                    "name": k.name,
+                    "state": archive_service.kind_state(self.ctx, matter, k),
+                    "until": until(k.code),
+                }
+                for k in CONTENT
+            }
+            kinds["record"] = {"name": RECORD.name, "state": "kept", "until": until("record")}
             out.append(
                 {
                     "matter_id": matter.matter_id,
@@ -1058,9 +1087,8 @@ class MatterService:
                     "closed_on": closed,
                     "content": archive_service.content_state(self.ctx, matter),
                     "archived_on": matter.archived_at.date() if matter.archived_at else None,
-                    "kept_until": closed + timedelta(days=days)
-                    if closed and days is not None
-                    else None,
+                    "kept_until": kinds["papers"]["until"],
+                    "kinds": kinds,
                     "held": bool(active_holds(self.ctx, matter.matter_id)),
                     "team": len(matter.closed_team.authorised_user_ids)
                     if matter.closed_team

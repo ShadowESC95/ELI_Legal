@@ -25,8 +25,15 @@ from datetime import date
 from pathlib import Path
 
 from eli_legal.application.container import AppContext
-from eli_legal.domain.errors import InvalidInput, InvalidState, NotFound, PolicyDenied
+from eli_legal.domain.errors import (
+    AuditIntegrityError,
+    InvalidInput,
+    InvalidState,
+    NotFound,
+    PolicyDenied,
+)
 from eli_legal.domain.models import Document, Matter, PreservationHold, Run, utcnow
+from eli_legal.governance.retention import CONTENT
 from eli_legal.security import authn
 from eli_legal.security.files import shred
 
@@ -43,11 +50,19 @@ def active_holds(ctx: AppContext, matter_id: str) -> list[PreservationHold]:
 
 
 def dispose(
-    ctx: AppContext, matter: Matter, *, actor_id: str, why: str, event: str = "content_disposed"
+    ctx: AppContext,
+    matter: Matter,
+    *,
+    actor_id: str,
+    why: str,
+    event: str = "content_disposed",
+    kinds: Sequence[str] | None = None,
 ) -> dict[str, int]:
-    """Delete a matter's content, keeping whatever a preservation hold covers, with a receipt.
-    Raises PreservationHeld, and records the refusal, if a hold covers the whole matter."""
+    """Delete a matter's content (or only the kinds named, governance/retention.py), keeping
+    whatever a preservation hold covers, with a receipt. Raises PreservationHeld, and records the
+    refusal, if a hold covers the whole matter."""
     mid = matter.matter_id
+    chosen = [k for k in CONTENT if kinds is None or k.code in kinds]
     holds = active_holds(ctx, mid)
     whole = [h for h in holds if h.scope == "matter"]
     if whole:
@@ -65,13 +80,18 @@ def dispose(
             f"a preservation hold covers this matter ({whole[0].hold_id}, {whole[0].authority}): "
             "its content may not be deleted until the hold is released"
         )
-    keep_ids = sorted({d for h in holds for d in h.document_ids})
-    generated = _generated(ctx, mid)
-    documents = ctx.store.list(Document, mid)
+    papers = any(k.vault for k in chosen)
+    keep_ids = sorted({d for h in holds for d in h.document_ids}) if papers else []
+    file_kinds = {f for k in chosen for f in k.files}
+    generated = {k: v for k, v in _generated(ctx, mid).items() if k in file_kinds}
+    documents = ctx.store.list(Document, mid) if papers else []
     kept = [d for d in documents if d.document_id in keep_ids]
     going = [d for d in documents if d.document_id not in keep_ids]
-    counts = ctx.store.purge_matter_content(mid, keep_document_ids=keep_ids)
-    counts["vault_files"] = ctx.vault.purge_matter(mid, keep={d.sha256 for d in kept})
+    counts = ctx.store.purge_tables(
+        mid, [t for k in chosen for t in k.tables], keep_document_ids=keep_ids
+    )
+    if papers:  # the originals, and their key with them unless some are kept
+        counts["vault_files"] = ctx.vault.purge_matter(mid, keep={d.sha256 for d in kept})
     counts["preserved_documents"] = len(kept)
     deleted = sorted({d.sha256 for d in going} - {d.sha256 for d in kept})
     # What the application made from the matter: reports, outbox copies, evidence packs in its
@@ -85,11 +105,18 @@ def dispose(
             if holds:
                 files_kept.append(name)
                 continue
-            files_deleted[name] = hashlib.sha256(path.read_bytes()).hexdigest()
+            try:  # the hash of what the file holds, as its manifest and the ledger give it
+                content = ctx.files.read(mid, path)
+            except AuditIntegrityError:
+                content = path.read_bytes()
+            files_deleted[name] = hashlib.sha256(content).hexdigest()
             shred(path)
     if not holds:
         for paths in generated.values():
             _prune(Path(ctx.settings.artifacts_dir), paths)
+        for k in chosen:  # every copy of what a kind's key sealed is now unreadable
+            if k.files:
+                ctx.files.keys.destroy(mid, k.code)
     elsewhere = [
         e for e in ctx.audit.events(matter_id=mid)
         if e["event_type"] == "evidence_exported" and not e["payload"].get("managed", False)
@@ -123,6 +150,7 @@ def dispose(
             for e in elsewhere
         ],  # fmt: skip
         "preservation_holds": [h.hold_id for h in holds],
+        "kinds": [k.code for k in chosen],
         "counts": counts,
         "erasure": {
             "files": "overwritten with zeros, then removed",

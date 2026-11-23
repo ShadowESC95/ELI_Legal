@@ -14,6 +14,7 @@ from eli_legal.application.deployment_service import NotAuthorised
 from eli_legal.domain.enums import Profile
 from eli_legal.domain.errors import InvalidInput, PolicyDenied
 from eli_legal.domain.models import utcnow
+from tests.conftest import case_text
 
 A, G, ADMIN = "arb.keane", "gov.hale", "admin"
 
@@ -74,9 +75,8 @@ def test_a_practice_matter_needs_no_authorisation_and_says_it_is_not_for_relianc
     assert not sv.matters.get(mid, A).real
     run = sv.runs.start(mid, actor_id=A)
     report = sv.runs.summary(mid, run.run_id, actor_id=A)["report"]
-    from pathlib import Path
 
-    text = Path(report["path"]).read_text(encoding="utf-8")
+    text = case_text(sv, report["path"])
     assert "PRACTICE MATTER — DRAFT, NOT FOR RELIANCE" in text and "APPROVED FOR" not in text
 
 

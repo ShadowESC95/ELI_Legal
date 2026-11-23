@@ -135,6 +135,7 @@ def cmd_init(args: argparse.Namespace) -> int:
                     audit_days=retention["audit_days"],
                     closed_matter_days=retention["closed_matter_days"],
                     inactive_matter_days=retention["inactive_matter_days"],
+                    **_kind_days(retention),
                 )
             print(f"retention: {record.summary}")
         else:
@@ -148,7 +149,24 @@ def cmd_init(args: argparse.Namespace) -> int:
 
 # Offered at set-up, never applied unseen: six years is a common limitation period, and the
 # audit trail may not be kept less than six months (AI Act Art. 19(1), 26(6)).
-_SUGGESTED_RETENTION = {"audit_days": 2190, "closed_matter_days": 2190, "inactive_matter_days": 365}
+_SUGGESTED_RETENTION = {
+    "audit_days": 2190,
+    "closed_matter_days": 2190,
+    "evidence_days": 3650,
+    "record_days": 3650,
+    "inactive_matter_days": 365,
+}
+# Each further kind of a closed case's content (governance/retention.py); unset, the analysis,
+# reports and evidence packs are kept as long as the papers and the decision record has no end.
+_KIND_OPTIONS = ("analysis_days", "reports_days", "evidence_days", "record_days")
+
+
+def _kind_days(values: dict[str, Any] | argparse.Namespace) -> dict[str, int | None]:
+    out: dict[str, int | None] = {}
+    for key in _KIND_OPTIONS:
+        value = values.get(key) if isinstance(values, dict) else getattr(values, key, None)
+        out[key] = None if value is None else int(value)
+    return out
 
 
 def _initial_retention(args: argparse.Namespace) -> dict[str, int] | None:
@@ -161,8 +179,10 @@ def _initial_retention(args: argparse.Namespace) -> dict[str, int] | None:
         "closed_matter_days": args.closed_matter_days,
         "inactive_matter_days": args.inactive_matter_days,
     }
+    kinds = _kind_days(args)
     if given["audit_days"] is not None and given["closed_matter_days"] is not None:
-        return _checked_retention({k: int(v if v is not None else 0) for k, v in given.items()})
+        chosen = {k: int(v if v is not None else 0) for k, v in given.items()}
+        return _checked_retention({**chosen, **{k: v for k, v in kinds.items() if v is not None}})
     if getattr(args, "passphrase_stdin", False) or not sys.stdin.isatty():
         raise SystemExit(
             "choose the retention periods: --audit-days N --closed-matter-days N (and optionally "
@@ -170,9 +190,12 @@ def _initial_retention(args: argparse.Namespace) -> dict[str, int] | None:
         )
     questions = {
         "audit_days": "Keep the audit trail for how many days? (at least 183)",
-        "closed_matter_days": "Keep a closed matter's documents for how many days?",
+        "closed_matter_days": "Keep a closed case's papers for how many days?",
+        "evidence_days": "Keep its evidence packs for how many days?",
+        "record_days": "Keep its decision record for how many days?",
         "inactive_matter_days": "Report an open matter idle for how many days? (0: never)",
     }
+    given = {**given, **kinds}
     out: dict[str, int] = {}
     for key, question in questions.items():
         suggested = given[key] if given[key] is not None else _SUGGESTED_RETENTION[key]
@@ -190,9 +213,38 @@ def _checked_retention(chosen: dict[str, int]) -> dict[str, int]:
         raise SystemExit(
             f"the audit trail must be kept at least {MIN_AUDIT_RETENTION_DAYS} days (six months)"
         )
-    if chosen["closed_matter_days"] < 0 or chosen["inactive_matter_days"] < 0:
+    if any(v is not None and v < 0 for v in chosen.values()):
         raise SystemExit("a number of days cannot be negative")
+    record = chosen.get("record_days")
+    longest = max(
+        v
+        for k, v in chosen.items()
+        if k in ("closed_matter_days", "analysis_days", "reports_days", "evidence_days")
+        and v is not None
+    )
+    if record is not None and record < longest:
+        raise SystemExit(
+            f"the decision record must be kept at least as long as what it accounts for "
+            f"({longest} days)"
+        )
     return chosen
+
+
+def _kind_arguments(p: argparse.ArgumentParser) -> None:
+    p.add_argument(
+        "--analysis-days", type=int, help="a closed case's analysis (default: as its papers)"
+    )
+    p.add_argument(
+        "--reports-days", type=int, help="a closed case's reports (default: as its papers)"
+    )
+    p.add_argument(
+        "--evidence-days", type=int, help="a closed case's evidence packs (default: as its papers)"
+    )
+    p.add_argument(
+        "--record-days",
+        type=int,
+        help="a closed case's decision record (default: no end; at least as long as the rest)",
+    )
 
 
 def cmd_login(args: argparse.Namespace) -> int:
@@ -662,6 +714,7 @@ def cmd_compliance(args: argparse.Namespace) -> int:
                 audit_days=args.audit_days,
                 closed_matter_days=args.closed_days,
                 inactive_matter_days=args.inactive_days,
+                **_kind_days(args),
             )
         print(record.summary)
     elif c == "training":
@@ -1270,7 +1323,10 @@ def cmd_audit(args: argparse.Namespace) -> int:
 
 def cmd_evidence(args: argparse.Namespace) -> int:
     sv = _services(args)
-    print(sv.evidence_pack(args.matter, args.run, actor_id=_actor(args), out_dir=args.out))
+    # Handed over, readable, where it is asked for (the current folder unless --out says);
+    # --keep writes ELI Legal's own sealed copy instead.
+    out = None if args.keep else (args.out or ".")
+    print(sv.evidence_pack(args.matter, args.run, actor_id=_actor(args), out_dir=out))
     return 0
 
 
@@ -1576,6 +1632,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--inactive-matter-days", type=int, help="report an open matter idle this many days"
     )
+    _kind_arguments(p)
     p.add_argument(
         "--retention-later",
         action="store_true",
@@ -1979,6 +2036,7 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument(
         "--inactive-days", type=int, default=0, help="report an open matter idle this long; 0: off"
     )
+    _kind_arguments(a)
     a = s.add_parser("training", help="list training records, or record one")
     a.add_argument("user_id", nargs="?")
     a.add_argument("--course", default="AI literacy and the instructions for use")
@@ -2025,7 +2083,12 @@ def build_parser() -> argparse.ArgumentParser:
     p = add("evidence", cmd_evidence, "export the evidence pack for a run")
     p.add_argument("matter")
     p.add_argument("run")
-    p.add_argument("--out")
+    p.add_argument("--out", help="the folder to write it in (default: the current folder)")
+    p.add_argument(
+        "--keep",
+        action="store_true",
+        help="keep it, sealed, in ELI Legal's own folder instead of handing it over",
+    )
     add("monitor", cmd_monitor, "post-deployment monitoring snapshot")
     add(
         "governance", cmd_governance, "check the governance registers against the code"

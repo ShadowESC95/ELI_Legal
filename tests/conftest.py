@@ -133,3 +133,20 @@ def pytest_configure(config: pytest.Config) -> None:
     """Before any test makes the window toolkit: on Windows its windowless form needs the
     system's fonts, or a PDF copy would have no text."""
     windowless_fonts()
+
+
+def case_file(sv: Services, path: str | Path) -> bytes:
+    """A case file as ELI Legal's own readers see it: sealed on disk under its matter's key
+    (security/sealed.py), opened with it. Only that matter's key opens it."""
+    from eli_legal.domain.errors import AuditIntegrityError
+
+    for matter in sv.ctx.store.list_matters():
+        try:
+            return sv.ctx.files.read(matter.matter_id, path)
+        except AuditIntegrityError:
+            continue
+    return Path(path).read_bytes()
+
+
+def case_text(sv: Services, path: str | Path) -> str:
+    return case_file(sv, path).decode("utf-8")

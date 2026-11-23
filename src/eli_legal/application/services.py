@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from eli_legal.adapters.local.outbox import OutboxDeliveryAdapter
+from eli_legal.application import archive_service
 from eli_legal.application.chat_service import ChatService
 from eli_legal.application.checks_service import ChecksService
 from eli_legal.application.collection_service import CollectionService
@@ -118,6 +120,12 @@ def build_services(
     listen = getattr(ctx.audit, "subscribe", None)
     if callable(listen):
         listen(notifications.on_event)
+    # What an earlier version stored, brought up to this one's protection (sealed on disk,
+    # archives by kind). A failure is logged and tried again at the next start.
+    try:
+        archive_service.upgrade(ctx)
+    except Exception:  # noqa: BLE001 - the application still opens; the files stay readable
+        logging.getLogger(__name__).warning("storage upgrade not completed", exc_info=True)
     return Services(
         ctx=ctx,
         users=UserService(ctx),
@@ -131,7 +139,9 @@ def build_services(
         releases=ReleaseService(ctx),
         delivery=DeliveryService(
             ctx=ctx,
-            delivery=OutboxDeliveryAdapter(Path(ctx.settings.artifacts_dir) / "outbox"),
+            delivery=OutboxDeliveryAdapter(
+                Path(ctx.settings.artifacts_dir) / "outbox", files=ctx.files
+            ),
             release_gate=ReleaseGate(),
         ),
         incidents=IncidentService(ctx),

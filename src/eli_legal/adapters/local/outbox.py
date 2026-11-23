@@ -5,6 +5,7 @@ import shutil
 from pathlib import Path
 
 from eli_legal.domain.release import DeliveryReceipt, ReleasePackage
+from eli_legal.security.sealed import SealedFiles
 
 
 class OutboxDeliveryAdapter:
@@ -14,8 +15,23 @@ class OutboxDeliveryAdapter:
     itself never contacts a party.
     """
 
-    def __init__(self, root: str | Path = "./artifacts/outbox") -> None:
+    def __init__(
+        self, root: str | Path = "./artifacts/outbox", files: SealedFiles | None = None
+    ) -> None:
         self.root = Path(root)
+        self.files = files  # staged copies are sealed like every case file
+
+    def _copy(self, matter_id: str, source: Path, target: Path) -> None:
+        if self.files is None:
+            shutil.copyfile(source, target)
+        else:
+            self.files.write(matter_id, target, self.files.read(matter_id, source))
+
+    def _put(self, matter_id: str, target: Path, data: bytes) -> None:
+        if self.files is None:
+            target.write_bytes(data)
+        else:
+            self.files.write(matter_id, target, data)
 
     def send(self, package: ReleasePackage) -> list[DeliveryReceipt]:
         if package.status != "approved_for_delivery":
@@ -25,7 +41,7 @@ class OutboxDeliveryAdapter:
         target.mkdir(parents=True, exist_ok=True)
         source = Path(package.artifact_ref)
         if source.is_file():
-            shutil.copyfile(source, target / source.name)
+            self._copy(package.matter_id, source, target / source.name)
         manifest = {
             "release_id": package.release_id,
             "matter_id": package.matter_id,
@@ -45,8 +61,10 @@ class OutboxDeliveryAdapter:
                 for recipient in package.recipients
             ],
         }
-        (target / "release_manifest.json").write_text(
-            json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8"
+        self._put(
+            package.matter_id,
+            target / "release_manifest.json",
+            json.dumps(manifest, indent=2, sort_keys=True).encode("utf-8"),
         )
         return [
             DeliveryReceipt(

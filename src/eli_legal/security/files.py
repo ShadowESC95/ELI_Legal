@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import stat
+import sys
 from pathlib import Path
 
 POSIX = os.name != "nt"
@@ -33,6 +34,8 @@ def _tighten(path: Path) -> bool:
     try:
         info = path.lstat()
     except OSError:
+        return False
+    if sys.platform == "win32":  # permission bits do not apply; the profile folder keeps others out
         return False
     if stat.S_ISLNK(info.st_mode) or info.st_uid != os.getuid():
         return False

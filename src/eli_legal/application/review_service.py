@@ -63,7 +63,7 @@ class ReviewService:
         path = Path(report.artifact_ref)
         if not path.is_file():
             raise NotFound("the report file is missing")
-        text = path.read_text(encoding="utf-8")
+        text = self.ctx.files.read(matter.matter_id, path).decode("utf-8")
         seen = self.ctx.authorizer().visibility(matter, actor_id)
         if seen.sees_everything:
             return text, False
@@ -169,7 +169,7 @@ class ReviewService:
                 "the report hash given does not match the current report; review the current version"
             )
         draft_path = Path(report.artifact_ref)
-        draft = draft_path.read_bytes() if draft_path.is_file() else b""
+        draft = ctx.files.read(mid, draft_path) if draft_path.is_file() else b""
         if hashlib.sha256(draft).hexdigest() != report.sha256:
             raise AuditIntegrityError("the report file on disk no longer matches its recorded hash")
         outstanding = sorted({warning_id(w) for w in report.warnings} - set(acknowledged))

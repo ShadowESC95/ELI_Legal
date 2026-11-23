@@ -178,10 +178,10 @@ def export_evidence_pack(
             source = Path(ref)
             if not source.is_file():
                 continue
+            raw = ctx.files.read(mid, source)
             if seen.sees_everything:
-                shutil.copyfile(source, target / source.name)
+                (target / source.name).write_bytes(raw)
             else:
-                raw = source.read_bytes()
                 _write(
                     target / f"{source.name}.withheld.json",
                     {
@@ -216,6 +216,7 @@ def export_evidence_pack(
         },
     )
 
+    managed = Path(target).resolve().is_relative_to(Path(ctx.settings.artifacts_dir).resolve())
     files = sorted(p for p in target.iterdir() if p.is_file())
     manifest = {
         "exported_at": utcnow().isoformat(),
@@ -243,11 +244,14 @@ def export_evidence_pack(
             "record_complete": completeness.ok,
             # Whether the pack is in the application's own folder (deleted with the matter's
             # content) or exported elsewhere, beyond its control (named in a deletion receipt).
-            "managed": Path(target)
-            .resolve()
-            .is_relative_to(Path(ctx.settings.artifacts_dir).resolve()),
+            "managed": managed,
         },
     )
+    if managed:
+        # Kept in ELI Legal's own folder: sealed like every case file. Its manifest's hashes, and
+        # the ledger's, are of the plain files, as they are in a pack handed over.
+        for path in sorted(p for p in target.rglob("*") if p.is_file()):
+            ctx.files.seal_existing(mid, path)
     return target
 
 

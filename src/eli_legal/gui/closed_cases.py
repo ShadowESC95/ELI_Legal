@@ -10,20 +10,21 @@ from PySide6.QtWidgets import QCheckBox, QDialog, QMessageBox, QVBoxLayout, QWid
 from eli_legal.gui.session import Session
 from eli_legal.gui.widgets import ReasonDialog, button, fill, fit, label, row, selected_id, table
 
-_CONTENT = {
-    "archived": "Archived, encrypted",
-    "kept": "Kept in the working database",
-    "deleted": "Deleted",
-}
+_STATE = {"archived": "Archived, encrypted", "kept": "Kept", "deleted": "Deleted"}
+_KINDS = ("papers", "analysis", "reports", "evidence", "record")
 
 
-def _kept_until(entry: dict[str, Any]) -> str:
-    if entry["content"] == "deleted":
-        return "—"
+def _cell(entry: dict[str, Any], code: str) -> str:
+    """Where one kind of a closed case's content is, and until when it is kept."""
+    kind = entry["kinds"][code]
+    state = _STATE[kind["state"]]
+    if kind["state"] == "deleted":
+        return state
     if entry["held"]:
-        return "Kept under a preservation hold"
-    until = entry["kept_until"]
-    return str(until) if until else "No period set (Compliance → OA-09)"
+        return f"{state} · held"
+    until = kind["until"]
+    end = "no end" if code == "record" else "no period set"
+    return f"{state} · to {until}" if until else f"{state} · {end}"
 
 
 class ClosedCasesDialog(QDialog):
@@ -35,19 +36,29 @@ class ClosedCasesDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.addWidget(
             label(
-                "Closed cases are off the case list but not gone. Their record and history are "
-                "always kept. Their content (documents, text, findings and reports) is either "
-                "kept, archived (encrypted, out of the working database, restored if the case is "
-                "reopened) or deleted. When a case's retention period ends, the routine checks "
-                "delete its content, or destroy its archive's key, unless a preservation hold "
-                "keeps it.",
+                "Closed cases are off the case list but not gone. Each kind of a case's content "
+                "(papers, analysis, reports, evidence packs) is kept, archived (encrypted under "
+                "its own key, out of the working database, restored if the case is reopened) or "
+                "deleted, and is kept for its own period (Compliance → OA-09). When a kind's "
+                "period ends the routine checks delete it, or destroy its archive's key, unless a "
+                "preservation hold keeps it. The decision record goes last.",
                 wrap=True,
             )
         )
         self.table = table(
-            ["Case", "Closed on", "Its content", "Archived on", "Kept until", "Team"], stretch=0
+            [
+                "Case",
+                "Closed on",
+                "Papers",
+                "Analysis",
+                "Reports",
+                "Evidence packs",
+                "Decision record",
+                "Team",
+            ],
+            stretch=0,
         )
-        fit(self.table, [260, 100, 200, 100, 220, 60])
+        fit(self.table, [220, 95, 190, 190, 190, 190, 170, 50])
         self.table.itemSelectionChanged.connect(self._enable)
         self.table.doubleClicked.connect(lambda _index: self._view())
         layout.addWidget(self.table, 1)
@@ -77,9 +88,7 @@ class ClosedCasesDialog(QDialog):
                 [
                     e["name"],
                     e["closed_on"] or "",
-                    _CONTENT[str(e["content"])],
-                    e["archived_on"] or "",
-                    _kept_until(e),
+                    *(_cell(e, code) for code in _KINDS),
                     e["team"] or "",
                 ]
                 for e in listed
@@ -97,7 +106,10 @@ class ClosedCasesDialog(QDialog):
         entry = self._chosen()
         self.view_button.setEnabled(entry is not None)
         self.reopen_button.setEnabled(entry is not None)
-        self.archive_button.setEnabled(entry is not None and entry["content"] == "kept")
+        self.archive_button.setEnabled(
+            entry is not None
+            and any(entry["kinds"][c]["state"] == "kept" for c in _KINDS if c != "record")
+        )
         self.delete_button.setEnabled(
             entry is not None and entry["content"] != "deleted" and not entry["held"]
         )

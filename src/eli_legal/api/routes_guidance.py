@@ -129,7 +129,7 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
 
     @app.post("/v1/compliance/retention")
     def retention(body: schemas.RetentionIn, actor: Actor) -> Any:
-        """Set how long the audit trail and a closed matter's documents are kept."""
+        """Set how long each kind of information is kept: the audit trail, and a closed case's papers, analysis, reports, evidence packs and decision record."""
         return js(
             sv.compliance.set_retention(
                 actor_id=actor,
@@ -137,6 +137,10 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
                 closed_matter_days=body.closed_matter_days,
                 notes=body.notes,
                 inactive_matter_days=body.inactive_matter_days,
+                analysis_days=body.analysis_days,
+                reports_days=body.reports_days,
+                evidence_days=body.evidence_days,
+                record_days=body.record_days,
             )
         )
 

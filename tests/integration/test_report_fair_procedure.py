@@ -2,12 +2,11 @@
 which those are, so a decision-maker does not rely on one without hearing the parties on it."""
 
 import hashlib
-from pathlib import Path
 
 from eli_legal.application.services import build_services
 from eli_legal.demo import build_demo_workspace
 from eli_legal.demo_run import demo_settings, setup_demo
-from tests.conftest import ARBITRATOR, SECRETARY
+from tests.conftest import ARBITRATOR, SECRETARY, case_file, case_text
 
 
 def _research_rows(text: str) -> list[list[str]]:
@@ -29,7 +28,7 @@ def _research_rows(text: str) -> list[list[str]]:
 
 def _report(sv, mid, rid) -> str:
     report = sv.runs.summary(mid, rid, actor_id=ARBITRATOR)["report"]
-    return Path(report["path"]).read_text(encoding="utf-8")
+    return case_text(sv, report["path"])
 
 
 def test_an_authority_a_party_cites_is_marked_as_cited(held_run):
@@ -61,6 +60,6 @@ def test_a_report_on_disk_is_byte_for_byte_what_was_hashed(held_run):
     on Windows, and every later comparison with the hash would then fail."""
     sv, mid, rid = held_run
     report = sv.runs.summary(mid, rid, actor_id=ARBITRATOR)["report"]
-    raw = Path(report["path"]).read_bytes()
+    raw = case_file(sv, report["path"])
     assert hashlib.sha256(raw).hexdigest() == report["sha256"]
     assert b"\r\n" not in raw

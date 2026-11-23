@@ -24,6 +24,7 @@ from eli_legal.legal.llm import LegalModel
 from eli_legal.legal.semantic import WINDOW_CHARS, SemanticIndex, windows
 from eli_legal.legal.source_registry import RegisteredSource
 from eli_legal.persistence.sqlite import Store
+from tests.conftest import case_text
 
 SENSES = [
     {"accept", "accepted", "acceptance", "keep", "keeping", "kept", "retain", "retains"},
@@ -280,7 +281,7 @@ def test_what_a_party_says_of_an_authority_is_shown_beside_its_closest_passage_i
         own = {p.passage_id for p in sv.ctx.store.passages_for(claim.authority_id)}
         assert claim.closest_passage_id in own
     report = sv.runs.summary(mid, run.run_id, actor_id="arb.keane")["report"]
-    assert "; closest in meaning)" in Path(report["path"]).read_text(encoding="utf-8")
+    assert "; closest in meaning)" in case_text(sv, report["path"])
 
 
 def test_nothing_derived_from_a_case_outlives_its_purge(demo):
@@ -319,9 +320,7 @@ def test_a_fact_linked_by_meaning_alone_is_marked_for_the_reviewer(demo):
     for fact in facts:
         assert set(fact.meaning_issue_ids) <= set(fact.issue_ids)
     report = sv.runs.summary(mid, run.run_id, actor_id="arb.keane")["report"]
-    assert "by meaning only: check it bears on this issue" in Path(report["path"]).read_text(
-        encoding="utf-8"
-    )
+    assert "by meaning only: check it bears on this issue" in case_text(sv, report["path"])
 
 
 def test_meaning_links_are_recorded_apart_from_links_by_words():

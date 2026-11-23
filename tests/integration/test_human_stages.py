@@ -17,6 +17,7 @@ from eli_legal.domain.errors import (
 )
 from eli_legal.domain.models import RunStep
 from eli_legal.workflows.case_preparation import warning_id
+from tests.conftest import case_file
 
 A, S = "arb.keane", "sec.byrne"
 PERSON_STEPS = ("human_review", "prepare_release", "recipient_approval", "controlled_delivery")
@@ -109,7 +110,9 @@ def test_reliance_never_resumes_on_a_report_that_changed_while_held(awaiting):
     hold = sv.holds.place(mid, rid, actor_id=A, reason="Suspended pending a check of the file.")
     report = Path(sv.runs.summary(mid, rid, actor_id=A)["report"]["path"])
     report.chmod(0o600)
-    report.write_text(report.read_text(encoding="utf-8") + "\nAltered.\n", encoding="utf-8")
+    # Replaced on disk with an altered copy (sealed files are checked; a plain one is read and
+    # hashed like any other)
+    report.write_bytes(case_file(sv, report) + b"\nAltered.\n")
     with pytest.raises(AuditIntegrityError):
         sv.holds.resolve(mid, hold.hold_id, actor_id=A, action="lift", reason="Lifting it now.")
     assert sv.runs.get(mid, rid, actor_id=A).status is RunStatus.HELD

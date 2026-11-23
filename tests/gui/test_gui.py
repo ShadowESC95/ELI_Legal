@@ -396,6 +396,8 @@ def test_first_run_creates_the_key_and_insists_on_a_real_passphrase(qt, tmp_path
     assert dialog.retention() == {
         "audit_days": 2190,
         "closed_matter_days": 2190,
+        "evidence_days": 3650,
+        "record_days": 3650,
         "inactive_matter_days": 365,
     }
     dialog.audit_days.setValue(30)
@@ -1151,7 +1153,7 @@ def test_closing_through_the_real_dialog_archives_it_off_the_list_and_it_reopens
 
     dialog = ClosedCasesDialog(d.window, d.session)
     assert dialog.table.rowCount() == 1
-    assert dialog.table.item(0, 2).text() == "Archived, encrypted"
+    assert dialog.table.item(0, 2).text().startswith("Archived, encrypted")  # the papers
     assert dialog.reopen_button.isEnabled() and not dialog.archive_button.isEnabled()
     _answer_reason(d.qt, answered)
     dialog._reopen()
@@ -1172,3 +1174,28 @@ def test_the_status_bar_shows_processor_memory_and_graphics_use(desk):
     text = d.window.usage.text()
     assert text.startswith("CPU ") or text.startswith(("RAM", "Unified")), text
     assert "Processor:" in d.window.usage.toolTip()
+
+
+def test_what_someone_else_does_on_the_case_shows_without_pressing_f5(desk, monkeypatch):
+    d = desk()
+    page = d.page(WorkflowTab)
+    redrawn: list[int] = []
+    monkeypatch.setattr(page, "refresh", lambda: redrawn.append(1))
+
+    def happened(actor: str, matter: str) -> None:
+        d.sv.ctx.log(
+            "matter_updated", actor_id=actor, matter_id=matter, action="matter.manage",
+            subject_id=matter, outcome="details_updated", object_type="matter", payload={},
+        )  # fmt: skip
+
+    d.window.check_waiting()  # where it starts from
+    happened(ARBITRATOR, d.mid)  # this person's own doing: already on screen
+    happened(SECRETARY, "mat_another_case")  # another case
+    d.window.check_waiting()
+    assert redrawn == []
+    happened(SECRETARY, d.mid)  # someone else, this case (as from the browser)
+    d.window.check_waiting()
+    assert redrawn == [1]
+    assert "someone else" in d.window.statusBar().currentMessage()
+    d.window.check_waiting()
+    assert redrawn == [1], "only when something new has happened"

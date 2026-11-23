@@ -358,14 +358,17 @@ def _run_demo(
 
     say("8. Evidence pack and audit")
     sv.matters.grant(mid, actor_id=ARBITRATOR, user_id=GOVERNANCE)
-    pack = sv.evidence_pack(mid, rid, actor_id=GOVERNANCE)
+    # Handed to the person running the demo, readable; ELI Legal's own copies stay sealed.
+    pack = sv.evidence_pack(mid, rid, actor_id=GOVERNANCE, out_dir=Path(root))
     chain = sv.ctx.audit.report()
     say(f"    audit chain valid: {chain.ok} ({chain.count} events)")
     say(f"    evidence pack: {pack}")
 
     final = result.summary = sv.runs.summary(mid, rid, actor_id=ARBITRATOR)
     result.final_status = final["status"]
-    result.report_path = final["report"]["path"]
+    handed = Path(root) / Path(final["report"]["path"]).name
+    handed.write_bytes(sv.ctx.files.read(mid, final["report"]["path"]))
+    result.report_path = str(handed)
     result.evidence_pack = str(pack)
     say(f"\nRun finished: {final['status']}. Approved report: {result.report_path}")
     return result

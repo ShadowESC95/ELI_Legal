@@ -1,13 +1,12 @@
 """With a model configured: it may select and draft, but only from what it was given."""
 
 import re
-from pathlib import Path
 
 from eli_legal.application.services import build_services
 from eli_legal.demo import build_demo_workspace
 from eli_legal.demo_run import ARBITRATOR, SECRETARY, demo_settings, setup_demo
 from eli_legal.domain.enums import ClaimKind, ClaimStatus
-from tests.conftest import FakeInference
+from tests.conftest import FakeInference, case_text
 
 
 def _labels(prompt: str, prefix: str) -> list[str]:
@@ -93,9 +92,7 @@ def test_a_model_proposed_issue_is_labelled_for_the_reviewer_to_confirm(tmp_path
     assert [i.label for i in proposed] == [
         "Whether the closure of the Varen Strait excused the delay in delivery"
     ]
-    report = Path(sv.runs.summary(mid, rid, actor_id=ARBITRATOR)["report"]["path"]).read_text(
-        encoding="utf-8"
-    )
+    report = case_text(sv, sv.runs.summary(mid, rid, actor_id=ARBITRATOR)["report"]["path"])
     assert "proposed by the model — confirm or discard" in report
 
 
@@ -138,9 +135,7 @@ def test_only_a_grounded_neutral_argument_survives(tmp_path):
     assert (
         steps["analysis"]["outputs"]["model_items_rejected"] >= 3
     )  # bad numbers and labels were counted
-    report = Path(sv.runs.summary(mid, rid, actor_id=ARBITRATOR)["report"]["path"]).read_text(
-        encoding="utf-8"
-    )
+    report = case_text(sv, sv.runs.summary(mid, rid, actor_id=ARBITRATOR)["report"]["path"])
     assert "should find for" not in report and "[2020] XXSC 55" not in report
     assert "drafted by a model from the verified items cited" in report
 

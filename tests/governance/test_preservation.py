@@ -126,5 +126,6 @@ def test_deletion_takes_the_reports_outbox_copies_and_packs_with_it_and_says_so(
     body = json.loads(receipt.read_text(encoding="utf-8"))
     kinds = {name.split("/")[0] for name in body["generated_files_deleted_sha256"]}
     assert kinds == {"reports", "outbox", "evidence"}
-    assert len(body["exported_outside_the_application"]) == 1
-    assert body["counts"]["exported_elsewhere"] == 1
+    # the demo's own hand-over to the person running it, and the one to the USB key
+    assert len(body["exported_outside_the_application"]) == 2
+    assert body["counts"]["exported_elsewhere"] == 2

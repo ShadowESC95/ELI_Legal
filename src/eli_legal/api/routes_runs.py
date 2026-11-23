@@ -241,7 +241,11 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
             for path in sorted(p for p in folder.rglob("*") if p.is_file()):
-                archive.write(path, path.relative_to(folder.parent).as_posix())
+                # sealed where it is kept; handed over plain, as a pack written to a folder is
+                archive.writestr(
+                    path.relative_to(folder.parent).as_posix(),
+                    sv.ctx.files.read(matter_id, path),
+                )
         return Response(
             buffer.getvalue(),
             media_type="application/zip",

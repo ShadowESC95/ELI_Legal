@@ -94,11 +94,24 @@ class FirstRunDialog(QDialog):
         )
         self.audit_days = self._days(2190, minimum=183)
         self.closed_days = self._days(2190)
+        self.evidence_days = self._days(3650)
+        self.record_days = self._days(3650)
         self.idle_days = self._days(365)
         self.idle_days.setSpecialValueText("never")
         form.addRow("Keep the audit trail", self.audit_days)
-        form.addRow("Keep a closed matter's documents", self.closed_days)
+        form.addRow("Keep a closed case's papers", self.closed_days)
+        form.addRow("Keep its evidence packs", self.evidence_days)
+        form.addRow("Keep its decision record", self.record_days)
         form.addRow("Report an open matter idle for", self.idle_days)
+        form.addRow(
+            "",
+            label(
+                "A case's analysis and reports are kept as long as its papers unless Compliance "
+                "says otherwise; each kind is archived under its own key and goes on its own day.",
+                "muted",
+                wrap=True,
+            ),
+        )
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
@@ -118,6 +131,10 @@ class FirstRunDialog(QDialog):
         return {
             "audit_days": self.audit_days.value(),
             "closed_matter_days": self.closed_days.value(),
+            "evidence_days": self.evidence_days.value(),
+            "record_days": max(
+                self.record_days.value(), self.closed_days.value(), self.evidence_days.value()
+            ),
             "inactive_matter_days": self.idle_days.value(),
         }
 
@@ -322,6 +339,8 @@ def main(argv: list[str] | None = None) -> int:
                 audit_days=r["audit_days"],
                 closed_matter_days=r["closed_matter_days"],
                 inactive_matter_days=r["inactive_matter_days"],
+                evidence_days=r["evidence_days"],
+                record_days=r["record_days"],
             )
     session = Session(services)
     while True:

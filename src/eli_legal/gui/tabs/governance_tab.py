@@ -897,16 +897,45 @@ class GovernanceTab(Tab):
         audit.setValue(current.audit_days if current else 3653)
         closed = QSpinBox()
         closed.setRange(0, 36500)
-        closed.setValue(current.closed_matter_days if current else 365)
+        closed.setValue(current.closed_matter_days if current else 2190)
+
+        def kind(value: int | None, suggested: int | None, unset: str) -> QSpinBox:
+            box = QSpinBox()
+            box.setRange(-1, 36500)
+            box.setSpecialValueText(unset)  # shown at -1: not set
+            chosen = value if value is not None else suggested
+            box.setValue(-1 if chosen is None else chosen)
+            return box
+
+        same = "as long as the papers"
+        analysis = kind(current.analysis_days if current else None, None, same)
+        reports = kind(current.reports_days if current else None, None, same)
+        evidence = kind(current.evidence_days if current else None, 3650, same)
+        record = kind(current.record_days if current else None, 3650, "no end")
+        idle = QSpinBox()
+        idle.setRange(0, 36500)
+        idle.setSpecialValueText("never")
+        idle.setValue(current.inactive_matter_days if current else 365)
         dialog = _Dialog(
             self,
             "Retention",
-            "How long records are kept. The audit trail is kept at least six months and is "
-            "never shortened. A closed matter's documents, text and indexes are deleted by the "
-            "routine checks when their period ends; its decision record is kept.",
+            "How long each kind of information is kept. The audit trail is kept at least six "
+            "months and is never shortened. From a case's closing, each kind of its content is "
+            "kept for its own period, archived under its own key, and deleted (its key destroyed) "
+            "by the routine checks when that period ends, unless a preservation hold keeps it. "
+            "The decision record is kept at least as long as anything it accounts for.",
         )
         dialog.form.addRow("Keep the audit trail (days)", audit)
-        dialog.form.addRow("Keep a closed matter's documents (days)", closed)
+        dialog.form.addRow("A closed case's papers (days)", closed)
+        dialog.form.addRow("Its analysis (days)", analysis)
+        dialog.form.addRow("Its reports (days)", reports)
+        dialog.form.addRow("Its evidence packs (days)", evidence)
+        dialog.form.addRow("Its decision record (days)", record)
+        dialog.form.addRow("Report an open matter idle for (days)", idle)
+
+        def given(box: QSpinBox) -> int | None:
+            return None if box.value() < 0 else box.value()
+
         if dialog.ok():
             self.session.decide(
                 self,
@@ -915,6 +944,11 @@ class GovernanceTab(Tab):
                     actor_id=self.actor,
                     audit_days=audit.value(),
                     closed_matter_days=closed.value(),
+                    inactive_matter_days=idle.value(),
+                    analysis_days=given(analysis),
+                    reports_days=given(reports),
+                    evidence_days=given(evidence),
+                    record_days=given(record),
                 ),
             )
 

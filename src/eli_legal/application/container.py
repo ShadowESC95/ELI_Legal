@@ -43,8 +43,14 @@ from eli_legal.security.authorizer import MatterAuthorizer
 from eli_legal.security.files import private_dir, private_tree
 from eli_legal.security.prompt_injection import PromptInjectionDetector
 from eli_legal.security.rbac import RoleBindings
+from eli_legal.security.sealed import FileKeys, SealedFiles
 from eli_legal.settings import Settings
 from eli_legal.workflows.runner import WorkflowDef, load_workflow
+
+
+def file_keys(settings: Settings) -> FileKeys:
+    """Each matter's keys for its case files, in the secrets folder beside the audit key."""
+    return FileKeys(Path(settings.audit_key_file).parent / "file_keys")
 
 
 @dataclass(slots=True)
@@ -69,6 +75,7 @@ class AppContext:
     extra_connectors: dict[str, LegalSourcePort] = field(default_factory=dict)
     _semantic: SemanticIndex | None = field(default=None, repr=False)
     _archive: MatterArchive | None = field(default=None, repr=False)
+    _files: SealedFiles | None = field(default=None, repr=False)
 
     @property
     def semantic(self) -> SemanticIndex | None:
@@ -89,6 +96,16 @@ class AppContext:
                 Path(self.settings.audit_key_file).parent / "archive_keys",
             )
         return self._archive
+
+    @property
+    def files(self) -> SealedFiles:
+        """The files made from each matter (reports, outbox copies, evidence packs), sealed in
+        the artifacts folder under the same keys as its originals' (file_keys, beside the audit
+        key)."""
+        if self._files is None:
+            keys = self.vault.keys or file_keys(self.settings)
+            self._files = SealedFiles(keys, self.settings.artifacts_dir)
+        return self._files
 
     # ── identity and authorisation ───────────────────────────────────────────
     def authorizer(self) -> MatterAuthorizer:
@@ -291,7 +308,7 @@ def build_context(
         policy=policy,
         store=store,
         audit=audit,
-        vault=EvidenceVault(settings.data_dir),
+        vault=EvidenceVault(settings.data_dir, keys=file_keys(settings)),
         guard=guard,
         jurisdictions=JurisdictionRegistry.from_dir(settings.jurisdictions_dir),
         sources=sources,

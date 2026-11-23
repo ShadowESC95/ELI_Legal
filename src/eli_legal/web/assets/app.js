@@ -958,9 +958,15 @@
         { name: 'expires_on', label: 'Valid until (a year if blank)', type: 'date' }], 'Record', a.what_to_do);
       if (v) return done(await attempt(() => api('POST', '/v1/compliance/training', { ...v, expires_on: v.expires_on || null }), 'Training recorded.'));
     } else if (a.evidence === 'retention') {
-      const v = await ask('Retention', [{ name: 'audit_days', label: 'Keep the audit trail (days, at least 183)', type: 'number', value: '3653', required: true },
-        { name: 'closed_matter_days', label: 'Keep a closed matter’s documents (days)', type: 'number', value: '365', required: true }], 'Set', a.what_to_do);
-      if (v) return done(await attempt(() => api('POST', '/v1/compliance/retention', { audit_days: Number(v.audit_days), closed_matter_days: Number(v.closed_matter_days) }), 'Retention set.'));
+      const days = (x) => (x === '' || x === undefined ? null : Number(x));
+      const v = await ask('Retention', [{ name: 'audit_days', label: 'Keep the audit trail (days, at least 183)', type: 'number', value: '2190', required: true },
+        { name: 'closed_matter_days', label: 'Keep a closed case’s papers (days)', type: 'number', value: '2190', required: true },
+        { name: 'analysis_days', label: 'Its analysis (days; blank: as long as the papers)', type: 'number' },
+        { name: 'reports_days', label: 'Its reports (days; blank: as long as the papers)', type: 'number' },
+        { name: 'evidence_days', label: 'Its evidence packs (days; blank: as long as the papers)', type: 'number', value: '3650' },
+        { name: 'record_days', label: 'Its decision record (days; blank: no end; at least as long as the rest)', type: 'number', value: '3650' },
+        { name: 'inactive_matter_days', label: 'Report an open matter idle for (days; 0: never)', type: 'number', value: '365' }], 'Set', a.what_to_do);
+      if (v) return done(await attempt(() => api('POST', '/v1/compliance/retention', { audit_days: Number(v.audit_days), closed_matter_days: Number(v.closed_matter_days), analysis_days: days(v.analysis_days), reports_days: days(v.reports_days), evidence_days: days(v.evidence_days), record_days: days(v.record_days), inactive_matter_days: Number(v.inactive_matter_days || 0) }), 'Retention set.'));
     } else if (a.evidence === 'evaluation') {
       const r = await attempt(() => api('POST', '/v1/compliance/evaluation', {}));
       if (done(r)) { note(r.summary, r.answers.passed === 'yes' ? 'good' : 'bad'); return true; }

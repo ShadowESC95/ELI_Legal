@@ -426,7 +426,8 @@ class HoldService:
                 report is None
                 or path is None
                 or not path.is_file()
-                or hashlib.sha256(path.read_bytes()).hexdigest() != report.sha256
+                or hashlib.sha256(ctx.files.read(matter.matter_id, path)).hexdigest()
+                != report.sha256
             ):
                 raise AuditIntegrityError(
                     "the approved report is missing or no longer matches its recorded hash; "

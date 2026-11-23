@@ -352,6 +352,25 @@ class HmacAuditLedger:
     def count(self) -> int:
         return len(self._rows())
 
+    def head(self) -> int:
+        """The latest event's number: a cheap way to tell that something has happened."""
+        con = self._connect()
+        try:
+            return int(con.execute("SELECT COALESCE(MAX(seq), 0) FROM audit_log").fetchone()[0])
+        finally:
+            con.close()
+
+    def since(self, seq: int) -> list[dict[str, Any]]:
+        """The events recorded after ``seq`` (not verified: for noticing change, not proving it)."""
+        con = self._connect()
+        try:
+            rows = con.execute(
+                "SELECT seq, event_json FROM audit_log WHERE seq > ? ORDER BY seq", (seq,)
+            ).fetchall()
+        finally:
+            con.close()
+        return [{**json.loads(raw), "seq": number} for number, raw in rows]
+
     def events(
         self, *, matter_id: str | None = None, run_id: str | None = None
     ) -> Iterator[dict[str, Any]]:

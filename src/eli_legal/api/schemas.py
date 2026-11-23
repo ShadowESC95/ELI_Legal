@@ -242,6 +242,10 @@ class RetentionIn(Strict):
     closed_matter_days: int = Field(ge=0, le=36_500)
     notes: Long = ""
     inactive_matter_days: int = Field(default=0, ge=0, le=36_500)
+    analysis_days: int | None = Field(default=None, ge=0, le=36_500)
+    reports_days: int | None = Field(default=None, ge=0, le=36_500)
+    evidence_days: int | None = Field(default=None, ge=0, le=36_500)
+    record_days: int | None = Field(default=None, ge=0, le=36_500)
 
 
 class TrainingIn(Strict):

@@ -70,6 +70,19 @@ BOUNDARIES = (
 _CLOSED = "__closed_cases__"  # the case list's last entry: the closed cases
 
 
+# Pages that only show the case: redrawn when someone else changes it.
+_LIVE_PAGES = (
+    HomeTab,
+    WorkflowTab,
+    AgentsTab,
+    FindingsTab,
+    ReviewTab,
+    AuditTab,
+    ReleasedTab,
+    DocumentsTab,
+)
+
+
 class _UsageReader(QObject):
     """Carries a reading from the thread that took it to the interface thread."""
 
@@ -212,6 +225,7 @@ class MainWindow(QMainWindow):
         self._reader = _UsageReader(self)
         self._reader.ready.connect(self._show_usage)
         self._reading = False
+        self._seen_event: int | None = None
         self.usage_timer = QTimer(self)
         self.usage_timer.timeout.connect(self._read_usage)
         self.usage_timer.start(3000)
@@ -470,6 +484,12 @@ class MainWindow(QMainWindow):
             control.watch_new()  # what the page just built answers to Ctrl and the wheel too
 
     def refresh(self) -> None:
+        self._refresh_header()
+        if self.session.user_id:
+            self._refresh_page()
+
+    def _refresh_header(self) -> None:
+        """The case list, the stage bar and the header's chips; not the page."""
         session = self.session
         if not session.user_id:
             return
@@ -574,7 +594,6 @@ class MainWindow(QMainWindow):
             glossary.tooltip("Role", f"You are signed in as {user.display_name if user else ''}. "
                              f"Your account's roles: {roles}.")
         )  # fmt: skip
-        self._refresh_page()
 
     def _matter_chosen(self) -> None:
         chosen = self.matter_box.currentData() or ""
@@ -584,6 +603,33 @@ class MainWindow(QMainWindow):
             return
         if chosen != self.session.matter_id:
             self.session.set_matter(chosen)
+
+    def _follow_others(self) -> None:
+        """What others did on this case (in the browser, or on another machine signed in to the
+        same data) shows here without anyone pressing F5: the stage bar, the header and the page
+        in front of you, if it is one that only shows the case. Never while a dialog is open or
+        work is running, so nothing being typed or chosen is lost."""
+        audit = self.session.sv.ctx.audit
+        try:
+            head = audit.head()
+        except Exception:  # noqa: BLE001 - tried again on the next tick
+            return
+        if self._seen_event is None or head <= self._seen_event:
+            self._seen_event = head
+            return
+        fresh = audit.since(self._seen_event)
+        self._seen_event = head
+        mid, me = self.session.matter_id, self.session.user_id
+        if not mid or not any(e.get("matter_id") == mid and e.get("actor_id") != me for e in fresh):
+            return
+        if QApplication.activeModalWidget() is not None or self.session.working:
+            self._seen_event = min(e["seq"] for e in fresh) - 1  # caught up with next time
+            return
+        self._refresh_header()
+        page = self.tabs.currentWidget()
+        if isinstance(page, _LIVE_PAGES):
+            page.refresh()
+        self.statusBar().showMessage("Updated: someone else has worked on this case.", 6000)
 
     def closed_cases(self) -> None:
         if not self.session.user_id:
@@ -625,6 +671,7 @@ class MainWindow(QMainWindow):
     def check_waiting(self) -> None:
         if not self.session.user_id or self.signing_out:
             return
+        self._follow_others()
         try:
             items = self.session.sv.notifications.inbox(self.session.user_id)
         except Exception:  # noqa: BLE001 - a failed check is tried again on the next tick
