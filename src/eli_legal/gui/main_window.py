@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from PySide6.QtCore import QByteArray, QSize, Qt, QTimer
 from PySide6.QtGui import QAction, QCloseEvent, QGuiApplication
 from PySide6.QtWidgets import (
@@ -71,8 +73,9 @@ class Pages(QTabWidget):
         holder = super().widget(index)
         return holder.widget() if isinstance(holder, QScrollArea) else holder
 
-    def currentWidget(self) -> QWidget | None:  # noqa: N802 - Qt's name
-        return self.page_at(self.currentIndex())
+    def currentWidget(self) -> QWidget:  # noqa: N802 - Qt's name
+        page = self.page_at(self.currentIndex())
+        return page if page is not None else super().currentWidget()
 
     def setCurrentWidget(self, page: QWidget) -> None:  # noqa: N802 - Qt's name
         for index in range(self.count()):
@@ -120,7 +123,7 @@ class MainWindow(QMainWindow):
         self.bell.setObjectName("bell")
         self.bell.setToolTip("Work on your matters that only a person can do, and that you can do")
         self.bell.clicked.connect(self._show_waiting)
-        self._waiting: list[dict] = []
+        self._waiting: list[dict[str, Any]] = []
         self._told: set[str] = set()
         for name, widget in self.chips.items():
             if name == "user":
@@ -568,7 +571,7 @@ class MainWindow(QMainWindow):
             menu.addAction("Mark all as seen").triggered.connect(self._seen_all)
         menu.exec(self.bell.mapToGlobal(self.bell.rect().bottomLeft()))
 
-    def _open_waiting(self, note: dict) -> None:
+    def _open_waiting(self, note: dict[str, Any]) -> None:
         sv, user = self.session.sv, self.session.user_id
         self.session.attempt(
             self,

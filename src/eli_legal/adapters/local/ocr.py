@@ -138,7 +138,8 @@ class TesseractOcr:
         rows = result.stdout.splitlines()
         if not rows:
             return []
-        header, by_page = rows[0], {}
+        header = rows[0]
+        by_page: dict[int, list[str]] = {}
         for row in rows[1:]:
             cells = row.split("\t")
             if len(cells) > 1 and cells[1].isdigit():
