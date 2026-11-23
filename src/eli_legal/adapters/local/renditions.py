@@ -271,7 +271,15 @@ def to_pdf(markdown: str, stamp: list[str], *, title: str = "") -> bytes:
     writer.setPageMargins(QMarginsF(18, 16, 18, 16), QPageLayout.Unit.Millimeter)
     document.print_(writer)
     buffer.close()
-    return bytes(data.data())
+    pdf = bytes(data.data())
+    if markdown.strip() and b"/FontDescriptor" not in pdf:
+        # Qt found no font to draw with (a windowless process without access to the system's
+        # fonts): the pages would be blank. Give out nothing rather than an empty copy.
+        raise RenditionUnavailable(
+            "this installation could not find a font to typeset the PDF; collect it as Word or "
+            "Markdown"
+        )
+    return pdf
 
 
 def ensure_typesetter() -> object | None:
@@ -285,6 +293,22 @@ def ensure_typesetter() -> object | None:
     if existing is not None:
         return existing
     import os
+    import sys
 
-    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    if sys.platform.startswith("linux") and not (
+        os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")
+    ):
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")  # it finds fonts by fontconfig
+    windowless_fonts()
     return QGuiApplication(["eli-legal"])
+
+
+def windowless_fonts() -> None:
+    """Qt's windowless platform on Windows knows no fonts of its own: point it at the system's,
+    before the application object is made, so a PDF copy has its text."""
+    import os
+    import sys
+
+    if sys.platform == "win32" and os.environ.get("QT_QPA_PLATFORM") == "offscreen":
+        windows = os.environ.get("WINDIR") or os.environ.get("SystemRoot") or r"C:\Windows"
+        os.environ.setdefault("QT_QPA_FONTDIR", os.path.join(windows, "Fonts"))

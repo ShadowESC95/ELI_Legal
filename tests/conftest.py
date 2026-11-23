@@ -13,6 +13,7 @@ import pytest
 
 from eli_legal.adapters.inference import hardware
 from eli_legal.adapters.local.network import NetworkGuard
+from eli_legal.adapters.local.renditions import windowless_fonts
 from eli_legal.application.services import Services, build_services
 from eli_legal.demo import build_demo_workspace
 from eli_legal.demo_run import ARBITRATOR, SECRETARY, demo_settings, run_demo, setup_demo
@@ -126,3 +127,9 @@ def lifecycle(tmp_path_factory: pytest.TempPathFactory) -> Any:
 
 
 __all__ = ["ARBITRATOR", "NO_CARD", "SECRETARY", "FakeInference", "make_key"]
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """Before any test makes the window toolkit: on Windows its windowless form needs the
+    system's fonts, or a PDF copy would have no text."""
+    windowless_fonts()
