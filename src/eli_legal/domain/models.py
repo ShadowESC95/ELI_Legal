@@ -446,6 +446,31 @@ class RelianceBlock:
 
 
 @dataclass(slots=True)
+class Notification:
+    """Work waiting for a named person: holds to clear, a report to review, an approved report
+    suspended. Shown inside ELI Legal to each person who can act on it, wherever they are signed
+    in; it is never sent outside the system. ``open``: not seen yet; ``read``: seen; ``done``: the
+    work has moved on (cleared, decided, or no longer theirs). Holds ids and counts, never content.
+    """
+
+    matter_id: str
+    user_id: str
+    kind: str  # holds_open | restart_needed | review_required | reliance_suspended | returned
+    subject_id: str
+    title: str
+    detail: str = ""
+    page: str = "review"  # the page the person acts on
+    actions: list[str] = field(default_factory=list)
+    run_id: str | None = None
+    notification_id: str = field(default_factory=lambda: new_id("ntf"))
+    status: str = "open"
+    created_at: datetime = field(default_factory=utcnow)
+    updated_at: datetime = field(default_factory=utcnow)
+    read_at: datetime | None = None
+    done_at: datetime | None = None
+
+
+@dataclass(slots=True)
 class PreservationHold:
     """A legal hold on a matter's content: nothing it covers is deleted, at closure or when the
     retention period ends, until it is released (EL-004). Not a workflow hold: it does not stop

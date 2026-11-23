@@ -153,4 +153,7 @@ MIGRATIONS: list[str] = [
     _record_table("reliance_blocks"),
     # 7 — legal holds that stop a matter's content being deleted (EL-004). Kept through a purge.
     _record_table("preservation_holds"),
+    # 8 — work waiting for a named person (holds to clear, a report to review), shown to each
+    # person who can act on it. Deleted with a matter's content.
+    _record_table("notifications"),
 ]

@@ -43,6 +43,7 @@ from . import (
     routes_frameworks,
     routes_guidance,
     routes_matters,
+    routes_notifications,
     routes_oversight,
     routes_runs,
 )
@@ -141,6 +142,7 @@ def create_app(services: Services | None = None, config: ServerConfig | None = N
         routes_oversight,
         routes_frameworks,
         routes_guidance,
+        routes_notifications,
     ):
         module.register(app, sv, cfg, access)
 

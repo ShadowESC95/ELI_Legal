@@ -24,14 +24,31 @@ def _words(text: str) -> set[str]:
     return {w.strip(".,:;()-–—").lower() for w in text.split() if w.strip(".,:;()-–—")}
 
 
-def read_by_older_reader(document: Document) -> bool:
-    """A PDF last read before every page was accounted for, and not a gap a person accepted."""
-    return (
-        document.media_type in _PAGED
-        and document.status is not DocumentStatus.WAIVED
-        and document.status is not DocumentStatus.REGISTERED
-        and document.read_with != READER_VERSION
+# Image files (a photograph, a scan saved as PNG, JPEG or TIFF) are read by OCR from "images/1".
+# Before that they were refused unread, so one left unread by an earlier reader is read again.
+IMAGE_READER_VERSION = "images/1"
+_IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".gif", ".webp")
+
+
+def is_image_file(document: Document) -> bool:
+    return document.media_type.startswith("image/") or (
+        Path(document.filename).suffix.lower() in _IMAGE_SUFFIXES
     )
+
+
+def read_by_older_reader(document: Document) -> bool:
+    """A PDF last read before every page was accounted for, or an image file left unread before
+    images were read by OCR; never a gap a person accepted."""
+    if document.status in (DocumentStatus.WAIVED, DocumentStatus.REGISTERED):
+        return False
+    if document.media_type in _PAGED:
+        return document.read_with != READER_VERSION
+    if is_image_file(document):
+        return (
+            document.status is DocumentStatus.UNSUPPORTED
+            and document.read_with != IMAGE_READER_VERSION
+        )
+    return False
 
 
 @dataclass(slots=True)
@@ -98,7 +115,7 @@ class IngestionService:
     def process(self, document: Document, *, actor_id: str, type_given: bool = False) -> Document:
         """Parse, classify, scan and index one registered document. Idempotent."""
         raw = self.ctx.vault.read(document.matter_id, document.sha256)
-        document.read_with = READER_VERSION
+        document.read_with = IMAGE_READER_VERSION if is_image_file(document) else READER_VERSION
         try:
             parsed = self.ctx.parser.parse(document.filename, raw, image_pages=True)
             parsed = self._read_images(document, raw, parsed)
@@ -188,6 +205,8 @@ class IngestionService:
         document.unread_pages = []
         document.blank_pages = list(parsed.blank_pages)
         document.pictured_pages = list(parsed.pictured_pages)
+        if parsed.media_type.startswith("image/"):
+            return self._read_image_file(document, raw, parsed)
         wanted = parsed.image_pages
         pictured = parsed.pictured_pages
         ocr = self.ctx.ocr
@@ -237,6 +256,31 @@ class IngestionService:
         by_page.update(read)
         ordered = tuple(s for n in sorted(by_page) for s in by_page[n])
         return replace(parsed, segments=ordered)
+
+    def _read_image_file(
+        self, document: Document, raw: bytes, parsed: ParsedDocument
+    ) -> ParsedDocument:
+        """An image file (a photographed exhibit, a scan saved as an image) is read by OCR on
+        this machine, page by page for a multi-page TIFF, each passage marked (OCR) with the
+        page's confidence. An image OCR cannot read, or reads too little of, is reported unread
+        and holds the run like any other unread document; nothing is guessed."""
+        ocr = self.ctx.ocr
+        if not ocr.can_read_images:
+            raise UnsupportedDocument("image file, and " + ocr.image_reason.split(": ", 1)[-1])
+        document.ocr_engine = ocr.version
+        segments: list[Segment] = []
+        for page in ocr.read_image(raw, Path(document.filename).suffix.lower()):
+            if page.words < 3:
+                continue
+            document.ocr_pages[str(page.number)] = page.confidence
+            segments.extend(
+                Segment(f"p.{page.number} (OCR) ¶{i}", text)
+                for i, text in enumerate(page.paragraphs, start=1)
+            )
+        if not segments:
+            document.unread_pages = [1]
+            raise UnsupportedDocument("image file that OCR could not read: no text found in it")
+        return replace(parsed, segments=tuple(segments))
 
     def ingest_path(
         self,

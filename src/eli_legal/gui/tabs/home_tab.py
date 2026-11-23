@@ -13,13 +13,13 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (
     QFrame,
-    QGridLayout,
     QHBoxLayout,
     QLabel,
     QListWidget,
     QListWidgetItem,
     QPushButton,
     QScrollArea,
+    QSplitter,
     QVBoxLayout,
     QWidget,
 )
@@ -102,12 +102,14 @@ class HomeTab(Tab):
                 row(button("Open compliance…", lambda: self._go("governance")), None),
             )
         )
-        grid = QGridLayout()
-        grid.addWidget(left, 0, 0)
-        grid.addWidget(right, 0, 1)
-        grid.setColumnStretch(0, 3)
-        grid.setColumnStretch(1, 2)
-        self.root.addLayout(grid, 1)
+        # The two columns share a divider that can be dragged.
+        split = QSplitter(Qt.Orientation.Horizontal)
+        split.setChildrenCollapsible(False)
+        split.addWidget(left)
+        split.addWidget(right)
+        split.setStretchFactor(0, 3)
+        split.setStretchFactor(1, 2)
+        self.root.addWidget(split, 1)
 
     # ── filling ──────────────────────────────────────────────────────────────
     def refresh(self) -> None:

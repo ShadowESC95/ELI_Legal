@@ -30,6 +30,7 @@ from eli_legal.domain.models import (
     Incident,
     Issue,
     Matter,
+    Notification,
     PreservationHold,
     RelianceBlock,
     Report,
@@ -76,6 +77,9 @@ _SPECS: dict[type, _Spec] = {
     ReleasePackage: _Spec("releases", "release_id", "run_id", None, "status", "created_at"),
     RelianceBlock: _Spec("reliance_blocks", "block_id", "run_id", "cause", "status", "opened_at"),
     PreservationHold: _Spec("preservation_holds", "hold_id", None, "scope", "status", "opened_at"),
+    Notification: _Spec(
+        "notifications", "notification_id", "run_id", "kind", "status", "created_at"
+    ),
 }
 
 # Accountability records: ids, hashes and decisions, never content. A matter's purge keeps them.

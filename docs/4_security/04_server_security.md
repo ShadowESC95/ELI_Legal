@@ -26,14 +26,14 @@ no WebSocket, and no route that makes it call another machine.
 | **Size** | A body must declare its length and be within the limit before any of it is read | — |
 | **Sign-in** | Passphrase, and a code where a second factor is set up. An unknown user looks the same as a wrong passphrase, and costs the same time | — |
 | **Lock-out** | Five wrong attempts in a row lock the account for fifteen minutes; an administrator can unlock | Someone who knows a user's name can lock them out |
-| **Second factor** | Six-digit codes from an authenticator app; a code cannot be used twice. Required by default when other machines can connect | The secret is stored in the database, protected by file permissions and whatever encrypts the disk. No hardware keys |
+| **Second factor** | Six-digit codes from an authenticator app; a code cannot be used twice. Required by default when other machines can connect | The secret is stored in the database, as it stands; protect the database file and encrypt the disk. No hardware keys |
 | **Session** | A cookie scripts cannot read, never sent on a cross-site request, bound to the host and Secure over TLS. Ends after 30 idle minutes or 8 hours, on sign-out, and when the passphrase changes | One process holds sessions; restarting the server does not end them, since they are in the database |
 | **CSRF** | Any change needs a value only the server's own page was given | — |
 | **Decisions** | Need the passphrase again, sent with the request | — |
 | **Page** | Loads nothing from anywhere else. No inline script or style. All matter content is shown as text, never as markup | A browser defect remains possible: keep browsers patched |
 | **Responses** | Strict content-security policy, no framing, no content-type guessing, no referrer, no caching of matter content | — |
 | **Input** | Unknown fields refused; every string bounded; a refusal never repeats what was sent | — |
-| **Disclosure** | No server path is returned. A corpus loads only from inside the import folder. Only a model server on this machine can be queried | — |
+| **Disclosure** | No server path is returned. A corpus loads only from inside the import folder. A model server is queried only on this machine, or on a host approved as a legal source | — |
 | **Audit** | Every sign-in, refusal and decision is in the ledger, with how identity was proved | Client addresses are in the server's access log, not the ledger |
 
 ## What it does not include

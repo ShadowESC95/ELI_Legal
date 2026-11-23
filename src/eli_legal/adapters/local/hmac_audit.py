@@ -3,10 +3,11 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import logging
 import os
 import sqlite3
 import threading
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,8 @@ from typing import Any
 from eli_legal.domain.errors import AuditIntegrityError, MissingAuditKey
 from eli_legal.domain.models import AuditEvent, utcnow
 from eli_legal.security import authn
+
+_log = logging.getLogger(__name__)
 
 GENESIS = "ELI-LEGAL-AUDIT-GENESIS"
 AUDIT_SCHEMA_VERSION = 3
@@ -119,7 +122,13 @@ class HmacAuditLedger:
         )
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
+        self._listeners: list[Callable[[AuditEvent], None]] = []
         self._init_db()
+
+    def subscribe(self, listener: Callable[[AuditEvent], None]) -> None:
+        """Be told of each event once it is signed into the chain. A listener that fails is
+        logged and never undoes or blocks the event: the record comes first."""
+        self._listeners.append(listener)
 
     # ── key and storage ──────────────────────────────────────────────────────
     @staticmethod
@@ -251,7 +260,12 @@ class HmacAuditLedger:
             finally:
                 con.close()
             self._write_anchor(seq, sig)
-            return seq
+        for listener in list(self._listeners):
+            try:
+                listener(event)
+            except Exception:  # noqa: BLE001 - a listener never stops the record
+                _log.exception("an audit listener failed on %s", event.event_type)
+        return seq
 
     def _rows(self) -> list[tuple[int, str, str, str, str]]:
         con = self._connect()

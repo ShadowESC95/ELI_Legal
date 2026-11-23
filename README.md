@@ -231,7 +231,7 @@ question and Bundles menu).
   from and until when, and what repealed it, on the matter's relevant date. No open database records
   whether a judgment was later overruled, so a judgment's standing goes to a person unless a licensed
   citator is connected; for an EU judgment the person is told which later judgments cite it. Other legal systems use a corpus you load.
-- **No encryption at rest and no OCR.** Use an encrypted volume; convert scans before ingestion.
+- **No encryption at rest.** Use an encrypted volume. OCR of scans and photographs needs Tesseract installed (and Poppler for PDF pages); the installers do not include them.
 - **Unsigned installers.** The Windows and macOS builds are made and smoke-tested by the release workflow but have not been used by a person.
 - **No single sign-on or hardware keys.** Passphrase, lock-out and one-time codes only.
 - **Not penetration-tested.** Keep the server on an internal network.

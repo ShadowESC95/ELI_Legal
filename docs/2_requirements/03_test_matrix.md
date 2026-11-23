@@ -29,5 +29,7 @@
 | Plain words | `tests/unit/test_plain_words.py` | every state, hold reason, check, action and role a person is shown has words, and a tone |
 | Guidance over the server | `tests/api/test_guidance_api.py` | words, guide, team roles, compliance with step-up, checks and oversight over HTTP |
 | Command line, guidance | `tests/integration/test_cli_guidance.py` | status, roles, compliance and checks as real invocations |
+| Images read by OCR | `tests/integration/test_ocr_images.py` | an image file known by its bytes; read and marked (OCR) with its confidence; low confidence or nothing read holds; never guessed; an image left unread earlier is read again |
+| Notifications | `tests/integration/test_notifications.py` | only those who can act are told; they follow the work and go when it is done; nobody marks another's; two people on the server each see their own; a closed matter asks nothing |
 
 Set `ELI_V3_ROOT` to a real ELI v3 checkout to add a contract check against its own loader.

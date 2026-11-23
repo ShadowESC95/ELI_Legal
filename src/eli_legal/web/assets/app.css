@@ -71,6 +71,10 @@ blockquote.no { border-left-color: var(--bad); }
 .signin .card { padding: 22px; }
 .banner { padding: 9px 12px; border-radius: 8px; border: 1px solid var(--line); margin: 0 0 12px; }
 .banner.bad { border-color: var(--bad); color: #f0c4c9; } .banner.good { border-color: var(--good); color: #dbe8cf; }
+.banner.warn { border-color: var(--warn); } .card.warn { border-color: var(--warn); }
+button.chip { background: transparent; color: inherit; cursor: pointer; font: inherit; font-size: 12.5px; }
+button.chip:hover { border-color: var(--warn); }
+dialog .card { margin: 0 0 10px; }
 #toast { position: fixed; right: 16px; bottom: 44px; max-width: 520px; z-index: 30; }
 dialog { background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 12px; padding: 18px; width: min(560px, 92vw); }
 dialog::backdrop { background: rgba(4, 6, 10, .7); }

@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QPlainTextEdit,
+    QSplitter,
     QTabWidget,
     QTextBrowser,
     QVBoxLayout,
@@ -77,8 +78,14 @@ class ReviewTab(Tab):
                 wrap=True,
             )
         )
-        box.addWidget(self.holds, 1)
-        box.addWidget(card("What this hold means", self.explain))
+        # The divider between the holds and what the chosen one means can be dragged.
+        split = QSplitter(Qt.Orientation.Vertical)
+        split.setChildrenCollapsible(False)
+        split.addWidget(self.holds)
+        split.addWidget(card("What this hold means", self.explain))
+        split.setStretchFactor(0, 3)
+        split.setStretchFactor(1, 1)
+        box.addWidget(split, 1)
         self._explain()
         box.addWidget(
             row(
@@ -125,10 +132,15 @@ class ReviewTab(Tab):
         page = QWidget()
         box = QVBoxLayout(page)
         box.addWidget(self.decision_note)
-        box.addWidget(
-            card("Limits of this report — tick each one to show you have read it", self.limits), 1
+        split = QSplitter(Qt.Orientation.Vertical)
+        split.setChildrenCollapsible(False)
+        split.addWidget(
+            card("Limits of this report — tick each one to show you have read it", self.limits)
         )
-        box.addWidget(card("Reasons", self.reasons))
+        split.addWidget(card("Reasons", self.reasons))
+        split.setStretchFactor(0, 3)
+        split.setStretchFactor(1, 1)
+        box.addWidget(split, 1)
         self.approve = button(
             "Approve for reliance…", lambda: self._decide(ReviewDecision.APPROVE), kind="primary"
         )

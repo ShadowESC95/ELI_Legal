@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QMargins, QPoint, QRect, QSize, Qt
 from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -16,8 +16,11 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QLayout,
+    QLayoutItem,
     QPlainTextEdit,
     QPushButton,
+    QSizePolicy,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -65,9 +68,102 @@ def card(title: str, *widgets: QWidget, layout: str = "v") -> QGroupBox:
     return box
 
 
+class FlowLayout(QLayout):
+    """Widgets side by side that wrap onto the next line when the window is too narrow, so a
+    row of buttons never forces the window wider than the screen."""
+
+    def __init__(
+        self, parent: QWidget | None = None, spacing: int = 6, *, align_right: bool = False
+    ) -> None:
+        super().__init__(parent)
+        self._items: list[QLayoutItem] = []
+        self._gap = spacing
+        self._right = align_right
+        self.setContentsMargins(0, 0, 0, 0)
+
+    def addItem(self, item: QLayoutItem) -> None:  # noqa: N802 - Qt's name
+        self._items.append(item)
+
+    def count(self) -> int:
+        return len(self._items)
+
+    def itemAt(self, index: int) -> QLayoutItem | None:  # noqa: N802
+        return self._items[index] if 0 <= index < len(self._items) else None
+
+    def takeAt(self, index: int) -> QLayoutItem | None:  # noqa: N802
+        return self._items.pop(index) if 0 <= index < len(self._items) else None
+
+    def expandingDirections(self) -> Qt.Orientation:  # noqa: N802
+        return Qt.Orientation(0)
+
+    def hasHeightForWidth(self) -> bool:  # noqa: N802
+        return True
+
+    def heightForWidth(self, width: int) -> int:  # noqa: N802
+        return self._place(QRect(0, 0, width, 0), move=False)
+
+    def setGeometry(self, rect: QRect) -> None:  # noqa: N802
+        super().setGeometry(rect)
+        self._place(rect, move=True)
+
+    def sizeHint(self) -> QSize:  # noqa: N802
+        width = sum(i.sizeHint().width() for i in self._items if not i.isEmpty())
+        width += self._gap * max(0, len(self._items) - 1)
+        height = max((i.sizeHint().height() for i in self._items), default=0)
+        return QSize(width, height)
+
+    def minimumSize(self) -> QSize:  # noqa: N802
+        size = QSize()
+        for item in self._items:
+            size = size.expandedTo(item.minimumSize())
+        margins: QMargins = self.contentsMargins()
+        return size + QSize(margins.left() + margins.right(), margins.top() + margins.bottom())
+
+    def _place(self, rect: QRect, *, move: bool) -> int:
+        lines: list[list[QLayoutItem]] = [[]]
+        x = rect.x()
+        for item in self._items:
+            if item.isEmpty():
+                continue
+            width = item.sizeHint().width()
+            if x + width > rect.right() + 1 and lines[-1]:
+                lines.append([])
+                x = rect.x()
+            lines[-1].append(item)
+            x += width + self._gap
+        y = rect.y()
+        for items in lines:
+            if not items:
+                continue
+            used = sum(i.sizeHint().width() for i in items) + self._gap * (len(items) - 1)
+            x = rect.right() + 1 - used if self._right else rect.x()
+            height = max(i.sizeHint().height() for i in items)
+            for item in items:
+                hint = item.sizeHint()
+                if move:
+                    item.setGeometry(QRect(QPoint(x, y + (height - hint.height()) // 2), hint))
+                x += hint.width() + self._gap
+            y += height + self._gap
+        return max(0, y - self._gap - rect.y())
+
+
 def row(*widgets: QWidget | None, stretch_last: bool = False) -> QWidget:
-    """Widgets side by side; ``None`` is elastic space."""
+    """Widgets side by side; ``None`` is elastic space. A row with a field that stretches stays
+    on one line; any other row (buttons, mostly) wraps when the window is narrow."""
     holder = QWidget()
+    grows = (QSizePolicy.Policy.Expanding, QSizePolicy.Policy.MinimumExpanding)
+    if not stretch_last and not any(
+        w is not None and w.sizePolicy().horizontalPolicy() in grows for w in widgets
+    ):
+        flow = FlowLayout(holder)
+        for widget in widgets:
+            if widget is not None:
+                flow.addWidget(widget)
+        policy = holder.sizePolicy()
+        policy.setHeightForWidth(True)
+        policy.setHorizontalPolicy(QSizePolicy.Policy.Preferred)
+        holder.setSizePolicy(policy)
+        return holder
     inner = QHBoxLayout(holder)
     inner.setContentsMargins(0, 0, 0, 0)
     for index, widget in enumerate(widgets):

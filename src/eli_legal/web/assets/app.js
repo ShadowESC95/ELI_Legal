@@ -173,6 +173,70 @@
       if (S.matters.length) await openMatter(S.matters[S.matters.length - 1].matter_id, false);
     }
     render();
+    if (!S.need2fa) startNotes();
+  }
+
+  // ── notifications: work waiting for you, from any matter, while you are signed in ──────
+  // When a run stops for a person (holds to clear, a report to review, a suspension), everyone
+  // signed in who can act on it is told here within seconds. Nothing is sent outside ELI Legal.
+  const NOTE_EVERY_MS = 10000;
+  function startNotes() {
+    clearInterval(S.notePoll);
+    S.notes = { unread: 0, items: [] };
+    S.noteSeen = new Set();
+    S.noteFirst = true;
+    pollNotes();
+    S.notePoll = setInterval(pollNotes, NOTE_EVERY_MS);
+  }
+  async function pollNotes() {
+    if (!S.user) { clearInterval(S.notePoll); return; }
+    let got;
+    try { got = await api('GET', '/v1/notifications', undefined, { quiet: true }); } catch { return; }
+    S.notes = got;
+    const fresh = got.items.filter((n) => n.status === 'open' && !S.noteSeen.has(n.notification_id));
+    fresh.forEach((n) => S.noteSeen.add(n.notification_id));
+    if (S.noteFirst && fresh.length > 2) note(`${fresh.length} things are waiting for you. Open the bell to see them.`, 'warn');
+    else fresh.forEach((n) => noteAction(n));
+    S.noteFirst = false;
+    const bell = document.getElementById('bell');
+    if (bell) fill(bell, bellText());
+    if (bell) bell.className = `chip ${got.unread ? 'warn' : ''}`;
+    document.title = got.unread ? `(${got.unread}) ELI Legal` : 'ELI Legal';
+  }
+  const bellText = () => (S.notes && S.notes.unread ? `${S.notes.unread} waiting for you` : 'Nothing waiting');
+  function noteAction(n) {
+    let box = document.getElementById('toast');
+    if (!box) { box = h('div', { id: 'toast', role: 'status' }); document.body.append(box); }
+    const item = h('div', { class: 'banner warn card' }, h('strong', null, n.title), n.detail ? h('div', { class: 'muted' }, n.detail) : null,
+      h('div', { class: 'row' }, btn('Open', async () => { item.remove(); await openNote(n); }, 'go'), btn('Later', () => item.remove())));
+    box.append(item);
+    setTimeout(() => item.remove(), 20000);
+  }
+  async function openNote(n) {
+    await attempt(() => api('POST', `/v1/matters/${encodeURIComponent(n.matter_id)}/notifications/${encodeURIComponent(n.notification_id)}/read`));
+    if (!S.matter || S.matter.matter_id !== n.matter_id) await openMatter(n.matter_id, false);
+    if (n.run_id && (!S.run || S.run.run_id !== n.run_id)) await openRun(n.run_id, false);
+    goTo(n.page);
+    pollNotes();
+  }
+  function inbox() {
+    const items = (S.notes && S.notes.items) || [];
+    const dialog = h('dialog', null);
+    const close = () => { dialog.close(); dialog.remove(); };
+    fill(dialog, h('h2', null, 'Waiting for you'),
+      h('p', { class: 'muted' }, 'Work on your matters that only a person can do, and that you are able to do. Each item goes once the work is done.'),
+      items.length ? items.map((n) => h('div', { class: `card ${n.status === 'open' ? 'warn' : ''}` },
+        h('strong', null, n.title), n.detail ? h('div', { class: 'muted' }, n.detail) : null,
+        n.actions && n.actions.length ? h('div', { class: 'muted' }, `You can: ${n.actions.join(', ')}.`) : null,
+        h('div', { class: 'row' }, h('span', { class: 'muted' }, `${when(n.created_at)}${n.status === 'open' ? ' · new' : ''}`), h('span', { class: 'spacer' }),
+          btn('Open', async () => { close(); await openNote(n); }, 'go'))))
+        : h('p', null, 'Nothing is waiting for you.'),
+      h('div', { class: 'row' }, h('span', { class: 'spacer' }),
+        items.some((n) => n.status === 'open') ? btn('Mark all as seen', async () => { await attempt(() => api('POST', '/v1/notifications/read')); close(); pollNotes(); }) : null,
+        btn('Close', close)));
+    dialog.addEventListener('cancel', (e) => { e.preventDefault(); close(); });
+    document.body.append(dialog);
+    dialog.showModal();
   }
   async function openMatter(id, draw = true) {
     S.matter = await api('GET', `/v1/matters/${encodeURIComponent(id)}`);
@@ -189,7 +253,9 @@
   }
   async function signOut() {
     try { await api('POST', '/v1/auth/logout', undefined, { quiet: true }); } catch { /* already gone */ }
-    Object.assign(S, { user: null, csrf: null, matter: null, run: null, matters: [], runs: [] });
+    clearInterval(S.notePoll);
+    Object.assign(S, { user: null, csrf: null, matter: null, run: null, matters: [], runs: [], notes: null });
+    document.title = 'ELI Legal';
     render();
   }
 
@@ -264,6 +330,7 @@
           ? h('span', { class: `chip ${/kernel|Firewall/.test(S.sys.network.enforced_by) ? 'good' : 'warn'}`, title: S.sys.network.detail }, /kernel|Firewall/.test(S.sys.network.enforced_by) ? 'Hard offline (kernel-enforced)' : 'Hard offline (this program only)')
           : h('span', { class: 'chip good' }, `Network ${S.sys.network_default} by default`),
         h('span', { class: `chip ${model && model !== 'none' ? 'good' : ''}` }, model && model !== 'none' ? `Model ${model}` : 'No model'),
+        h('button', { id: 'bell', type: 'button', class: `chip ${S.notes && S.notes.unread ? 'warn' : ''}`, title: 'Work waiting for you on your matters', onclick: inbox }, bellText()),
         h('span', { class: 'chip human' }, `${S.user.display_name} · ${S.user.roles.map(roleName).join(', ')}`), btn('Sign out', signOut)),
       h('nav', { class: 'tabs', role: 'tablist' }, TABS().map(([id, text, about]) => h('button', { class: 'tab', role: 'tab', id: `tab-${id}`, title: about || null, 'aria-selected': String(S.tab === id), onclick: () => { S.tab = id; render(); } }, text))),
       h('main', { id: 'view', role: 'tabpanel' }),
@@ -943,7 +1010,7 @@
       card('Law and standards packages', h('p', { class: 'muted' }, 'International, regional, national, professional and your organisation\'s own. The packages a matter applies are given to the model as rules in every call, tighten the system where they say so, become confirmations the reviewer must give before approval, and are listed in the report. Shipped packages are summaries until a qualified lawyer\'s validation is recorded; your own must be approved.'),
         table([['Package', (f) => f.short_title + (f.example ? ' (example)' : '')], ['Instrument', 'instrument', 'clip'], ['Scope', 'scope'], ['Applies in', (f) => f.jurisdictions.join(', ').replace('*', 'anywhere')], ['Standing', (f) => h('span', { class: f.usable ? (f.validated || f.origin !== 'shipped' ? 'good' : 'warn') : 'bad' }, f.standing)], ['Requirements', 'requirements']], all,
           { onRow: (f) => { S.picked.law = f.id; show(); }, on: (f) => picked && f.id === picked.id }),
-        may['framework.manage'] ? h('div', { class: 'row' }, btn('Import a package or document…', upload, 'go'), picked ? [btn('Approve', act('/approve', 'Approved.')), btn('Record a lawyer\'s validation…', validate), btn('Confirm checked against the official text…', current), btn('Withdraw', act('/withdraw', 'Withdrawn.'), 'danger'), btn('Reinstate', act('/reinstate', 'Reinstated.')), picked.origin !== 'shipped' ? btn('Remove', act('', 'Removed.', 'DELETE')) : null, btn('Export', exportPack)] : null) : null),
+        may['framework.manage'] ? h('div', { class: 'row' }, btn('Import a package or document…', upload, 'go'), picked ? [picked.origin !== 'shipped' ? btn('Approve', act('/approve', 'Approved.')) : null, btn('Record a lawyer\'s validation…', validate), btn('Confirm checked against the official text…', current), btn('Withdraw', act('/withdraw', 'Withdrawn.'), 'danger'), btn('Reinstate', act('/reinstate', 'Reinstated.')), picked.origin !== 'shipped' ? btn('Remove', act('', 'Removed.', 'DELETE')) : null, btn('Export', exportPack)] : null) : null),
       h('div', { class: 'cols' },
         card(detail ? detail.pack.title : 'No package', detail ? [facts([['Instrument', detail.pack.instrument], ['Issued by', detail.pack.issuer], ['Version', detail.pack.version], ['Checked against its source', detail.pack.as_at || 'not recorded'], ['Standing', detail.standing]]),
           h('p', null, detail.pack.description), detail.pack.rules.status_max_age_days || detail.pack.rules.forbidden_terms.length ? h('p', { class: 'warn' }, 'Tightens the system: ' + [detail.pack.rules.status_max_age_days ? `authority status confirmed within ${detail.pack.rules.status_max_age_days} days` : '', detail.pack.rules.forbidden_terms.length ? `model-drafted text may not contain ${detail.pack.rules.forbidden_terms.join(', ')}` : ''].filter(Boolean).join('; ')) : null,

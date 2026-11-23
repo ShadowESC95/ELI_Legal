@@ -90,8 +90,17 @@ the run until you either supply a readable version or accept the gap. A file mar
 contains text addressed to an AI system; it is treated as evidence of that fact and never as an
 instruction, and it too is held for you to decide.
 
-Scanned documents must be converted to text before filing. The system has no optical character
-recognition.
+A scan or a photograph (a PDF page that is only an image, or a PNG, JPEG or TIFF filed on its
+own) is read by OCR on this machine where Tesseract is installed. Its passages are marked (OCR)
+with the confidence of the reading; a reading below 80% holds the run until a person checks it
+against the original. Without OCR it is reported unread, never guessed.
+
+**Work waiting for you.** When a run stops for a person, everyone on the matter who can act on it
+is told: the desktop header shows "🔔 N waiting for you" and the status bar names the newest; in
+the browser a bell and a notice with an **Open** button. That covers holds to clear, a restart
+once every hold is cleared, a report ready for review or returned, and an approved report
+suspended. You are only told what you are allowed to do. Each notice goes once the work is done,
+and each is recorded in the audit trail. Nothing is ever sent outside ELI Legal.
 
 ### 3. Start a run
 

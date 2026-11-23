@@ -26,8 +26,8 @@ Status: **met** means implemented and tested. **Partly** and **not met** say wha
 | FR-13 | Require a named human to resolve holds, review, approve and release | C-12, C-14, C-20 | Met |
 | FR-14 | Export an evidence pack for any run | C-27 | Met |
 | FR-15 | Work for any legal system described by a jurisdiction pack | C-26 | Met structurally; **no pack is validated by a qualified lawyer** |
-| FR-16 | Read scanned documents | — | **Not met**: no optical character recognition |
-| FR-17 | Query a live legal database | — | **Not met**: one connector reads a corpus you load |
+| FR-16 | Read scanned documents and photographs | C-67 | Met where Tesseract (and Poppler, for PDF pages) is installed; otherwise reported unread and held |
+| FR-17 | Query a live legal database | C-60 | **Partly met**: the EU (CELLAR, EUR-Lex) and UK (legislation.gov.uk, Find Case Law) are looked up by citation; research searches what has been fetched or loaded, not the databases themselves |
 
 ## 2. Governance
 

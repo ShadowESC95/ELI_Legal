@@ -50,7 +50,7 @@ The software does not do these, and a deployment that handles real matters needs
 - **A certificate** from your own authority for the server, or a checked self-signed one.
 - **A firewall** limiting who can reach the server.
 - **Patching** of the operating system and browsers.
-- **Scanned documents converted to text** before filing: there is no optical character recognition.
+- **Tesseract** (and Poppler, for scanned PDF pages) for scans and photographs to be read by OCR; the installers do not include them.
 - **A legal source** you are licensed to use, in a form that carries status information.
 
 ## Sizing

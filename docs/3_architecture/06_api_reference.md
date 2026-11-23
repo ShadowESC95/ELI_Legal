@@ -156,6 +156,9 @@ request body (`Content-Type: application/octet-stream`); optional query fields `
 | `GET` | `/v1/checks` | yes | The latest routine checks as you may see them, and when the earlier ones ran. |
 | `POST` | `/v1/checks/run` | yes | Run the routine checks now. |
 | `GET` | `/v1/oversight/matters` | yes | Every matter, for those who oversee the system; content withheld where you are not on the matter. |
+| `GET` | `/v1/notifications` | yes | Your notifications still waiting on you, unseen first, with the count unseen: holds to clear, a restart, a report to review, returned or suspended. |
+| `POST` | `/v1/matters/{matter_id}/notifications/{notification_id}/read` | yes | Mark one of your own notifications as seen; it stays until the work is done. |
+| `POST` | `/v1/notifications/read` | yes | Mark all your notifications as seen. |
 
 ## Runs, findings, review and release
 

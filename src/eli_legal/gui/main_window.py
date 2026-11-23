@@ -1,15 +1,20 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QSize, Qt, QTimer
-from PySide6.QtGui import QAction, QCloseEvent
+from PySide6.QtCore import QByteArray, QSize, Qt, QTimer
+from PySide6.QtGui import QAction, QCloseEvent, QGuiApplication
 from PySide6.QtWidgets import (
+    QApplication,
     QComboBox,
     QFrame,
     QHBoxLayout,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
+    QMenu,
     QMessageBox,
+    QPushButton,
+    QScrollArea,
+    QSplitter,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -36,7 +41,7 @@ from eli_legal.gui.tabs.review_tab import ReviewTab
 from eli_legal.gui.tabs.settings_tab import SettingsTab
 from eli_legal.gui.tabs.sources_tab import SourcesTab
 from eli_legal.gui.tabs.workflow_tab import WorkflowTab
-from eli_legal.gui.widgets import chip, label, set_chip
+from eli_legal.gui.widgets import FlowLayout, chip, label, set_chip
 
 BOUNDARIES = (
     "ELI Legal prepares; a named person decides.\n\n"
@@ -51,17 +56,46 @@ BOUNDARIES = (
 )
 
 
+class Pages(QTabWidget):
+    """The pages, each in its own scrolling area. A page bigger than the window scrolls instead
+    of forcing the window bigger than the screen. Callers still deal in the pages themselves."""
+
+    def add_page(self, page: QWidget, title: str) -> None:
+        holder = QScrollArea()
+        holder.setWidget(page)
+        holder.setWidgetResizable(True)
+        holder.setFrameShape(QFrame.Shape.NoFrame)
+        self.addTab(holder, title)
+
+    def page_at(self, index: int) -> QWidget | None:
+        holder = super().widget(index)
+        return holder.widget() if isinstance(holder, QScrollArea) else holder
+
+    def currentWidget(self) -> QWidget | None:  # noqa: N802 - Qt's name
+        return self.page_at(self.currentIndex())
+
+    def setCurrentWidget(self, page: QWidget) -> None:  # noqa: N802 - Qt's name
+        for index in range(self.count()):
+            if self.page_at(index) is page:
+                self.setCurrentIndex(index)
+                return
+
+
 class MainWindow(QMainWindow):
     def __init__(self, session: Session) -> None:
         super().__init__()
         self.session = session
         self.signing_out = False
         self.setWindowTitle(f"ELI Legal {__version__}")
-        self.resize(1440, 900)
+        self._fit_to_screen()
 
         # header: what is open, and the state of the things that must never be in doubt
         self.matter_box = QComboBox()
-        self.matter_box.setMinimumWidth(360)
+        self.matter_box.setMinimumWidth(220)
+        self.matter_box.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
+        )
+        self.matter_box.setMinimumContentsLength(24)
         self.matter_box.activated.connect(self._matter_chosen)
         self.matter_box.setToolTip(glossary.tooltip("Matter", "Choose the case to work on."))
         self.profile = label("", "muted")
@@ -71,16 +105,33 @@ class MainWindow(QMainWindow):
         line = QHBoxLayout(header)
         line.setContentsMargins(12, 8, 12, 8)
         title = label("ELI Legal", "title")
-        line.addWidget(title)
+        middle = Qt.AlignmentFlag.AlignVCenter
+        line.addWidget(title, 0, middle)
         line.addSpacing(14)
-        line.addWidget(label("Case"))
-        line.addWidget(self.matter_box)
-        line.addWidget(self.profile)
-        line.addStretch(1)
-        for widget in self.chips.values():
-            line.addWidget(widget)
+        line.addWidget(label("Case"), 0, middle)
+        line.addWidget(self.matter_box, 0, middle)
+        line.addWidget(self.profile, 0, middle)
+        # The state chips sit at the right and wrap onto a second line in a narrow window,
+        # rather than widen it.
+        chips = QWidget()
+        flow = FlowLayout(chips, align_right=True)
+        # Work waiting for this person on any matter: holds to clear, a report to review.
+        self.bell = QPushButton("Nothing waiting")
+        self.bell.setObjectName("bell")
+        self.bell.setToolTip("Work on your matters that only a person can do, and that you can do")
+        self.bell.clicked.connect(self._show_waiting)
+        self._waiting: list[dict] = []
+        self._told: set[str] = set()
+        for name, widget in self.chips.items():
+            if name == "user":
+                flow.addWidget(self.bell)
+            flow.addWidget(widget)
+        policy = chips.sizePolicy()
+        policy.setHeightForWidth(True)
+        chips.setSizePolicy(policy)
+        line.addWidget(chips, 1)
 
-        self.tabs = QTabWidget()
+        self.tabs = Pages()
         self.tabs.tabBar().hide()  # the sidebar chooses the page
         self.pages: list[Tab] = [
             HomeTab(session, self.go),
@@ -100,7 +151,7 @@ class MainWindow(QMainWindow):
             NewCaseTab(session, self.go),
         ]
         for page in self.pages:
-            self.tabs.addTab(page, page.title)
+            self.tabs.add_page(page, page.title)
         self.tabs.currentChanged.connect(lambda _index: self._refresh_page())
         self.nav = self._sidebar()
 
@@ -109,12 +160,19 @@ class MainWindow(QMainWindow):
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(0)
         column.addWidget(header)
-        body = QHBoxLayout()
-        body.setContentsMargins(0, 0, 0, 0)
-        body.setSpacing(0)
-        body.addWidget(self.nav)
-        body.addWidget(self.tabs, 1)
-        column.addLayout(body, 1)
+        # The sidebar and the page share a divider that can be dragged; where it was left is
+        # remembered, as is the window's size and place.
+        self.body = QSplitter(Qt.Orientation.Horizontal)
+        self.body.setObjectName("body")
+        self.body.setChildrenCollapsible(False)
+        self.body.setHandleWidth(6)
+        self.body.addWidget(self.nav)
+        self.body.addWidget(self.tabs)
+        self.body.setStretchFactor(1, 1)
+        self.body.setSizes([round(self._NAV_WIDTH * zoom.level()), 1200])
+        self.body.splitterMoved.connect(lambda _pos, _index: self._size_nav_items(self.nav))
+        column.addWidget(self.body, 1)
+        self._restore_layout()
         self.setCentralWidget(central)
         self._menus()
         self.statusBar().showMessage(
@@ -125,6 +183,12 @@ class MainWindow(QMainWindow):
         self.refresh()
         # Routine checks run on their own: once soon after sign-in if they are due, then
         # whenever they fall due. An interval of 0 hours switches the schedule off.
+        # Notifications: checked every few seconds, so when a run stops for this person (on this
+        # machine or on another signed in to the same data) they are told.
+        self.waiting_timer = QTimer(self)
+        self.waiting_timer.timeout.connect(self.check_waiting)
+        self.waiting_timer.start(10_000)
+        QTimer.singleShot(1500, self.check_waiting)
         self.checks_timer = QTimer(self)
         self.checks_timer.timeout.connect(self.scheduled_checks)
         if session.sv.ctx.settings.checks_every_hours > 0:
@@ -174,7 +238,7 @@ class MainWindow(QMainWindow):
     def _sidebar(self) -> QListWidget:
         nav = QListWidget()
         nav.setObjectName("nav")
-        nav.setFixedWidth(round(self._NAV_WIDTH * zoom.level()))
+        nav.setMinimumWidth(150)
         nav.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
         nav.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         by_class = {type(page).__name__: i for i, page in enumerate(self.pages)}
@@ -224,8 +288,46 @@ class MainWindow(QMainWindow):
                 item.setSizeHint(QSize(width, nav.fontMetrics().height() + 22))
 
     def _nav_zoomed(self, level: float) -> None:
-        self.nav.setFixedWidth(round(self._NAV_WIDTH * level))
+        """Larger text, wider sidebar: scaled from wherever the person dragged its divider."""
+        if hasattr(self, "body"):
+            sizes = self.body.sizes()
+            total = sum(sizes) or self.width()
+            current = sizes[0] if sizes and sizes[0] > 0 else round(self._NAV_WIDTH * level)
+            before = self._nav_level or level
+            wanted = round(current * level / before) if self._nav_level else current
+            self.body.setSizes([wanted, max(200, total - wanted)])
+            self.nav.resize(wanted, self.nav.height())
+            self._nav_level = level
         self._size_nav_items(self.nav)
+
+    # ── size: fit the screen, remember what the person chose ─────────────────
+    _layout_restored = False
+    _nav_level = 0.0
+
+    def _fit_to_screen(self) -> None:
+        """Open no bigger than the screen: most of it on a laptop, 1440 by 900 on a large one."""
+        screen = QGuiApplication.primaryScreen()
+        if screen is None:
+            self.resize(1440, 900)
+            return
+        free = screen.availableGeometry()
+        self.resize(min(1440, round(free.width() * 0.94)), min(900, round(free.height() * 0.92)))
+        self.setMinimumSize(640, 420)
+
+    def _restore_layout(self) -> None:
+        store = zoom.remembered()
+        geometry = store.value("window/geometry")
+        if isinstance(geometry, QByteArray) and not geometry.isEmpty():
+            self.restoreGeometry(geometry)
+        divider = store.value("window/divider")
+        if isinstance(divider, QByteArray) and not divider.isEmpty():
+            self._layout_restored = self.body.restoreState(divider)
+
+    def _save_layout(self) -> None:
+        store = zoom.remembered()
+        store.setValue("window/geometry", self.saveGeometry())
+        store.setValue("window/divider", self.body.saveState())
+        store.sync()
 
     def _nav_chosen(self, item: QListWidgetItem | None, _old: QListWidgetItem | None) -> None:
         index = item.data(Qt.ItemDataRole.UserRole) if item is not None else None
@@ -430,6 +532,66 @@ class MainWindow(QMainWindow):
         if chosen != self.session.matter_id:
             self.session.set_matter(chosen)
 
+    # ── work waiting for this person ─────────────────────────────────────────
+    def check_waiting(self) -> None:
+        if not self.session.user_id or self.signing_out:
+            return
+        try:
+            items = self.session.sv.notifications.inbox(self.session.user_id)
+        except Exception:  # noqa: BLE001 - a failed check is tried again on the next tick
+            return
+        self._waiting = items
+        unread = [n for n in items if n["status"] == "open"]
+        self.bell.setText(f"🔔 {len(unread)} waiting for you" if unread else "Nothing waiting")
+        self.bell.setProperty("kind", "primary" if unread else "")
+        self.bell.style().unpolish(self.bell)
+        self.bell.style().polish(self.bell)
+        fresh = [n for n in unread if n["notification_id"] not in self._told]
+        self._told.update(n["notification_id"] for n in fresh)
+        if fresh:
+            latest = fresh[0]
+            more = f" (and {len(fresh) - 1} more)" if len(fresh) > 1 else ""
+            self.statusBar().showMessage(f"For you: {latest['title']}{more}", 15000)
+            QApplication.alert(self, 0)  # the task bar entry asks for attention
+
+    def _show_waiting(self) -> None:
+        menu = QMenu(self)
+        if not self._waiting:
+            menu.addAction("Nothing is waiting for you.").setEnabled(False)
+        for note in self._waiting[:12]:
+            mark = "● " if note["status"] == "open" else ""
+            action = menu.addAction(f"{mark}{note['title']}")
+            action.setToolTip(note["detail"])
+            action.triggered.connect(lambda _c=False, n=note: self._open_waiting(n))
+        if any(n["status"] == "open" for n in self._waiting):
+            menu.addSeparator()
+            menu.addAction("Mark all as seen").triggered.connect(self._seen_all)
+        menu.exec(self.bell.mapToGlobal(self.bell.rect().bottomLeft()))
+
+    def _open_waiting(self, note: dict) -> None:
+        sv, user = self.session.sv, self.session.user_id
+        self.session.attempt(
+            self,
+            lambda: sv.notifications.mark_read(
+                note["matter_id"], note["notification_id"], actor_id=user
+            ),
+            quiet=True,
+        )
+        if note["matter_id"] != self.session.matter_id:
+            self.session.set_matter(note["matter_id"], announce=False)
+        if note.get("run_id"):
+            self.session.set_run(note["run_id"])
+        else:
+            self.session.notify()
+        self.go(note["page"])
+        self.check_waiting()
+
+    def _seen_all(self) -> None:
+        self.session.attempt(
+            self, lambda: self.session.sv.notifications.mark_all_read(self.session.user_id)
+        )
+        self.check_waiting()
+
     def _busy(self, what: str) -> None:
         self.statusBar().showMessage(
             what
@@ -450,5 +612,6 @@ class MainWindow(QMainWindow):
             event.ignore()
             self.signing_out = False
             return
+        self._save_layout()
         self.session.sign_out()
         event.accept()

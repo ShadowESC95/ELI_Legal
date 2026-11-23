@@ -1,10 +1,12 @@
 """Matters, the documents in them, grounded questions about them, and what the system is."""
 
 # No "from __future__ import annotations": see routes_auth.
+import contextvars
 import re
 from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request
+from starlette.concurrency import run_in_threadpool
 
 from eli_legal import __version__
 from eli_legal.application.matter_service import TeamMember
@@ -249,21 +251,33 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
         raw = await request.body()
         if len(raw) > cfg.max_upload_bytes:
             raise HTTPException(413, "the file is too large")
-        m = sv.ctx.matter_for(matter_id, actor, "document.ingest")
-        given = DocumentType(doc_type) if doc_type else None
-        document = sv.ingestion.register(
-            matter=m,
-            actor_id=actor,
-            filename=name,
-            raw=raw,
-            doc_type=given,
-            party_id=party_id or None,
-            access_scope=AccessScope(scope),
-            custodian=custodian[:200],
-        )
-        if document.status.value == "registered":
-            document = sv.ingestion.process(document, actor_id=actor, type_given=given is not None)
-        return document_row(document)
+        try:
+            given = DocumentType(doc_type) if doc_type else None
+            access = AccessScope(scope)
+        except ValueError as exc:
+            raise HTTPException(422, "unknown document type or scope") from exc
+
+        def file_it() -> Document:
+            m = sv.ctx.matter_for(matter_id, actor, "document.ingest")
+            document = sv.ingestion.register(
+                matter=m,
+                actor_id=actor,
+                filename=name,
+                raw=raw,
+                doc_type=given,
+                party_id=party_id or None,
+                access_scope=access,
+                custodian=custodian[:200],
+            )
+            if document.status.value == "registered":
+                document = sv.ingestion.process(
+                    document, actor_id=actor, type_given=given is not None
+                )
+            return document
+
+        # Reading a long scan by OCR takes a while: it runs on a worker thread, as the person
+        # who filed it, so every other session and every run's progress stays responsive.
+        return document_row(await run_in_threadpool(contextvars.copy_context().run, file_it))
 
     @app.get("/v1/matters/{matter_id}/documents/{document_id}/passages")
     def passages(matter_id: str, document_id: str, actor: Actor) -> Any:

@@ -13,6 +13,7 @@ guessed: the page is reported unread and the run holds on it.
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import tempfile
@@ -52,6 +53,18 @@ class TesseractOcr:
     @property
     def available(self) -> bool:
         return bool(self.tesseract and self.pdftoppm)
+
+    @property
+    def can_read_images(self) -> bool:
+        """An image file (a photograph, a scan saved as PNG, JPEG or TIFF) needs Tesseract only."""
+        return bool(self.tesseract)
+
+    @property
+    def image_reason(self) -> str:
+        return "" if self.can_read_images else (
+            "OCR is not available here: Tesseract is not installed or switched off, so an "
+            "image cannot be read"
+        )  # fmt: skip
 
     @property
     def reason(self) -> str:
@@ -103,6 +116,38 @@ class TesseractOcr:
                 )  # fmt: skip
                 out.append(_page_from_tsv(number, result.stdout))
         return out
+
+    def read_image(self, raw: bytes, suffix: str) -> list[OcrPage]:
+        """Read an image file: one page, or each page of a multi-page TIFF. An image Tesseract
+        cannot open, or that holds no words, gives no pages; the caller reports it unread."""
+        if not self.can_read_images:
+            return []
+        suffix = suffix if suffix.startswith(".") and len(suffix) <= 6 else ".png"
+        with tempfile.TemporaryDirectory(prefix="eli-legal-ocr-") as folder:
+            source = Path(folder) / f"image{suffix}"
+            fd = os.open(source, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(fd, "wb") as fh:
+                fh.write(raw)
+            try:
+                result = subprocess.run(  # noqa: S603 - a fixed program, no shell
+                    [str(self.tesseract), str(source), "stdout", "-l", self.language, "tsv"],
+                    capture_output=True, text=True, timeout=TIMEOUT, check=True,
+                )  # fmt: skip
+            except (OSError, subprocess.SubprocessError):
+                return []
+        rows = result.stdout.splitlines()
+        if not rows:
+            return []
+        header, by_page = rows[0], {}
+        for row in rows[1:]:
+            cells = row.split("\t")
+            if len(cells) > 1 and cells[1].isdigit():
+                by_page.setdefault(int(cells[1]), []).append(row)
+        pages = [
+            _page_from_tsv(number, "\n".join([header, *lines]))
+            for number, lines in sorted(by_page.items())
+        ]
+        return [p for p in pages if p.paragraphs]
 
 
 def _page_from_tsv(number: int, tsv: str) -> OcrPage:

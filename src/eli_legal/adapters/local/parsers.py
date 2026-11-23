@@ -25,6 +25,23 @@ _TEXT_SUFFIXES = {".txt", ".md", ".markdown", ".csv", ".tsv", ".json", ".log", "
 _IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".gif", ".webp", ".heic"}
 
 
+def _image_type(raw: bytes) -> str:
+    """The image format from the file's first bytes, whatever its name says; "" if not one."""
+    if raw.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "png"
+    if raw.startswith(b"\xff\xd8\xff"):
+        return "jpeg"
+    if raw.startswith((b"II*\x00", b"MM\x00*")):
+        return "tiff"
+    if raw.startswith((b"GIF87a", b"GIF89a")):
+        return "gif"
+    if raw.startswith(b"BM") and len(raw) > 26 and raw[6:10] == b"\x00\x00\x00\x00":
+        return "bmp"
+    if raw[:4] == b"RIFF" and raw[8:12] == b"WEBP":
+        return "webp"
+    return ""
+
+
 @dataclass(frozen=True, slots=True)
 class Segment:
     locator: str
@@ -343,6 +360,10 @@ def detect_media_type(filename: str, raw: bytes) -> str:
         return "application/pdf"
     if raw.startswith(b"{\\rtf"):
         return "application/rtf"
+    if suffix not in _TEXT_SUFFIXES and (kind := _image_type(raw)):
+        return f"image/{kind}"
+    if suffix in _IMAGE_SUFFIXES:
+        return f"image/{suffix.lstrip('.').replace('jpg', 'jpeg').replace('tif', 'tiff')}"
     return {
         ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         ".odt": "application/vnd.oasis.opendocument.text",
@@ -379,8 +400,17 @@ class LocalDocumentParser:
             parsed = _parse_eml(raw)
         elif suffix in {".html", ".htm"}:
             parsed = _parse_html(raw)
-        elif suffix in _IMAGE_SUFFIXES:
-            raise UnsupportedDocument("image file: OCR it and ingest the text or a searchable PDF")
+        elif suffix in _IMAGE_SUFFIXES or (suffix not in _TEXT_SUFFIXES and _image_type(raw)):
+            if not image_pages:
+                raise UnsupportedDocument(
+                    "image file: OCR it and ingest the text or a searchable PDF"
+                )
+            # An image file is one picture with no text layer: ingestion reads it by OCR, page
+            # by page for a multi-page TIFF, or reports it unread. Nothing is guessed here.
+            kind = _image_type(raw) or suffix.lstrip(".")
+            return ParsedDocument(
+                media_type=f"image/{kind}", segments=(), pages=(PdfPage(1, 0, 1),)
+            )
         elif suffix in {".doc", ".msg", ".xls", ".xlsx", ".ppt", ".pptx", ".zip"}:
             raise UnsupportedDocument(f"{suffix} is not supported; convert to PDF or DOCX")
         elif suffix in _TEXT_SUFFIXES or suffix == "":

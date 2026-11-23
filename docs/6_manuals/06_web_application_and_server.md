@@ -1,6 +1,6 @@
 # Web application and server
 
-The server lets people use ELI Legal from a browser, with the same eleven screens as the desktop
+The server lets people use ELI Legal from a browser, with the same fifteen pages as the desktop
 application and the same rules. It also offers an API for programs. It is one command.
 
 ## Starting it
@@ -12,11 +12,13 @@ application and the same rules. It also offers an API for programs. It is one co
 | A team, no certificate yet | `eli-legal serve --lan --self-signed` | the address it prints |
 | Behind your reverse proxy | `eli-legal serve --behind-proxy --trusted-proxy 127.0.0.1 --allowed-host legal.example` | your proxy's address |
 
-At least one user must exist first (`eli-legal init --admin <id>`). The server prints where it
+At least one user must exist first, for example `eli-legal init --admin jay` (your own user id). The server prints where it
 is listening, the certificate's fingerprint, whether a second factor is required, and when
 sessions end. Stop it with Ctrl+C.
 
-It will not listen beyond this machine without TLS. That is not configurable.
+It will not listen beyond this machine without TLS, or without naming the reverse proxy it
+trusts (`--behind-proxy --trusted-proxy`). The proxy must pass on the original `Host` header, or
+every change is refused as cross-site.
 
 **A self-signed certificate** makes each browser warn. Before accepting the warning, compare the
 SHA-256 fingerprint the browser shows with the one the server printed. If they differ, stop.
@@ -42,8 +44,16 @@ Exactly as described in the [User manual](03_user_manual.md). Differences from t
 application:
 
 - **Decisions** open a box asking for your passphrase. A wrong one records nothing.
-- **Files** are uploaded from your machine: choose them on the Evidence screen. The limit is
-  250 MB each unless your administrator changed it.
+- **Files** are uploaded from your machine: choose them on the Documents page. The limit is
+  250 MB each unless your administrator changed it (other requests are limited to 1 MB). A scan
+  or a photograph is read by OCR on the server while other sessions carry on.
+- **Notifications.** The bell in the header says how many things are waiting for you: holds to
+  clear, a report to review, a report returned or suspended, on any matter you can act on. When a
+  new one arrives a notice appears with an **Open** button, and the count shows in the browser
+  tab, within about ten seconds, whoever else is signed in. Nothing is sent outside ELI Legal.
+- **Not in the browser yet:** deployment authorisations, preservation holds, ending a reliance
+  suspension, incident awareness and owners, choosing a real rather than a practice matter, and
+  re-reading a document. Use the desktop application, the command line or the API for those.
 - **Runs** execute on the server. You can close the browser and come back.
 - **Downloads** (the report, a checkpoint, the evidence pack) are saved by your browser. Treat
   them as you would the matter's papers.

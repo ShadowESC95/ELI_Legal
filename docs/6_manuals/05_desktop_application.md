@@ -18,7 +18,18 @@ make it.
 
 Always visible: the open matter and who it is for; the result of the latest routine checks;
 whether the audit chain verifies and how many events it holds; that the network is denied by
-default; which model is in use, if any; and who is signed in, with their roles.
+default; which model is in use, if any; what is waiting for you; and who is signed in, with
+their roles.
+
+**Waiting for you.** "🔔 N waiting for you" counts the work on your matters that only a person
+can do and that you are allowed to do: holds to clear, a restart once every hold is cleared, a
+report to review, a report returned or suspended. It is checked every ten seconds; a new one is
+named in the status bar. Click it to see them and open one at the page where it is done.
+
+**Window size.** The window opens to fit your screen. A page larger than the window scrolls; rows
+of buttons wrap. Drag the edge between the sidebar and the page, and the dividers inside pages,
+to give room where you need it; the window remembers its size and where you left them. Ctrl and
+the mouse wheel, or Ctrl and + / −, make everything larger or smaller.
 
 ## Pages
 

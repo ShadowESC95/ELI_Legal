@@ -49,6 +49,11 @@ def _prop(widget: QObject, name: str) -> object:
 _KEY = "view/zoom"
 
 
+def remembered() -> QSettings:
+    """The person's own settings for the window: its size, and where they put its dividers."""
+    return _remembered()
+
+
 def _remembered() -> QSettings:
     """Where the size a person chose is kept: their own settings, or the file named in
     ELI_LEGAL_GUI_SETTINGS, which the tests use so that they never change a real person's."""

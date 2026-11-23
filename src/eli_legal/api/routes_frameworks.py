@@ -1,10 +1,12 @@
 """Law and standards packages over HTTP: the library, an organisation's own, and a matter's."""
 
 # No "from __future__ import annotations": see routes_auth.
+import contextvars
 from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import PlainTextResponse
+from starlette.concurrency import run_in_threadpool
 
 from eli_legal.application.services import Services
 from eli_legal.legal.frameworks import pack_to_dict
@@ -59,10 +61,15 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
         if not name or len(name) > 255:
             raise HTTPException(400, "give the file's name, without any folder")
         raw = await request.body()
-        state = sv.frameworks.import_file(
-            name, raw, actor_id=actor, title=title[:300], pack_id=pack_id[:64],
-            issuer=issuer[:300], version=version[:80] or "1",
-        )  # fmt: skip
+
+        def import_it() -> Any:
+            return sv.frameworks.import_file(
+                name, raw, actor_id=actor, title=title[:300], pack_id=pack_id[:64],
+                issuer=issuer[:300], version=version[:80] or "1",
+            )  # fmt: skip
+
+        # A scanned PDF of rules is read by OCR: off the event loop, as the person importing it.
+        state = await run_in_threadpool(contextvars.copy_context().run, import_it)
         return state.as_dict()
 
     @app.post("/v1/frameworks/{pack_id}/approve")

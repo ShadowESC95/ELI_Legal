@@ -3,7 +3,7 @@
 | Measure | How | Limit |
 |---|---|---|
 | Identity | no service acts on a name alone: a front end must have checked a passphrase session, a passphrase sign-in or a token; a signed-in person cannot act as anyone else; every event records how identity was proved; five wrong attempts lock the account; a second factor (one-time code) is available everywhere and required by default for a networked server | a passphrase and code can still be shared or coerced; no hardware keys; no single sign-on; lock-out can be used to deny a known user access |
-| Decisions | resolving a hold, verifying, reviewing, restarting, releasing, closing, approving a source, changing the model and managing users need the passphrase again | — |
+| Decisions | resolving a hold, verifying, reviewing, restarting, releasing, closing, approving a source, changing the model, adding users and changing their roles or passphrases need the passphrase again | deactivating a user, revoking a source and stopping a run do not: each takes access away rather than granting it, and each is recorded |
 | Access | account role + matter membership + account role valid for the matter's profile + the person's role on the matter (lead, decision-maker, case worker, assistant, observer, auditor), which only ever narrows; only the lead manages the team; every refusal logged | — |
 | Clearance and redaction | each person reads only the material their role on the matter clears them for, and never what another party gave in confidence if they act for a party; anything else is withheld with the reason in lists, passages, findings, chat, the report, warnings and the evidence pack; drafted arguments are never shown more widely than what they rest on; observers and auditors see contact, bank, card and identity numbers masked; oversight of every matter shows no content of one the person is not on; attempts to read withheld material are logged | masking is by pattern and is not exhaustive; names, dates and amounts are not masked |
 | Matter isolation | every query carries the matter id; cross-matter writes refused; cross-matter attempts logged | — |
@@ -20,7 +20,10 @@
 | Server | TLS or loopback only; host, origin, rate and size checks before any route; HttpOnly SameSite cookie plus CSRF value; strict content-security policy; matter content shown as text; no CORS; see [Server security](04_server_security.md) | not penetration-tested; no web-application firewall; one process |
 
 **Not provided by the software.** Encryption at rest (use an encrypted volume), backups, key
-escrow, TLS termination, OCR, malware scanning of uploads, and rate limiting.
+escrow and malware scanning of uploads. TLS is provided by the server itself, or by your reverse
+proxy. OCR needs Tesseract installed (and Poppler for scanned PDF pages); without it a scan or a
+photograph is reported unread and holds the run. The server rate-limits sign-in and requests per
+address.
 
 **Personal data.** Case files routinely contain personal data and may contain special-category
 data. The software supports minimisation, access control and deletion; lawful basis, records of

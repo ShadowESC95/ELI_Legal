@@ -298,6 +298,15 @@ class FrameworksTab(Tab):
 
     def _approve(self) -> None:
         state = self._selected()
+        if state and state.pack.origin == "shipped":
+            # Said before the passphrase is asked for, so a refusal costs no sign-in attempt.
+            QMessageBox.information(
+                self,
+                "Approve",
+                f"{state.pack.title} came with ELI Legal and is used as shipped; it needs no "
+                "approval. Record a qualified lawyer's validation of it instead.",
+            )
+            return
         if state and self.session.decide(
             self,
             f"approve {state.pack.title}",

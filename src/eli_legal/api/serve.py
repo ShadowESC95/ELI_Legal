@@ -164,7 +164,11 @@ def run(args: argparse.Namespace, services: Services | None = None) -> int:
         return 2
     sv = services or build_services(settings)
     if not sv.ctx.store.list_users():
-        print("refused: no users exist yet; run: eli-legal init --admin <id>", file=sys.stderr)
+        print(
+            "refused: no users exist yet. Create the first administrator, for example:\n"
+            "  eli-legal init --admin jay",
+            file=sys.stderr,
+        )
         return 2
     print(banner(config, cert), flush=True)
     server_config = hardened(create_app(sv, config), config, cert, key)
@@ -178,6 +182,9 @@ def run(args: argparse.Namespace, services: Services | None = None) -> int:
     stop = sv.checks.start_schedule()  # the routine checks, whenever they fall due
     try:
         uvicorn.Server(server_config).run(sockets=sockets)
+    except KeyboardInterrupt:
+        pass  # Ctrl+C: uvicorn has already shut down cleanly; no traceback for an intended stop
     finally:
         stop.set()
+    print("ELI Legal server stopped.", flush=True)
     return 0
