@@ -300,7 +300,16 @@ def ensure_typesetter() -> object | None:
     ):
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")  # it finds fonts by fontconfig
     windowless_fonts()
-    return QGuiApplication(["eli-legal"])
+    try:
+        # The fuller application object when the window toolkit is there, so the same process
+        # can still show a window later (there can only ever be one), set up as the desktop
+        # application sets its own.
+        from PySide6.QtCore import Qt
+        from PySide6.QtWidgets import QApplication
+    except ImportError:
+        return QGuiApplication(["eli-legal"])
+    QApplication.setAttribute(Qt.ApplicationAttribute.AA_UseStyleSheetPropagationInWidgetStyles)
+    return QApplication(["eli-legal"])
 
 
 def windowless_fonts() -> None:

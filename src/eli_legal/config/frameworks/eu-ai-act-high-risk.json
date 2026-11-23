@@ -34,8 +34,8 @@
       ],
       "profiles": [],
       "controls": [
-        "C-13",
-        "C-24"
+        "HO-01.1",
+        "RM-01.4"
       ],
       "instruction": "",
       "statement": ""
@@ -65,10 +65,10 @@
       ],
       "profiles": [],
       "controls": [
-        "C-11",
-        "C-12",
-        "C-21",
-        "C-22"
+        "DG-01.11",
+        "RM-01.1",
+        "RM-01.3",
+        "MO-01.3"
       ],
       "instruction": "",
       "statement": ""
@@ -84,9 +84,9 @@
       ],
       "profiles": [],
       "controls": [
-        "C-03",
-        "C-05",
-        "C-09"
+        "DG-01.3",
+        "DG-01.5",
+        "DG-01.9"
       ],
       "instruction": "",
       "statement": ""
@@ -102,10 +102,10 @@
       ],
       "profiles": [],
       "controls": [
-        "C-16",
-        "C-17",
-        "C-18",
-        "C-31"
+        "MO-01.1",
+        "MO-01.2",
+        "DG-01.12",
+        "MO-01.4"
       ],
       "instruction": "",
       "statement": ""
@@ -121,10 +121,10 @@
       ],
       "profiles": [],
       "controls": [
-        "C-14",
-        "C-26",
-        "C-27",
-        "C-42"
+        "HO-01.2",
+        "TR-01.1",
+        "TR-01.2",
+        "TR-01.5"
       ],
       "instruction": "",
       "statement": ""
@@ -141,10 +141,10 @@
       ],
       "profiles": [],
       "controls": [
-        "C-12",
-        "C-14",
-        "C-19",
-        "C-30"
+        "RM-01.1",
+        "HO-01.2",
+        "RM-01.2",
+        "HO-01.5"
       ],
       "instruction": "",
       "statement": ""
@@ -175,12 +175,12 @@
       ],
       "profiles": [],
       "controls": [
-        "C-04",
-        "C-07",
-        "C-08",
-        "C-09",
-        "C-10",
-        "C-29"
+        "DG-01.4",
+        "DG-01.7",
+        "DG-01.8",
+        "DG-01.9",
+        "DG-01.10",
+        "DG-01.16"
       ],
       "instruction": "",
       "statement": ""

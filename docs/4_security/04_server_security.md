@@ -1,7 +1,7 @@
 # Server security
 
 The server puts privileged and confidential material on a network. This document says what
-protects it, what does not, and how to deploy it. Controls C-28 and C-35 to C-41 in the control
+protects it, what does not, and how to deploy it. Controls DG-01.15 and DG-01.17 to HO-01.6 in the control
 register name the code and the tests.
 
 ## What the server is

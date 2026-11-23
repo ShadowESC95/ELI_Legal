@@ -230,7 +230,35 @@ class GovernanceTab(Tab):
         self.inner.addTab(page, "All matters")
 
         self.controls = table(
-            ["Control", "What it does", "Type", "Code", "Tests", "Evidence it produces", "Owner"]
+            [
+                "Control",
+                "Part of",
+                "What it does",
+                "Type",
+                "Code",
+                "Tests",
+                "Evidence it produces",
+                "Owner",
+                "Stage",
+                "Formerly",
+            ]
+        )
+        # The five RAIMS controls (Week 5 control map): what each needs, its minimum evidence,
+        # who owns it, when it must exist, and how many of the system's controls are its parts.
+        self.families = table(
+            [
+                "RAIMS control",
+                "What it needs",
+                "Minimum evidence fields",
+                "Evidence owner",
+                "When",
+                "Parts",
+            ]
+        )
+        # The RAIMS lifecycle (Week 7): each stage, its main control, owner and evidence, and
+        # which of the system's controls operate there.
+        self.lifecycle = table(
+            ["Stage", "Main control / action", "Owner", "Evidence", "Controls at this stage"]
         )
         self.risks = table(
             [
@@ -253,7 +281,12 @@ class GovernanceTab(Tab):
             ],
             stretch=0,
         )
-        for widget, name in ((self.controls, "Controls"), (self.risks, "Risks")):
+        for widget, name in (
+            (self.families, "RAIMS controls"),
+            (self.controls, "Controls"),
+            (self.lifecycle, "Lifecycle"),
+            (self.risks, "Risks"),
+        ):
             self.inner.addTab(widget, name)
         page = QWidget()
         box = QVBoxLayout(page)
@@ -360,22 +393,63 @@ class GovernanceTab(Tab):
 
     def _fill_registers(self) -> None:
         controls = load_register("controls")
+        families = {f["family_id"]: f["name"] for f in load_register("families")}
         fill(
             self.controls,
             [
                 [
                     c["control_id"],
+                    families.get(c["control_id"].split(".", 1)[0], ""),
                     c["control"],
                     c["type"],
                     c["implementation"].replace(";", ", "),
                     str(len(c["tests"].split(";"))) + " test(s)",
                     c["evidence"],
                     c["owner_role"].replace("_", " "),
+                    c.get("stage", ""),
+                    c.get("formerly", ""),
                 ]
                 for c in controls
             ],
         )
-        fit(self.controls, [60, 520, 70, 300, 70, 300, 0])
+        fit(self.controls, [70, 200, 480, 70, 260, 70, 260, 90, 100, 0])
+        parts: dict[str, int] = {}
+        for c in controls:
+            key = c["control_id"].split(".", 1)[0]
+            parts[key] = parts.get(key, 0) + 1
+        fill(
+            self.families,
+            [
+                [
+                    f"{f['family_id']} {f['name']}",
+                    f["what_it_needs"],
+                    f["minimum_evidence_fields"],
+                    f["evidence_owner"],
+                    f["when"],
+                    str(parts.get(f["family_id"], 0)),
+                ]
+                for f in load_register("families")
+            ],
+        )
+        fit(self.families, [260, 260, 340, 150, 140, 0])
+        at_stage: dict[str, list[str]] = {}
+        for c in controls:
+            at_stage.setdefault(c.get("stage", ""), []).append(c["control_id"])
+        stages = load_register("lifecycle")
+        fill(
+            self.lifecycle,
+            [
+                [
+                    s["stage"],
+                    s["main_control"],
+                    s["owner"],
+                    s["evidence"],
+                    ", ".join(at_stage.get(s["stage"], [])),
+                ]
+                for s in stages
+            ],
+        )
+        fit(self.lifecycle, [110, 300, 220, 220, 0])
         risks = load_register("risks")
         fill(
             self.risks,

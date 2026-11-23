@@ -27,7 +27,21 @@ STAGES = (
     ("holds", "Holds and checks"),
     ("review", "Review"),
     ("release", "Release"),
+    ("collect", "Collected"),
+    ("close", "Close"),
 )
+
+# Where each stage is worked on, for a person who clicks it.
+STAGE_PAGES = {
+    "set_up": "matter",
+    "documents": "evidence",
+    "analysis": "workflow",
+    "holds": "review",
+    "review": "review",
+    "release": "review",
+    "collect": "released",
+    "close": "matter",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,6 +87,7 @@ class WorkItem:
 class _Plan:
     stages: dict[str, tuple[str, str]] = field(default_factory=dict)
     steps: list[tuple[str, str, str, str]] = field(default_factory=list)  # title, why, page, action
+    collectors: set[str] = field(default_factory=set)  # recipients yet to collect the report
 
 
 class GuidanceService:
@@ -96,7 +111,11 @@ class GuidanceService:
             stages.append(Stage(key, title, state, detail))
         steps = []
         for title, why, page, action in plan.steps:
-            can = authz.can_matter(matter, actor_id, action)
+            can = (
+                actor_id in plan.collectors
+                if action == "report.collect"
+                else authz.can_matter(matter, actor_id, action)
+            )
             steps.append(
                 NextStep(
                     title,
@@ -104,7 +123,13 @@ class GuidanceService:
                     page,
                     action,
                     can,
-                    "" if can else self._who_can(matter, action),
+                    ""
+                    if can
+                    else (
+                        "Waiting for: " + ", ".join(self._name(u) for u in sorted(plan.collectors))
+                        if action == "report.collect"
+                        else self._who_can(matter, action)
+                    ),
                 )
             )
         role = access.MATTER_ROLES.get(seen.role)
@@ -130,7 +155,7 @@ class GuidanceService:
         if matter.status is MatterStatus.CLOSED:
             headline = "This matter is closed. Its record is kept; nothing more can be done on it."
         elif current is None:
-            headline = "Everything is done: the approved report has been released."
+            headline = "Everything is done: the approved report has been released and collected."
         else:
             headline = f"{current.title}: {current.detail}"
         return Guide(
@@ -143,6 +168,10 @@ class GuidanceService:
             stages=tuple(stages),
             steps=tuple(steps),
         )
+
+    def _name(self, user_id: str) -> str:
+        user = self.ctx.store.get_user(user_id)
+        return user.display_name if user else user_id
 
     def _who_can(self, matter: Matter, action: str) -> str:
         authz = self.ctx.authorizer()
@@ -227,7 +256,21 @@ class GuidanceService:
             )
         else:
             read = sum(1 for d in documents if d.status is DocumentStatus.PROCESSED)
-            stages["documents"] = ("done", f"{read} of {len(documents)} documents read.")
+            failed = [
+                d
+                for d in documents
+                if d.status not in (DocumentStatus.PROCESSED, DocumentStatus.WAIVED)
+            ]
+            stages["documents"] = (
+                "done",
+                f"{read} of {len(documents)} documents read"
+                + (
+                    f"; {plain.count(len(failed), 'could not be read', 'could not be read')}: add a "
+                    "readable copy, or a person accepts the gap when the run holds."
+                    if failed
+                    else "."
+                ),
+            )
 
         # 3-6. the latest run
         runs = ctx.store.list(Run, mid)
@@ -333,20 +376,87 @@ class GuidanceService:
             )
             return plan
         stages["review"] = ("done", "The report is approved for reliance.")
-        released = ctx.store.list(ReleasePackage, mid, run_id=run.run_id)
-        if not released:
-            stages["release"] = ("current", "the approved report has not been released.")
+        packages = ctx.store.list(ReleasePackage, mid, run_id=run.run_id)
+        sent = [p for p in packages if p.status == "delivery_attempted"]
+        prepared = [p for p in packages if p.status in ("prepared", "approved_for_delivery")]
+        if not sent:
+            if prepared:
+                stages["release"] = (
+                    "current",
+                    "a release is prepared; a person must confirm each recipient.",
+                )
+                steps.append(
+                    (
+                        "Confirm the recipients and release the report",
+                        "Tick each recipient yourself: only people entitled to this matter can "
+                        "receive it. Nothing is e-mailed; each recipient with an account is told "
+                        "and collects it on Released to me.",
+                        "review",
+                        "report.send",
+                    )
+                )
+            else:
+                stages["release"] = ("current", "the approved report has not been released.")
+                steps.append(
+                    (
+                        "Release the approved report",
+                        "Choose who receives it; only people entitled to this matter can. Nothing "
+                        "is e-mailed: each recipient with an account collects it on Released to "
+                        "me.",
+                        "review",
+                        "report.prepare_release",
+                    )
+                )
+            return plan
+        people = {u.user_id for u in ctx.store.list_users() if u.active}
+        on_matter = {matter.owner_user_id, *matter.authorised_user_ids}
+        recipients = {
+            r.recipient_id
+            for p in sent
+            for r in p.recipients
+            if r.recipient_id in people and r.recipient_id in on_matter
+        }
+        collected = {uid for p in sent for uid in p.collected}
+        stages["release"] = (
+            "done",
+            "Released to "
+            + plain.count(len({r.recipient_id for p in sent for r in p.recipients}), "recipient")
+            + ".",
+        )
+        plan.collectors = recipients - collected
+        if plan.collectors:
+            waiting = ", ".join(sorted(self._name(u) for u in plan.collectors))
+            stages["collect"] = ("current", f"waiting for {waiting} to collect it.")
             steps.append(
                 (
-                    "Release the approved report",
-                    "Choose who receives it; only people entitled to this matter can. Nothing "
-                    "is sent: it is placed in the outbox for collection.",
-                    "review",
-                    "report.prepare_release",
+                    "Collect the report released to you",
+                    "Read it, or save it as PDF, Word or Markdown on Released to me; each copy "
+                    "carries your name and is recorded.",
+                    "released",
+                    "report.collect",
                 )
             )
         else:
-            stages["release"] = ("done", "Released to the outbox.")
+            stages["collect"] = (
+                "done",
+                "Every recipient with an account has collected it."
+                if recipients
+                else "Staged in the outbox for recipients without an account.",
+            )
+        stages["close"] = (
+            "current",
+            "close the matter when the case is finished; its record is kept.",
+        )
+        steps.append(
+            (
+                "Close the matter when the case is finished",
+                "Closing ends everyone's access. The record (runs, reviews, releases and the "
+                "audit trail) is kept; the papers are kept for the retention period, unless you "
+                "delete them at closing. A preservation hold stops any deletion.",
+                "matter",
+                "matter.close",
+            )
+        )
         return plan
 
     # ── across matters ───────────────────────────────────────────────────────
@@ -362,6 +472,10 @@ class GuidanceService:
                 continue
             plan = self._plan(matter)
             for title, _why, page, action in plan.steps:
+                if action == "report.collect":
+                    if actor_id in plan.collectors:
+                        out.append(WorkItem(matter.matter_id, matter.name, title, page))
+                    continue
                 if authz.can_matter(matter, actor_id, action):
                     if action == "report.approve" and actor_id not in matter.reviewer_user_ids:
                         continue

@@ -1,0 +1,8 @@
+stage,main_control,families,owner,evidence
+Intake,RM-01: classify the use and its risk,RM-01,Governance + Deployer,Purpose and risk entry
+Design,"DG-01 / HO-01: sources, access, review",DG-01;HO-01,System + Source Owner,Approved control design
+Development,"Checks, DAG holds, RBAC, audit",DG-01;RM-01;MO-01,Engineering + Data Steward,Configs / check logs
+Testing,Known-stale and missing-event tests,DG-01;MO-01,Validation + Legal Reviewer,Negative-case results
+Deployment,Risk gate + named reviewer,RM-01;HO-01,Committee + Deployer,Authorised release record
+Monitoring,"MO-01: changes, alerts, incidents",MO-01,Validation + Deployer,"Alerts, incidents, re-tests"
+Retirement,"Revoke, retain or dispose lawfully",DG-01;RM-01,System + Data Protection,Handover / disposal record

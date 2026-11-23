@@ -162,3 +162,23 @@ def test_the_browser_lists_and_downloads_only_what_was_released_to_you(released)
         client.get("/v1/released", headers={"Authorization": f"Bearer {tokens['gov.hale']}"}).json()
         == []
     )
+
+
+def test_the_journey_goes_on_to_collection_and_then_to_closing(released):
+    sv, mid, _rid, rel = released
+    guide = sv.guidance.for_matter(mid, actor_id=A)
+    states = {s.key: s.state for s in guide.stages}
+    assert (states["release"], states["collect"], states["close"]) == ("done", "current", "later")
+    assert guide.steps[0].title == "Collect the report released to you" and guide.steps[0].can_do
+    assert "Tom Byrne" in [s for s in guide.stages if s.key == "collect"][0].detail
+    sv.matters.grant(mid, actor_id=A, user_id="gov.hale")  # on the matter, not a recipient
+    other = sv.guidance.for_matter(mid, actor_id="gov.hale")
+    collect = next(s for s in other.steps if s.title.startswith("Collect"))
+    assert not collect.can_do and collect.who.startswith("Waiting for:")
+    sv.released.collect(mid, rel, A, "md")
+    sv.released.collect(mid, rel, S, "md")
+    guide = sv.guidance.for_matter(mid, actor_id=A)
+    states = {s.key: s.state for s in guide.stages}
+    assert (states["collect"], states["close"]) == ("done", "current")
+    assert any(s.title.startswith("Close the matter") and s.can_do for s in guide.steps)
+    assert not [w for w in sv.guidance.my_work(actor_id=S) if w.page == "released"]

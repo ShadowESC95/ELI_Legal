@@ -42,6 +42,12 @@ resting the pointer on a heading or a field explains it.
 
 ## Step by step
 
+Every page of an open case shows where it stands, from A to Z, in a bar under the header: eight
+stages (1. Set up, 2. Documents, 3. Analysis, 4. Holds and checks, 5. Review, 6. Release,
+7. Collected, 8. Close), each ✓ done, ● now, or not yet. Click a stage to open the page where it
+is worked on. Beside them is the next step: **Next: …** takes you straight there if it is yours
+to do; if it is someone else's, the bar says who you are waiting for.
+
 ### 1. Open the matter
 
 **Open a matter…** asks six short questions, one page each; nothing is created until you press
@@ -86,12 +92,17 @@ Afterwards, the Home page always says what to do next.
 
 ### 2. File the documents
 
-Choose the files (Add files…, or Add a folder…). A list then shows each one, and for each you
-say what it is, who filed it, who may see it and where it came from; hover over a choice of who
+Drop files or whole folders anywhere on the Documents page, or choose them (Add files…, Add a
+folder…). Folders are searched all the way down; hidden files, system leftovers (Thumbs.db,
+desktop.ini), Office lock files (~$…) and empty files are left out, and you are told which. A
+list then shows each paper, and for each you say what it is, who filed it, who may see it and
+where it came from. **Set for all (or the selected rows)** sets one choice for many at once, and
+**Leave the selected rows out** removes papers before anything is taken in; hover over a choice of who
 may see it for what that means. Scope matters most in mediation and for privileged material: a
 document filed "in confidence" by one party never appears in anything shared, and is withheld
-from anyone on the matter who acts for another party. When they are in, you are told in plain
-words what was read, what could not be read and why, and what was flagged.
+from anyone on the matter who acts for another party. They are read in the background, so the
+window stays usable (the status line counts them: "Reading 3 of 12"); when they are in, you are
+told in plain words what was read, what could not be read and why, and what was flagged.
 
 Then check the list. A file marked **not read** (a scan, a photograph, a damaged file) will hold
 the run until you either supply a readable version or accept the gap. A file marked **flagged**

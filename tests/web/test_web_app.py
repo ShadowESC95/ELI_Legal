@@ -173,7 +173,7 @@ def test_a_person_can_sign_in_read_the_matter_and_take_a_decision_in_the_browser
     assert "You are asked" in page.text("#view")
     page.tab("home")
     # Home opens first: where the matter stands and the next thing to do.
-    assert page.until("document.querySelectorAll('#view .stage').length === 6"), page.text("#view")[
+    assert page.until("document.querySelectorAll('#view .stage').length === 8"), page.text("#view")[
         :300
     ]
     assert "Your role on this matter: Lead" in page.text("#view")

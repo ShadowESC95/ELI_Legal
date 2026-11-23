@@ -27,6 +27,8 @@ def _ids(cell: str) -> list[str]:
 
 REGISTER_DIR = Path(__file__).resolve().parent / "registers"
 REGISTER_FILES = {
+    "families": "control_families.csv",
+    "lifecycle": "lifecycle_stages.csv",
     "requirements": "requirements_register.csv",
     "controls": "control_register.csv",
     "risks": "risk_register.csv",
@@ -36,8 +38,43 @@ REGISTER_FILES = {
 
 
 def load_register(name: str) -> list[dict[str, str]]:
-    """One of the shipped registers as rows: requirements, controls, risks, responsibilities."""
+    """One of the shipped registers as rows: families, requirements, controls, risks,
+    responsibilities, actions."""
     return _rows(REGISTER_DIR / REGISTER_FILES[name])
+
+
+# Controls are identified by the five controls of the RAIMS Week 5 Control Map: RM-01 Risk
+# Management, HO-01 Human Oversight, TR-01 Transparency, MO-01 Monitoring, DG-01 Data Governance.
+# Each of ELI Legal's controls is a numbered part of one (HO-01.2); its former number (C-14) is
+# kept beside it, so earlier records, packages and papers still resolve.
+FAMILY_ORDER = ("RM", "HO", "TR", "MO", "DG")
+CONTROL_ID = re.compile(r"^(RM|HO|TR|MO|DG)-01\.(\d+)$")
+FORMER_ID = re.compile(r"^C-\d{2}$")
+
+
+def family_of(control_id: str) -> str:
+    """``HO-01.2`` → ``HO-01``."""
+    return control_id.split(".", 1)[0]
+
+
+def control_sort_key(control_id: str) -> tuple[int, int]:
+    m = CONTROL_ID.match(control_id)
+    return (FAMILY_ORDER.index(m.group(1)), int(m.group(2))) if m else (len(FAMILY_ORDER), 0)
+
+
+def former_ids() -> dict[str, str]:
+    """Each control's former number and its id now: ``C-14`` → ``HO-01.2``."""
+    return {
+        row["formerly"]: row["control_id"]
+        for row in load_register("controls")
+        if row.get("formerly")
+    }
+
+
+def current_control_id(control_id: str) -> str:
+    """The id a control has now, whether it was given by its current or its former number."""
+    cid = control_id.strip()
+    return former_ids().get(cid, cid) if FORMER_ID.match(cid) else cid
 
 
 def check_registers(root: Path | None = None) -> list[str]:
@@ -64,12 +101,39 @@ def check_registers(root: Path | None = None) -> list[str]:
                 re.findall(r"^def (test_\w+)\(", path.read_text(encoding="utf-8"), re.M)
             )
 
+    families = (
+        {f["family_id"]: f for f in _rows(governance / REGISTER_FILES["families"])}
+        if (governance / REGISTER_FILES["families"]).is_file()
+        else {}
+    )
+    if set(families) != {f"{f}-01" for f in FAMILY_ORDER}:
+        problems.append("the control families must be exactly RM-01, HO-01, TR-01, MO-01 and DG-01")
+    for fid, family in families.items():
+        for column in ("name", "what_it_needs", "control", "owner", "evidence"):
+            if not family.get(column, "").strip():
+                problems.append(f"{fid} needs its {column.replace('_', ' ')}")
+    stages = (
+        {s["stage"] for s in _rows(governance / REGISTER_FILES["lifecycle"])}
+        if (governance / REGISTER_FILES["lifecycle"]).is_file()
+        else set()
+    )
     controls = _rows(governance / "control_register.csv")
     control_ids = [c["control_id"] for c in controls]
+    formerly = [c.get("formerly", "") for c in controls if c.get("formerly")]
+    for duplicate in {f for f in formerly if formerly.count(f) > 1}:
+        problems.append(f"two controls were both {duplicate}")
     for duplicate in {c for c in control_ids if control_ids.count(c) > 1}:
         problems.append(f"duplicate control id {duplicate}")
     for control in controls:
         cid = control["control_id"]
+        if not CONTROL_ID.match(cid):
+            problems.append(f"{cid} is not a part of a RAIMS control (such as HO-01.2)")
+        elif family_of(cid) not in families:
+            problems.append(f"{cid} belongs to no control family")
+        if stages and control.get("stage") not in stages:
+            problems.append(f"{cid} names no lifecycle stage of the RAIMS table")
+        if control.get("formerly") and not FORMER_ID.match(control["formerly"]):
+            problems.append(f"{cid} gives {control['formerly']!r} as its former number")
         files = _ids(control["implementation"])
         if not files:
             problems.append(f"{cid} names no implementation")

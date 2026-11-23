@@ -26,6 +26,7 @@ from eli_legal import __version__
 from eli_legal.domain import glossary, how_to, plain
 from eli_legal.domain.profiles import profile_spec
 from eli_legal.gui import theme, zoom
+from eli_legal.gui.journey import JourneyBar
 from eli_legal.gui.session import Session
 from eli_legal.gui.tabs.agents_tab import AgentsTab
 from eli_legal.gui.tabs.audit_tab import AuditTab
@@ -165,6 +166,9 @@ class MainWindow(QMainWindow):
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(0)
         column.addWidget(header)
+        # The open case from A to Z: its stages, and the next thing to do, on every page.
+        self.journey = JourneyBar(session, self.go)
+        column.addWidget(self.journey)
         # The sidebar and the page share a divider that can be dragged; where it was left is
         # remembered, as is the window's size and place.
         self.body = QSplitter(Qt.Orientation.Horizontal)
@@ -451,6 +455,7 @@ class MainWindow(QMainWindow):
         self.matter_box.blockSignals(False)
         matter = session.matter
         self.profile.setText(profile_spec(matter.profile).label if matter else "")
+        self.journey.refresh()
         latest = sv.checks.latest()
         if latest is None:
             set_chip(self.chips["checks"], "● Checks not run yet", theme.IDLE)

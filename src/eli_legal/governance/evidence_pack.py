@@ -33,6 +33,7 @@ from eli_legal.domain.models import (
 )
 from eli_legal.domain.release import ReleasePackage
 from eli_legal.governance.completeness import check_run_completeness
+from eli_legal.governance.control_evidence import control_evidence
 from eli_legal.legal.frameworks import pack_to_dict
 from eli_legal.persistence import codec
 
@@ -126,6 +127,22 @@ def export_evidence_pack(
     _write(target / "holds.json", _rows(holds))
     _write(target / "tasks.json", _rows(ctx.store.list(VerificationTask, mid, run_id=run_id)))
     _write(target / "reviews.json", _rows(reviews))
+    # Each RAIMS control's minimum evidence for this run, field by field. It holds counts,
+    # identifiers and decisions, never a finding's words, so it is built from every finding even
+    # when the exporter is not cleared to read them.
+    _write(
+        target / "raims_controls.json",
+        control_evidence(
+            ctx,
+            matter,
+            run,
+            claims=ctx.store.list(Claim, mid, run_id=run_id),
+            verifications=verifications,
+            holds=holds,
+            reviews=reviews,
+            events=events,
+        ),
+    )
     _write(target / "incidents.json", _rows(ctx.store.list(Incident, mid, run_id=run_id)))
     _write(
         target / "reliance_blocks.json",

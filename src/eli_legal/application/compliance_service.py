@@ -469,7 +469,26 @@ class ComplianceService:
             "",
             "## 3. Monitoring, functioning and control",
             "",
-            f"{len(controls)} controls, each tied to code and tests (control register):",
+            "Controls follow the five controls of the RAIMS control map; each of the system's "
+            f"{len(controls)} controls is a numbered part of one, tied to code and tests "
+            "(control register):",
+            *[
+                f"- **{f['family_id']} {f['name']}**: needs {f['what_it_needs'][0].lower()}"
+                f"{f['what_it_needs'][1:]} Owner: {f['owner']}"
+                for f in load_register("families")
+            ],
+            "",
+            "They operate through the system's lifecycle (RAIMS lifecycle table):",
+            "",
+            "| Stage | Main control / action | Owner | Evidence | Controls |",
+            "|---|---|---|---|---|",
+            *[
+                f"| {s['stage']} | {s['main_control']} | {s['owner']} | {s['evidence']} | "
+                + ", ".join(c["control_id"] for c in controls if c.get("stage") == s["stage"])
+                + " |"
+                for s in load_register("lifecycle")
+            ],
+            "",
             "",
             *[f"- {c['control_id']} ({c['type']}): {c['control']}" for c in controls],
             "",

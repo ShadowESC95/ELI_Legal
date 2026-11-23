@@ -47,8 +47,8 @@
       ],
       "profiles": [],
       "controls": [
-        "C-02",
-        "C-04"
+        "DG-01.2",
+        "DG-01.4"
       ],
       "instruction": "",
       "statement": ""

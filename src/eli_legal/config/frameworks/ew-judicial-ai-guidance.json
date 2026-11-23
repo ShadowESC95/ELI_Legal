@@ -45,8 +45,8 @@
       ],
       "profiles": [],
       "controls": [
-        "C-02",
-        "C-04"
+        "DG-01.2",
+        "DG-01.4"
       ],
       "instruction": "",
       "statement": ""
@@ -92,9 +92,9 @@
       ],
       "profiles": [],
       "controls": [
-        "C-29",
-        "C-38",
-        "C-39"
+        "DG-01.16",
+        "DG-01.20",
+        "DG-01.21"
       ],
       "instruction": "",
       "statement": ""

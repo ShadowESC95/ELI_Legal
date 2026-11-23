@@ -4,6 +4,26 @@ What the Week 1 design committed to, where it now lives, and the test that shows
 is a trace to implementation and automated tests. It is not evidence of effectiveness on real
 matters.
 
+## Controls are identified by the RAIMS control map
+
+The five controls of the Week 5 Control Map identify every control in ELI Legal. Each of the
+system's controls is a numbered part of one (HO-01.2), placed at a stage of the Week 7 lifecycle
+table, with its former number (C-14) kept beside it so earlier records and packages still
+resolve (`src/eli_legal/governance/registers/control_families.csv`, `lifecycle_stages.csv`,
+`control_register.csv`; `eli-legal governance` checks all three against the code).
+
+| Control | What it needs | Minimum evidence fields | Evidence owner | When |
+|---|---|---|---|---|
+| RM-01 Risk management | The risk decision, and any hold or restart | Risk limit; exception or hold; action; decision; restart authorisation | Governance Lead | Risk, change or hold |
+| HO-01 Human oversight | A named reviewer, the exact report hash and the decision | Reviewer ID; report hash; known limits; approve or reject reason | Deployer reviewer | Every report |
+| TR-01 Transparency | The claim, its source and its limitations, shown | Claim ID; source and locator; status and date; visible limitations | Source Owner | Each material claim |
+| MO-01 Monitoring | Alerts, and what was done about them | Threshold; alert; affected run; owner; follow-up; re-test | Validation Lead | Run or incident |
+| DG-01 Data governance | The approved source, and three separate checks | Approved source and version; three checks; hold and dependency trace | Legal Source Owner | Retrieve or check |
+
+Each run's evidence pack carries `raims_controls.json`: for each of the five, every minimum field
+read from the run's own records and said to be present, missing or not yet due (MO-01.9). Security,
+access and audit controls are parts of DG-01 and MO-01, as the Week 10 taxonomy places them.
+
 ## The instruments named in the use case, and where each is addressed
 
 | Named in the Week 1 papers | Requirement rows | Document |

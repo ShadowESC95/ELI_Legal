@@ -183,7 +183,7 @@ def test_a_run_started_from_the_dag_tab_executes_in_the_background_and_every_tab
     )
     agents = d.page(AgentsTab)
     agents._show("analysis")
-    assert "state or imply an outcome" in agents.body.text() and "C-13" in agents.body.text()
+    assert "state or imply an outcome" in agents.body.text() and "HO-01.1" in agents.body.text()
     findings = d.page(FindingsTab)
     assert findings.list.rowCount() > 25
     findings.status.setCurrentIndex(findings.status.findData("held"))
@@ -397,7 +397,7 @@ def test_home_shows_where_the_matter_stands_and_takes_you_to_the_next_step(desk)
     home = d.page(HomeTab)
     assert home.heading.text() == "Harbour Freight Ltd v Northwind Logistics Ltd"
     assert "Your role on this matter: Lead" in home.role.text()
-    assert home.stages.count() == 6
+    assert home.stages.count() == 8, "set up to close, A to Z"
     d.sv.runs.start(d.mid, actor_id=ARBITRATOR)
     d.session.notify()
     d.qt.processEvents()
@@ -517,6 +517,7 @@ def test_documents_are_taken_in_file_by_file_and_the_outcome_is_said_plainly(
     monkeypatch.setattr(IntakeDialog, "exec", accept)
     tab = d.page(DocumentsTab)
     tab._ingest([str(letter), str(photo)])
+    d.settle()  # read in the background, so the window stays usable
     assert told and "1 document read." in told[0] and "could not be read" in told[0]
     stored = {doc.filename: doc for doc in d.sv.matters.documents(d.mid, ARBITRATOR)}
     assert stored["without_prejudice.txt"].access_scope is AccessScope.PARTY_CONFIDENTIAL
@@ -1001,3 +1002,96 @@ def test_a_report_released_to_you_is_read_and_saved_from_released_to_me(
         (ARBITRATOR, "read"),
         (ARBITRATOR, "docx"),
     ]
+
+
+def test_folders_and_files_dropped_on_the_documents_page_are_filed_after_a_check(
+    desk, monkeypatch, tmp_path
+):
+    """Drop a folder (searched all the way down) and a loose file: system leftovers, lock files
+    and empty files are left out and said so; the rest are checked, set for all at once, filed
+    in the background, and read."""
+    from PySide6.QtCore import QMimeData, QPointF, Qt, QUrl
+    from PySide6.QtGui import QDropEvent
+    from PySide6.QtWidgets import QDialog
+
+    from eli_legal.gui.tabs.documents_tab import DocumentsTab, IntakeDialog, collect
+
+    folder = tmp_path / "bundle"
+    (folder / "sub").mkdir(parents=True)
+    (folder / "witness_two.txt").write_text("The witness says the gate was shut on 3 April 2023.")
+    (folder / "sub" / "invoice_44.txt").write_text("Invoice 44 for 120 containers, unpaid.")
+    (folder / "Thumbs.db").write_bytes(b"x")
+    (folder / "~$draft.docx").write_bytes(b"x")
+    (folder / "empty.txt").write_bytes(b"")
+    loose = tmp_path / "letter_4_april.txt"
+    loose.write_text("A letter of 4 April 2023 demanding payment within seven days.")
+    files, skipped = collect([str(folder), str(loose)])
+    assert sorted(f.name for f in files) == [
+        "invoice_44.txt",
+        "letter_4_april.txt",
+        "witness_two.txt",
+    ]
+    assert len(skipped) == 3 and any("lock file" in s for s in skipped)
+
+    d = desk(SECRETARY)  # the registrar files the papers
+    d.session.set_matter(d.mid)
+    page = d.page(DocumentsTab)
+    seen = {}
+
+    def check(dialog):
+        seen["rows"] = dialog.grid.rowCount()
+        dialog.all_filer.setCurrentIndex(1)  # filed by the first party, set for every row
+        dialog._apply()
+        return QDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(IntakeDialog, "exec", check)
+    mime = QMimeData()
+    mime.setUrls([QUrl.fromLocalFile(str(folder)), QUrl.fromLocalFile(str(loose))])
+    page.dropEvent(
+        QDropEvent(
+            QPointF(10, 10),
+            Qt.DropAction.CopyAction,
+            mime,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+    )
+    d.settle()
+    assert seen["rows"] == 3
+    docs = {doc.filename: doc for doc in d.sv.matters.documents(d.mid, SECRETARY)}
+    assert {"witness_two.txt", "invoice_44.txt", "letter_4_april.txt"} <= set(docs)
+    first = d.sv.matters.get(d.mid, SECRETARY).parties[0].party_id
+    assert (
+        docs["invoice_44.txt"].party_id == first
+        and docs["invoice_44.txt"].status.value == "processed"
+    )
+    assert "Thumbs.db" not in docs
+
+
+def test_the_journey_bar_shows_every_stage_and_takes_you_to_the_next_step(desk):
+    from eli_legal.gui.tabs.workflow_tab import WorkflowTab
+
+    d = desk()
+    d.session.set_matter(d.mid)
+    bar = d.window.journey
+    bar.refresh()
+    assert not bar.isHidden()
+    titles = [b.text() for b in bar.stage_buttons]
+    assert (
+        len(titles) == 8 and titles[0].startswith("1. Set up") and titles[-1].startswith("8. Close")
+    )
+    assert "Stage 3 of 8: Analysis" in bar.where.text()
+    assert bar.next.text() == "Next: Run the analysis →"
+    bar.next.click()
+    d.qt.processEvents()
+    assert isinstance(d.window.tabs.currentWidget(), WorkflowTab)
+
+    clerk = desk(SECRETARY)
+    clerk.session.set_matter(clerk.mid)
+    with authn.established(SECRETARY, "gui-passphrase"):
+        d.sv.runs.start(d.mid, actor_id=SECRETARY)
+    clerk.session.notify()
+    clerk.window.journey.refresh()
+    assert "Stage 4 of 8: Holds and checks" in clerk.window.journey.where.text()
+    assert clerk.window.journey.next.isHidden(), "the registrar does not resolve holds"
+    assert "Aoife Keane" in clerk.window.journey.waiting.text()

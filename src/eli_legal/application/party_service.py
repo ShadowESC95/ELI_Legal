@@ -274,7 +274,7 @@ class PartyService:
     def _foreign(
         self, cls: type, matter: Matter, record_id: str, actor_id: str, action: str
     ) -> None:
-        """A record id from another matter was presented: record the attempt (C-02) and reveal
+        """A record id from another matter was presented: record the attempt (DG-01.2) and reveal
         nothing about it. The caller then answers "not found", as for an id that exists nowhere."""
         owner = self.ctx.store.owner_matter(cls, record_id)
         if owner is not None and owner != matter.matter_id:

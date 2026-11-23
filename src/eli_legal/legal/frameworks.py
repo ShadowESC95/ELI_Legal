@@ -159,7 +159,10 @@ def requirement_from(raw: Mapping[str, Any]) -> Requirement:
     unknown = sorted(set(profiles) - set(PROFILES))
     if unknown:
         raise InvalidInput(f"requirement {req_id}: unknown profile(s) {', '.join(unknown)}")
-    controls = _list(raw, "controls")
+    # A package written before controls took the RAIMS ids may name one by its former number.
+    from eli_legal.governance.registers import current_control_id
+
+    controls = tuple(current_control_id(c) for c in _list(raw, "controls"))
     if effect == "enforced" and not controls:
         raise InvalidInput(f"requirement {req_id}: an enforced requirement must name its controls")
     return Requirement(

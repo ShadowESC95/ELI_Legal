@@ -41,7 +41,7 @@ AGENTS: tuple[AgentSpec, ...] = (
         ("matter record", "user register", "source register", "audit ledger"),
         ("run versions (model, prompts, tools, policy)",),
         ("start work without a named reviewer", "use an unapproved source"),
-        ("C-14", "C-03", "C-16"),
+        ("HO-01.2", "DG-01.3", "MO-01.1"),
     ),
     AgentSpec(
         "ingest", "Document reader",
@@ -50,7 +50,7 @@ AGENTS: tuple[AgentSpec, ...] = (
         ("originals in the evidence vault",),
         ("passages", "document status", "injection flags"),
         ("alter an original", "guess at a file it cannot read", _NO_NETWORK),
-        ("C-05", "C-07"),
+        ("DG-01.5", "DG-01.7"),
     ),
     AgentSpec(
         "document_coverage", "Coverage checker",
@@ -59,7 +59,7 @@ AGENTS: tuple[AgentSpec, ...] = (
         ("document manifest", "passages"),
         ("coverage and injection holds",),
         ("waive a gap itself",),
-        ("C-06", "C-07"),
+        ("DG-01.6", "DG-01.7"),
     ),
     AgentSpec(
         "facts", "Fact extractor",
@@ -68,7 +68,7 @@ AGENTS: tuple[AgentSpec, ...] = (
         ("passages",),
         ("fact findings with evidence links",),
         ("reword evidence", "read a flagged document into a model", _NO_DECISION),
-        ("C-05", "C-07"),
+        ("DG-01.5", "DG-01.7"),
     ),
     AgentSpec(
         "issues", "Issue mapper",
@@ -77,7 +77,7 @@ AGENTS: tuple[AgentSpec, ...] = (
         ("stated issues", "pleadings", "fact findings"),
         ("issues", "fact-to-issue links"),
         ("suggest an answer to any issue", "present its own proposed issue as adopted"),
-        ("C-07",),
+        ("DG-01.7",),
     ),
     AgentSpec(
         "evidence_mapping", "Evidence mapper",
@@ -95,7 +95,7 @@ AGENTS: tuple[AgentSpec, ...] = (
         ("issues", "passages", "approved sources only"),
         ("authority passages (verbatim)", "party-cited authorities"),
         ("use a source that is not approved for this matter", "paraphrase an authority"),
-        ("C-03", "C-08"),
+        ("DG-01.3", "DG-01.8"),
     ),
     AgentSpec(
         "citation_verification", "Citation verifier",
@@ -104,7 +104,7 @@ AGENTS: tuple[AgentSpec, ...] = (
         ("cited authorities", "approved sources"),
         ("citation check results",),
         ("treat existence as proof the authority is good law",),
-        ("C-08",),
+        ("DG-01.8",),
     ),
     AgentSpec(
         "current_law_check", "Current-law citator",
@@ -113,7 +113,7 @@ AGENTS: tuple[AgentSpec, ...] = (
         ("authority status and treatment history", "the matter's relevant date"),
         ("current-law check results",),
         ("accept status information older than the pack allows", "rely on the citing party"),
-        ("C-09",),
+        ("DG-01.9",),
     ),
     AgentSpec(
         "proposition_verification", "Proposition verifier",
@@ -122,7 +122,7 @@ AGENTS: tuple[AgentSpec, ...] = (
         ("authority passages", "quotations"),
         ("proposition check results",),
         ("verify a reworded proposition on a model's say-so",),
-        ("C-10",),
+        ("DG-01.10",),
     ),
     AgentSpec(
         "evidence_verification", "Provenance verifier",
@@ -131,7 +131,7 @@ AGENTS: tuple[AgentSpec, ...] = (
         ("evidence vault", "passages", "findings"),
         ("provenance and evidence-support results",),
         ("pass a finding whose source has changed or is missing",),
-        ("C-05",),
+        ("DG-01.5",),
     ),
     AgentSpec(
         "verification_gate", "Gatekeeper",
@@ -140,7 +140,7 @@ AGENTS: tuple[AgentSpec, ...] = (
         ("all check results",),
         ("finding statuses", "holds", "tasks for a person"),
         ("average a failure away", "release a hold"),
-        ("C-11", "C-12"),
+        ("DG-01.11", "RM-01.1"),
     ),
     AgentSpec(
         "analysis", "Analyst",
@@ -149,7 +149,7 @@ AGENTS: tuple[AgentSpec, ...] = (
         ("verified facts", "verified authority passages"),
         ("attributed arguments with their basis",),
         (_NO_DECISION, "introduce a figure or citation not in its basis", "weigh the arguments"),
-        ("C-13",),
+        ("HO-01.1",),
     ),
     AgentSpec(
         "draft_report", "Report builder",
@@ -158,7 +158,7 @@ AGENTS: tuple[AgentSpec, ...] = (
         ("findings", "check results", "holds"),
         ("draft report and its hash",),
         ("include an unverified finding in the body", "write free prose"),
-        ("C-15", "C-26"),
+        ("HO-01.3", "TR-01.1"),
     ),
     AgentSpec(
         "final_validation", "Final validator",
@@ -167,7 +167,7 @@ AGENTS: tuple[AgentSpec, ...] = (
         ("audit ledger", "run records"),
         ("completeness result",),
         ("pass a run whose record has a gap",),
-        ("C-16", "C-17"),
+        ("MO-01.1", "MO-01.2"),
     ),
     AgentSpec(
         "human_review", "Named reviewer",
@@ -176,7 +176,7 @@ AGENTS: tuple[AgentSpec, ...] = (
         ("the report", "its stated limits", "findings not relied on"),
         ("review decision with reasons",),
         ("be an agent or system identity",),
-        ("C-14", "C-15"),
+        ("HO-01.2", "HO-01.3"),
     ),
     AgentSpec(
         "prepare_release", "Release preparer",
@@ -185,7 +185,7 @@ AGENTS: tuple[AgentSpec, ...] = (
         ("approved report",),
         ("release package",),
         ("release an unapproved or altered report",),
-        ("C-20",),
+        ("HO-01.4",),
     ),
     AgentSpec(
         "recipient_approval", "Recipient approver",
@@ -194,7 +194,7 @@ AGENTS: tuple[AgentSpec, ...] = (
         ("release package",),
         ("recipient confirmation",),
         ("release to a party who is not entitled",),
-        ("C-20",),
+        ("HO-01.4",),
     ),
     AgentSpec(
         "controlled_delivery", "Outbox",
@@ -203,7 +203,7 @@ AGENTS: tuple[AgentSpec, ...] = (
         ("confirmed release package",),
         ("outbox copy and manifest",),
         ("contact a party", "send anything anywhere"),
-        ("C-20",),
+        ("HO-01.4",),
     ),
 )  # fmt: skip
 
