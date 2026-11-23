@@ -24,10 +24,10 @@ download against the published `SHA256SUMS` before running it.
 One file. Nothing is installed and nothing else is needed.
 
 ```
-chmod +x ELI_Legal-0.8.10-linux-x86_64.AppImage
-./ELI_Legal-0.8.10-linux-x86_64.AppImage                 # the desktop application
-./ELI_Legal-0.8.10-linux-x86_64.AppImage serve --help    # the server
-./ELI_Legal-0.8.10-linux-x86_64.AppImage doctor          # any command-line command
+chmod +x ELI_Legal-0.8.11-linux-x86_64.AppImage
+./ELI_Legal-0.8.11-linux-x86_64.AppImage                 # the desktop application
+./ELI_Legal-0.8.11-linux-x86_64.AppImage serve --help    # the server
+./ELI_Legal-0.8.11-linux-x86_64.AppImage doctor          # any command-line command
 ```
 
 With no arguments it opens the desktop application; with arguments it is the command line and
@@ -38,8 +38,8 @@ system has no FUSE, add `--appimage-extract-and-run` as the first argument.
 ### The installer
 
 ```
-sh ELI_Legal-0.8.10-linux-x86_64.run --verify     # check the file is intact; installs nothing
-sh ELI_Legal-0.8.10-linux-x86_64.run              # install for you
+sh ELI_Legal-0.8.11-linux-x86_64.run --verify     # check the file is intact; installs nothing
+sh ELI_Legal-0.8.11-linux-x86_64.run              # install for you
 ```
 
 It installs the program to `~/.local/opt/eli-legal`, adds the commands `eli-legal` and
@@ -57,7 +57,7 @@ administrator rights. If `~/.local/bin` is not on your `PATH`, it tells you.
 ### The Debian package
 
 ```
-sudo apt install ./eli-legal_0.8.10_amd64.deb
+sudo apt install ./eli-legal_0.8.11_amd64.deb
 ```
 
 Remove it with `sudo apt remove eli-legal`. Your data is kept.
