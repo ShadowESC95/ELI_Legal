@@ -2,8 +2,9 @@
 
 ## Before first use
 
-`eli-legal init --admin <id>` (asks for the administrator's passphrase), or start the desktop
-application, which does the same on first run. Back up the audit key separately from the
+`eli-legal init --admin <id>` (asks for the administrator's passphrase and how long the record
+is kept), or start the desktop application, which does the same on first run. Then
+`eli-legal checks timer --install`, so the routine checks run daily even with nothing open. Back up the audit key separately from the
 databases. Sign in (`eli-legal login <id>`), create users and roles, set each user's first
 passphrase (`eli-legal passphrase <user>`), register and approve sources, `eli-legal doctor`.
 Every step below can be done in the desktop application or the browser application instead.

@@ -386,11 +386,27 @@ def test_a_deployment_is_proposed_with_its_evidence_and_signed_by_two_leads_over
                          "content_base64": base64.b64encode(f"%PDF {k}".encode()).decode()}
                      for k in EVIDENCE},
     }  # fmt: skip
-    proposed = governance.decide("POST", "/v1/deployment-authorisations", body)
+    # A third person proposes; the two leads who sign are others (the proposer cannot sign).
+    assert (
+        admin.decide(
+            "POST",
+            "/v1/users",
+            {
+                "user_id": "gov.lead",
+                "display_name": "Compliance lead",
+                "roles": ["governance_officer"],
+                "passphrase": "compliance lead phrase",
+            },
+        ).status_code
+        == 201
+    )
+    lead = Browser(app, "gov.lead", "compliance lead phrase")
+    proposed = lead.decide("POST", "/v1/deployment-authorisations", body)
     assert proposed.status_code == 201 and proposed.json()["status"] == "proposed"
     aid = proposed.json()["authorisation_id"]
     assert all(" sha256:" in v for v in proposed.json()["evidence"].values())
     sign = f"/v1/deployment-authorisations/{aid}/sign"
+    assert lead.decide("POST", sign, {"as_lead": "provider"}).status_code == 403
     assert governance.decide("POST", sign, {"as_lead": "provider"}).json()["status"] == "proposed"
     assert admin.decide("POST", sign, {"as_lead": "deployer"}).json()["status"] == "approved"
     listed = governance.get("/v1/deployment-authorisations").json()

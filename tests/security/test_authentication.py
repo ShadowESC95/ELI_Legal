@@ -190,7 +190,15 @@ def workspace(tmp_path, monkeypatch):
 def test_the_command_line_does_nothing_in_anyones_name_without_a_sign_in(
     workspace, monkeypatch, capsys
 ):
-    assert _cli(monkeypatch, workspace, ["init", "--admin", "admin"], "administrator phrase\n") == 0
+    assert (
+        _cli(
+            monkeypatch,
+            workspace,
+            ["init", "--admin", "admin", "--audit-days", "400", "--closed-matter-days", "2190"],
+            "administrator phrase\n",
+        )
+        == 0
+    )
     assert (
         _cli(monkeypatch, workspace, ["matter", "list"])
         == "not signed in: run  eli-legal login USER"
@@ -217,7 +225,12 @@ def test_the_command_line_does_nothing_in_anyones_name_without_a_sign_in(
 def test_a_decision_at_the_command_line_asks_for_the_passphrase_again(
     workspace, monkeypatch, capsys
 ):
-    _cli(monkeypatch, workspace, ["init", "--admin", "admin"], "administrator phrase\n")
+    _cli(
+        monkeypatch,
+        workspace,
+        ["init", "--admin", "admin", "--retention-later"],
+        "administrator phrase\n",
+    )
     _cli(monkeypatch, workspace, ["login", "admin"], "administrator phrase\n")
     add = ["user", "add", "j.okoro", "--name", "Judge Okoro", "--role", "judge"]
     assert _cli(monkeypatch, workspace, add, "not my passphrase\n") == 2
@@ -249,3 +262,31 @@ def test_a_decision_at_the_command_line_asks_for_the_passphrase_again(
         == 2
     )
     assert "PolicyDenied" in capsys.readouterr().err
+
+
+def test_setting_up_asks_how_long_the_record_is_kept_before_anyone_is_created(
+    workspace, monkeypatch
+):
+    """Retention is chosen when ELI Legal is set up, not left unset: until it is, nothing is
+    deleted on time. Unattended, init refuses without the periods (or --retention-later)."""
+    from eli_legal.application.services import build_services
+    from eli_legal.settings import Settings
+
+    phrase = "administrator phrase\n"
+    refused = _cli(monkeypatch, workspace, ["init", "--admin", "admin"], phrase)
+    assert "--retention-later" in str(refused)
+    short = _cli(
+        monkeypatch, workspace,
+        ["init", "--admin", "admin", "--audit-days", "30", "--closed-matter-days", "60"], phrase,
+    )  # fmt: skip
+    assert "at least 183 days" in str(short)
+    sv = build_services(Settings(), install_network_guard=False)
+    assert sv.ctx.store.list_users() == [], "nothing was created by a refused set-up"
+    argv = ["init", "--admin", "admin", "--audit-days", "400", "--closed-matter-days", "1000",
+            "--inactive-matter-days", "90"]  # fmt: skip
+    assert _cli(monkeypatch, workspace, argv, phrase) == 0
+    sv = build_services(Settings(), install_network_guard=False)
+    kept = sv.compliance.retention()
+    assert (kept.audit_days, kept.closed_matter_days, kept.inactive_matter_days) == (400, 1000, 90)
+    set_by = [e for e in sv.ctx.audit.events() if e["event_type"] == "compliance_recorded"]
+    assert set_by and set_by[-1]["actor_id"] == "admin"

@@ -36,7 +36,10 @@ def signed_in(tmp_path, monkeypatch):
         "JURISDICTIONS_DIR": ws.jurisdictions,
     }.items():
         monkeypatch.setenv(f"ELI_LEGAL_{name}", str(value))
-    assert _cli(monkeypatch, ["init", "--admin", "admin"], f"{ADMIN_PHRASE}\n") == 0
+    assert (
+        _cli(monkeypatch, ["init", "--admin", "admin", "--retention-later"], f"{ADMIN_PHRASE}\n")
+        == 0
+    )
     assert _cli(monkeypatch, ["login", "admin"], f"{ADMIN_PHRASE}\n") == 0
     return tmp_path
 

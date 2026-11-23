@@ -57,10 +57,10 @@ jobs:
           "$RUNNER_TEMP/tools/bin/cyclonedx-py" environment --pyproject pyproject.toml \
             --mc-type application --of JSON \
             -o "dist/installers/ELI_Legal-$VERSION-sbom.cdx.json" "$(command -v python)"
+          # What the installers ship, and the exceptions (each with its reason, or the build stops).
           python -m pip freeze --exclude-editable \
-            | grep -viE '^(pip|setuptools|wheel|pyinstaller|pyinstaller-hooks-contrib|altgraph|macholib|pefile)==' \
-            | grep -v '^-e ' > "$RUNNER_TEMP/shipped.txt"
-          IGNORE=$(grep -Ev '^\s*(#|$)' packaging/audit_exceptions.txt | awk '{print "--ignore-vuln " $1}')
+            | python -m eli_legal.security.supply_chain shipped > "$RUNNER_TEMP/shipped.txt"
+          IGNORE=$(python -m eli_legal.security.supply_chain ignore-args packaging/audit_exceptions.txt)
           "$RUNNER_TEMP/tools/bin/pip-audit" -r "$RUNNER_TEMP/shipped.txt" --no-deps --disable-pip \
             --progress-spinner off --desc on $IGNORE
       # The built program needs a licence to start. The checks below use an ELI Legal key kept

@@ -162,7 +162,7 @@ def _initial_retention(args: argparse.Namespace) -> dict[str, int] | None:
         "inactive_matter_days": args.inactive_matter_days,
     }
     if given["audit_days"] is not None and given["closed_matter_days"] is not None:
-        return {k: int(v if v is not None else 0) for k, v in given.items()}
+        return _checked_retention({k: int(v if v is not None else 0) for k, v in given.items()})
     if getattr(args, "passphrase_stdin", False) or not sys.stdin.isatty():
         raise SystemExit(
             "choose the retention periods: --audit-days N --closed-matter-days N (and optionally "
@@ -178,7 +178,21 @@ def _initial_retention(args: argparse.Namespace) -> dict[str, int] | None:
         suggested = given[key] if given[key] is not None else _SUGGESTED_RETENTION[key]
         answer = input(f"{question} [{suggested}]: ").strip()
         out[key] = int(answer) if answer else int(suggested)
-    return out
+    return _checked_retention(out)
+
+
+def _checked_retention(chosen: dict[str, int]) -> dict[str, int]:
+    """Refuse a period the rules will not accept before anyone is created, so a set-up is never
+    left half done."""
+    from eli_legal.governance.compliance import MIN_AUDIT_RETENTION_DAYS
+
+    if chosen["audit_days"] < MIN_AUDIT_RETENTION_DAYS:
+        raise SystemExit(
+            f"the audit trail must be kept at least {MIN_AUDIT_RETENTION_DAYS} days (six months)"
+        )
+    if chosen["closed_matter_days"] < 0 or chosen["inactive_matter_days"] < 0:
+        raise SystemExit("a number of days cannot be negative")
+    return chosen
 
 
 def cmd_login(args: argparse.Namespace) -> int:
@@ -288,6 +302,9 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     problems: list[str] = []
     print(f"ELI Legal {__version__} doctor")
     print(f"  mode: {settings.mode}   network default: {settings.network_default}")
+    from eli_legal.security.supply_chain import REPORTING
+
+    print(f"  security: {REPORTING}")
     if settings.network_default.lower() != "deny":
         problems.append("network default is not deny")
     for label, path in (("policy", settings.policy_file), ("workflow", settings.workflow_file)):

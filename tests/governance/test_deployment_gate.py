@@ -37,10 +37,23 @@ def _real(sv):
     )  # fmt: skip
 
 
+PROPOSER = "gov.lead"
+
+
+def _proposer(sv):
+    """Whoever proposes an authorisation does not sign it: a third person proposes."""
+    if sv.ctx.store.get_user(PROPOSER) is None:
+        sv.users.add_user(
+            actor_id=ADMIN, user_id=PROPOSER, display_name="Compliance lead",
+            roles=["governance_officer"],
+        )  # fmt: skip
+    return PROPOSER
+
+
 def _authorise(sv, **changes):
     today = utcnow().date()
     proposal = dict(
-        actor_id=G, intended_use="Case preparation for the arbitral tribunal of the deployer",
+        actor_id=_proposer(sv), intended_use="Case preparation for the arbitral tribunal of the deployer",
         provider="ELI Legal provider", deployer="Port Varen Arbitration Centre",
         jurisdictions=["XX"], profiles=["adjudicator"], effective_from=today,
         expires_on=today + timedelta(days=365), evidence=_evidence(sv),
@@ -99,7 +112,7 @@ def test_an_authorisation_rests_on_evidence_and_two_different_signers(demo):
     with pytest.raises(InvalidInput, match="expire"):
         _authorise(sv, expires_on=today + timedelta(days=900))
     a = sv.deployment.propose(
-        actor_id=G, intended_use="Case preparation for the arbitral tribunal of the deployer",
+        actor_id=_proposer(sv), intended_use="Case preparation for the arbitral tribunal of the deployer",
         provider="P", deployer="D", jurisdictions=["XX"], profiles=["adjudicator"],
         effective_from=today, expires_on=today + timedelta(days=30), evidence=_evidence(sv),
     )  # fmt: skip
@@ -109,8 +122,13 @@ def test_an_authorisation_rests_on_evidence_and_two_different_signers(demo):
     sv.deployment.sign(a.authorisation_id, actor_id=G, as_lead="provider")
     with pytest.raises(PolicyDenied, match="different people"):
         sv.deployment.sign(a.authorisation_id, actor_id=G, as_lead="deployer")
+    with pytest.raises(PolicyDenied, match="proposed an authorisation cannot also sign"):
+        sv.deployment.sign(a.authorisation_id, actor_id=PROPOSER, as_lead="deployer")
     with pytest.raises(PolicyDenied):
         sv.deployment.sign(a.authorisation_id, actor_id=A, as_lead="deployer")
+    refused = [e for e in sv.ctx.audit.events() if e["event_type"] == "access_denied"
+               and e["actor_id"] == PROPOSER]  # fmt: skip
+    assert refused, "the refusal is recorded"
 
 
 def test_evidence_changed_after_the_proposal_stops_the_signature(demo):

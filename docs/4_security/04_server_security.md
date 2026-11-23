@@ -118,7 +118,9 @@ WantedBy=multi-user.target
 ```
 
 Create the first administrator before starting it:
-`sudo -u eli-legal ELI_LEGAL_HOME=/var/lib/eli-legal eli-legal init --admin <id>`.
+`sudo -u eli-legal ELI_LEGAL_HOME=/var/lib/eli-legal eli-legal init --admin <id>` (it asks how
+long the record is kept; unattended, give `--audit-days N --closed-matter-days N`). The service
+user's files are created private to it (folders 0700, databases 0600).
 
 ## Checking a deployment
 

@@ -259,6 +259,7 @@ def build_context(
     # Case material is its user's alone: what an earlier version left readable by others is
     # tightened now (folders 0700, files 0600; originals stay read-only).
     for tree in (settings.data_dir, settings.artifacts_dir):
+        private_dir(tree)
         private_tree(tree)
     sources = SourceRegistry(store=store)
     guard = NetworkGuard(

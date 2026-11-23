@@ -902,6 +902,8 @@ class MatterService:
         matter.status = MatterStatus.CLOSED
         matter.closed_at = utcnow()
         self.ctx.store.put_matter(matter)
+        if purge_content:
+            self.ctx.store.empty_log()  # what closing wrote after the deletion, into the file
         self.ctx.log(
             "matter_closed",
             actor_id=actor_id,

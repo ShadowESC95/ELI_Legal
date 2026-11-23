@@ -180,7 +180,7 @@ as text; and cannot be made to read the machine or call out. See
 ## The command line
 
 ```bash
-eli-legal init --admin admin                    # asks for the administrator's passphrase
+eli-legal init --admin admin                    # asks for the passphrase and how long records are kept
 eli-legal login admin
 eli-legal user add j.murphy --name "Judge Murphy" --role judge
 eli-legal passphrase j.murphy                   # the administrator sets the first passphrase

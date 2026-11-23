@@ -382,10 +382,25 @@ class ReviewTab(Tab):
             f"The run is <b style='color:{colour}'>{plain.state(status).lower()}</b>. {ready}"
         )
         reviewing = status == "awaiting_human_review"
+        # Whoever ran the work does not review it (unless the policy says otherwise).
+        own = (
+            reviewing
+            and self.sv.ctx.policy.require_reviewer_distinct_from_operator
+            and summary.get("started_by") == self.actor
+        )
+        if own:
+            self.decision_note.setText(
+                self.decision_note.text()
+                + " <b>You ran this work, so another named reviewer decides it.</b>"
+            )
         for decision_button in (self.approve, self.send_back, self.reject):
-            decision_button.setEnabled(reviewing)
+            decision_button.setEnabled(reviewing and not own)
             decision_button.setToolTip(
-                "" if reviewing else "Only a report awaiting review can be decided"
+                "You ran this work; another named reviewer decides it"
+                if own
+                else ""
+                if reviewing
+                else "Only a report awaiting review can be decided"
             )
         self.restart.setVisible(status in {s.value for s in RESUMABLE})
 

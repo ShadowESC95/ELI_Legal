@@ -7,6 +7,7 @@ themselves any: that separation is deliberate.
 ## 1. After installing
 
 1. Create the first administrator: start the desktop application, or `eli-legal init --admin <id>`.
+   Either asks how long the record is kept (see [section 9](#9-closing-matters-and-retention)).
 2. `eli-legal doctor` checks the installation and says what is wrong in plain words.
 3. Copy `secrets/audit_hmac.key` from the [data folder](01_installation.md#where-your-data-is) to
    somewhere safe and separate. Without it the ledger cannot be verified and nothing will run.
@@ -261,7 +262,7 @@ eli-legal checks run --as-system      # exit status 1 when anything needs attent
 | Stored documents unaltered | Every stored original against the hash it was filed with | Opens a **serious** incident |
 | Organisation's compliance work | Organisation actions not recorded or due for review | — |
 | People and sign-in | Missing passphrases, locked accounts, reviewers without training or a second factor | — |
-| Retention | Closed matters past their retention period | **Deletes** their documents, text and indexes, once, keeping the record |
+| Retention | Closed matters past their retention period (their own, else the organisation's); open matters idle longer than allowed | **Deletes** a closed matter's documents, text and indexes, once, keeping the record; reports the idle ones |
 | Holds and incidents | Holds open more than 14 days; serious incidents and their Art. 73 deadline | — |
 
 Results are on the Home page and in Governance, "Routine checks"; `eli-legal checks show` prints
@@ -282,11 +283,41 @@ Still for a person:
 Closing a matter ends access to it. With "also delete the documents", the documents, extracted
 text and search indexes are removed at once; the decision record and the ledger are kept.
 
-Set the retention periods in Governance, "Organisation actions", OA-09 (or `eli-legal compliance
-retention --audit-days N --closed-days N`). The audit trail must be kept at least six months
+**Retention is chosen when ELI Legal is set up**, not left for later by accident: the first-run
+window asks how long to keep the audit trail (at least six months; six years suggested), a closed
+matter's documents (six years suggested) and how long an open matter may sit idle before it is
+reported (a year suggested; 0 for never). `eli-legal init` asks the same, or takes
+`--audit-days N --closed-matter-days N --inactive-matter-days N`; run unattended without them it
+refuses, unless `--retention-later` says on purpose that they will be set afterwards. Until they
+are set nothing is deleted on time, and the routine checks say so.
+
+Change them in Governance, "Organisation actions", OA-09 (or `eli-legal compliance retention
+--audit-days N --closed-days N --inactive-days N`). The audit trail must be kept at least six months
 (EU AI Act Art. 19(1) and 26(6)) and is never shortened by the software: the ledger is permanent
-by design and holds identifiers, hashes and user identities, not document text. A closed matter's
-documents are deleted by the routine checks when its period ends.
+by design and holds identifiers, hashes and user identities, not document text.
+
+**A matter may keep its content for its own period** once closed, when it must differ from the
+organisation's: "Keep its content after closing" on the first page of the new-matter wizard,
+`eli-legal matter create … --retention-days N`, or later `eli-legal matter set M --retention-days N`
+(`--organisation-retention` returns it to the organisation's period). The routine checks delete a
+closed matter's documents when its period ends, unless a preservation hold keeps them, and report
+any open matter with no recorded activity for longer than the organisation allows: close it, or
+record why it stays open.
+
+**What is deleted is gone from the files.** Deleted rows are overwritten in the database file;
+after a matter's content is deleted its search index is merged, the database is rebuilt and its
+write-ahead log emptied, and the files ELI Legal made (reports, outbox copies, evidence packs,
+vault originals) are overwritten before they are removed. The deletion receipt in
+`artifacts/disposals/` records each step. On a solid-state or copy-on-write disk an overwrite may
+not reach the old blocks: keep the data folder on an encrypted disk.
+
+**Run the checks even when nothing is open.** The desktop application and the server run the
+routine checks while they are open. So that a retention period ends on time when neither is, put
+them in the operating system's own scheduler: `eli-legal checks timer` shows what it would install
+(a systemd user timer on Linux that catches up after the machine was off, a launchd agent on macOS,
+a Task Scheduler task on Windows, daily at 03:30), `--install` installs it for this user and
+`--remove` takes it away. No administrator rights are needed. It runs
+`eli-legal checks run --as-system` against the same data.
 
 ## 9a. The organisation's compliance work
 

@@ -279,6 +279,16 @@ class DeploymentService:
             if not copy.is_file() or hashlib.sha256(copy.read_bytes()).hexdigest() != digest:
                 raise InvalidState(f"the evidence for {EVIDENCE.get(k, k)} changed or is missing")
         if actor_id == a.proposed_by:
+            self.ctx.log(
+                "access_denied",
+                actor_id=actor_id,
+                matter_id="-",
+                action=f"deployment.sign_{as_lead}",
+                subject_id=a.authorisation_id,
+                outcome="denied",
+                object_type="deployment_authorisation",
+                payload={"reason": "proposer_cannot_sign"},
+            )
             raise PolicyDenied(
                 "the person who proposed an authorisation cannot also sign it; two other people "
                 "sign, as the provider lead and the deployer lead"

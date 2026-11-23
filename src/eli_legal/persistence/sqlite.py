@@ -390,6 +390,18 @@ class Store:
                 ).rowcount
         return counts
 
+    def empty_log(self) -> bool:
+        """Move the write-ahead log into the database file and empty it. Returns whether it is
+        empty now (a reader holding it open leaves it for the next time)."""
+        if str(self.db_path) == ":memory:":
+            return False
+        with self._lock:
+            try:
+                busy = self._con.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+            except sqlite3.Error:
+                return False
+        return bool(busy) and int(busy[0]) == 0
+
     def compact(self) -> dict[str, Any]:
         """After a deletion: leave none of the deleted content in the file. Deleted rows are
         already overwritten (secure_delete); this merges the search index so no deleted passage

@@ -8,7 +8,7 @@ Generated from the program by `scripts/generate_reference_docs.py`. Do not edit 
 
 | Command | What it does |
 |---|---|
-| `eli-legal init --admin --name` | create directories, the audit key and the first administrator |
+| `eli-legal init --admin --name --audit-days --closed-matter-days --inactive-matter-days --retention-later` | create directories, the audit key and the first administrator |
 | `eli-legal login <user_id>` | sign in with your passphrase |
 | `eli-legal logout` | end your session |
 | `eli-legal whoami` | show who is signed in |
@@ -36,7 +36,7 @@ Generated from the program by `scripts/generate_reference_docs.py`. Do not edit 
 | `eli-legal source import <source_id> <directory>` |  |
 | `eli-legal source index <source_id>` | embed a source's passages for searching by meaning now, not during a run |
 | `eli-legal matter` | manage matters |
-| `eli-legal matter create --name --purpose --jurisdiction --profile --governing-law --forum --rules --relevant-date --party --issue --represents --framework --no-recommended-frameworks --member --reviewer --source` |  |
+| `eli-legal matter create --name --purpose --jurisdiction --profile --governing-law --forum --rules --relevant-date --party --issue --represents --real --retention-days --framework --no-recommended-frameworks --member --reviewer --source` |  |
 | `eli-legal matter list` |  |
 | `eli-legal matter show <matter>` |  |
 | `eli-legal matter grant <matter> <user_id> --role --acts-for` |  |
@@ -46,10 +46,10 @@ Generated from the program by `scripts/generate_reference_docs.py`. Do not edit 
 | `eli-legal matter reviewers <matter> <user_id>` |  |
 | `eli-legal matter sources <matter> <source_id>` |  |
 | `eli-legal matter frameworks <matter> <pack_id>` | show, or set, the law and standards packages applied |
-| `eli-legal matter set <matter> --relevant-date --issue --forum --rules --party` |  |
+| `eli-legal matter set <matter> --retention-days --organisation-retention --relevant-date --issue --forum --rules --party` |  |
 | `eli-legal matter close <matter> --reason --purge` |  |
 | `eli-legal ingest <matter> <path> --party --type --scope --custodian` | take documents into a matter |
-| `eli-legal docs <matter>` | list a matter's documents |
+| `eli-legal docs <matter> --reread` | list a matter's documents, or read one again from its original |
 | `eli-legal run` | start, inspect, stop or restart a run |
 | `eli-legal run start <matter>` |  |
 | `eli-legal run list <matter>` |  |
@@ -71,7 +71,21 @@ Generated from the program by `scripts/generate_reference_docs.py`. Do not edit 
 | `eli-legal incident list <matter>` |  |
 | `eli-legal incident open <matter> --category --detail --severity --run` |  |
 | `eli-legal incident close <matter> <incident> --containment --reason` |  |
+| `eli-legal incident aware <matter> <incident> --aware-at --basis --aware-by --occurred-at` | when the provider or deployer became aware (Art. 73 counts from it) |
+| `eli-legal incident assign <matter> <incident> --owner --backup` | the incident's owner and a different stand-in |
 | `eli-legal incident report <matter> <incident> --reportable --reason --kind --reported-on --reference` | decide whether a serious incident is reportable (Art. 73) |
+| `eli-legal deployment` | approve the use of ELI Legal on real matters |
+| `eli-legal deployment list` |  |
+| `eli-legal deployment propose --intended-use --provider --deployer --jurisdiction --profile --effective-from --expires-on --evidence --data-class` | set out what is to be approved, with its evidence |
+| `eli-legal deployment sign <authorisation> --as-lead` | sign as the provider lead or the deployer lead |
+| `eli-legal deployment revoke <authorisation> --reason` | withdraw it at once |
+| `eli-legal preserve` | preservation holds: keep a matter's content from deletion |
+| `eli-legal preserve list <matter>` |  |
+| `eli-legal preserve place <matter> --basis --authority --document --review-by` | keep the whole matter, or named documents, from deletion |
+| `eli-legal preserve release <matter> <hold> --reason` | end a hold (the legal or data-protection owner) |
+| `eli-legal reliance` | approved reports suspended from reliance |
+| `eli-legal reliance list <matter>` |  |
+| `eli-legal reliance resolve <matter> <block> --basis --superseded-by` | end a suspension: the law confirmed again for the report, or a later approved run that replaces it |
 | `eli-legal network` | hard offline: the kernel refuses every network connection |
 | `eli-legal network status` |  |
 | `eli-legal network offline` | switch hard offline on now, until the program exits |
@@ -82,7 +96,7 @@ Generated from the program by `scripts/generate_reference_docs.py`. Do not edit 
 | `eli-legal compliance actions` | what the organisation must do, and where each stands |
 | `eli-legal compliance form <action>` | the questions of an action, as JSON to fill in |
 | `eli-legal compliance record <action> --answers --confirm --notes --reference --not-applicable` | record an action as done, or as not applying |
-| `eli-legal compliance retention --audit-days --closed-days` | how long the audit trail and closed matters are kept |
+| `eli-legal compliance retention --audit-days --closed-days --inactive-days` | how long the audit trail and closed matters are kept |
 | `eli-legal compliance training <user_id> --course --completed --expires` | list training records, or record one |
 | `eli-legal compliance evaluate` | run the accuracy evaluation on the planted-defect matter |
 | `eli-legal compliance draft <kind>` | draft the Annex IV documentation or the declaration |
@@ -91,6 +105,7 @@ Generated from the program by `scripts/generate_reference_docs.py`. Do not edit 
 | `eli-legal checks` | run or show the routine checks |
 | `eli-legal checks run --as-system` |  |
 | `eli-legal checks show` |  |
+| `eli-legal checks timer --install --remove` | run the checks daily from the system's scheduler, even with the program closed |
 | `eli-legal audit` | verify or read the audit ledger |
 | `eli-legal audit verify --against` |  |
 | `eli-legal audit checkpoint --out` |  |

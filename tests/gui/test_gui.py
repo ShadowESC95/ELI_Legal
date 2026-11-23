@@ -300,7 +300,8 @@ def test_the_administrator_sees_the_machine_and_how_a_model_would_be_placed_befo
 
 def test_a_decision_in_the_application_needs_the_passphrase_again(desk):
     d = desk()
-    d.sv.runs.start(d.mid, actor_id=ARBITRATOR)
+    with authn.established(SECRETARY, "test", step_up=True):  # the registrar runs it
+        d.sv.runs.start(d.mid, actor_id=SECRETARY)
     d.session.set_matter(d.mid)
     review = d.page(ReviewTab)
     review.holds.selectRow(2)
@@ -388,6 +389,14 @@ def test_first_run_creates_the_key_and_insists_on_a_real_passphrase(qt, tmp_path
     dialog.second.setText("a long enough passphrase")
     dialog._check()
     assert dialog.result() == 1
+    # How long the record is kept is chosen here, not left unset; six months is the least.
+    assert dialog.retention() == {
+        "audit_days": 2190,
+        "closed_matter_days": 2190,
+        "inactive_matter_days": 365,
+    }
+    dialog.audit_days.setValue(30)
+    assert dialog.retention()["audit_days"] == 183
 
 
 def test_home_shows_where_the_matter_stands_and_takes_you_to_the_next_step(desk):
@@ -429,6 +438,8 @@ def test_the_wizard_opens_a_matter_with_its_team_reviewers_and_sources(desk):
     wizard.name.setText("Gantry Marine v Holloway")
     wizard.purpose.setText("Bench memorandum on acceptance of late delivery")
     wizard.jurisdiction.setCurrentText("XX")
+    assert wizard.retention.value() == 0, "the organisation's period unless one is chosen"
+    wizard.retention.setValue(2555)
     wizard.next()
     wizard.parties.item(0, 0).setText("Gantry Marine Ltd")
     wizard.parties.item(1, 0).setText("Holloway plc")
@@ -448,6 +459,7 @@ def test_the_wizard_opens_a_matter_with_its_team_reviewers_and_sources(desk):
     assert matter.member_roles == {SECRETARY: "case_worker"}
     assert matter.reviewer_user_ids == {ARBITRATOR} and matter.approved_source_ids
     assert [p.name for p in matter.parties] == ["Gantry Marine Ltd", "Holloway plc"]
+    assert values["retention_days"] == matter.retention_days == 2555
     wizard.close()
 
 
@@ -866,8 +878,9 @@ def test_review_says_what_a_returned_report_needs_and_keeps_what_was_ticked(desk
     from eli_legal.gui import run_controls
 
     d = desk()
-    d.page(WorkflowTab)._start()
-    d.settle()
+    with authn.established(SECRETARY, "test", step_up=True):  # the registrar runs it
+        d.sv.runs.start(d.mid, actor_id=SECRETARY)
+    d.session.set_matter(d.mid)
     mid, rid = d.mid, d.session.run_id
     with authn.stepped_up():
         resolve_demo_holds(d.sv, mid, rid)
