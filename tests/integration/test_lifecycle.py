@@ -1,5 +1,4 @@
 import json
-import sqlite3
 from pathlib import Path
 
 import pytest
@@ -13,6 +12,7 @@ from eli_legal.domain.errors import (
     VerificationGateFailed,
 )
 from eli_legal.domain.models import VerificationResult
+from eli_legal.security.db_key import open_existing
 from eli_legal.workflows.case_preparation import warning_id
 from tests.conftest import case_text
 
@@ -242,7 +242,7 @@ def test_verification_results_altered_in_the_store_are_caught_by_the_completenes
     sv, mid, rid = held_run
     report = _to_review(sv, mid, rid)
     forged = sv.ctx.store.list(VerificationResult, mid, run_id=rid)[0]
-    with sqlite3.connect(sv.ctx.settings.db_path) as con:
+    with open_existing(sv.ctx.settings.db_path, sv.ctx.settings.audit_key_file) as con:
         con.execute(
             "UPDATE verifications SET data = replace(data, '\"verified\"', '\"failed\"') WHERE id = ?",
             (forged.verification_id,),

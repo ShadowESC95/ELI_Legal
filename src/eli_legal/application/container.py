@@ -7,6 +7,7 @@ workflow are identical.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -34,18 +35,27 @@ from eli_legal.legal.jurisdictions import JurisdictionRegistry
 from eli_legal.legal.llm import LegalModel
 from eli_legal.legal.semantic import SemanticIndex
 from eli_legal.legal.source_registry import SourceRegistry
+from eli_legal.persistence.connect import (
+    ConversionFailed,
+    DatabaseBusy,
+    encrypt_in_place,
+    recover_interrupted,
+)
 from eli_legal.persistence.sqlite import Store
 from eli_legal.ports.document_parser import DocumentParserPort
 from eli_legal.ports.embedding import EmbeddingPort
 from eli_legal.ports.inference import InferencePort
 from eli_legal.ports.legal_sources import LegalSourcePort
 from eli_legal.security.authorizer import MatterAuthorizer
+from eli_legal.security.db_key import database_key
 from eli_legal.security.files import private_dir, private_tree
 from eli_legal.security.prompt_injection import PromptInjectionDetector
 from eli_legal.security.rbac import RoleBindings
 from eli_legal.security.sealed import FileKeys, SealedFiles
 from eli_legal.settings import Settings
 from eli_legal.workflows.runner import WorkflowDef, load_workflow
+
+log = logging.getLogger(__name__)
 
 
 def file_keys(settings: Settings) -> FileKeys:
@@ -284,8 +294,9 @@ def build_context(
     if settings.network_default.lower() != "deny":
         raise PolicyDenied("ELI Legal only runs with the network denied by default")
     # Fail closed: no protected key, no ledger, no governed runtime.
-    audit = HmacAuditLedger(settings.audit_db_path, settings.audit_key_file)
-    store = Store(settings.db_path)
+    db_key, converted = _encrypted_databases(settings)
+    audit = HmacAuditLedger(settings.audit_db_path, settings.audit_key_file, db_key=db_key)
+    store = Store(settings.db_path, key=db_key)
     # Case material is its user's alone: what an earlier version left readable by others is
     # tightened now (folders 0700, files 0600; originals stay read-only).
     for tree in (settings.data_dir, settings.artifacts_dir):
@@ -324,4 +335,53 @@ def build_context(
     )
     ctx.record_loads(ctx.model)
     ctx.record_loads(ctx.verifier_model)
+    for done in converted:  # identifiers and counts only, never content
+        ctx.log(
+            "database_encrypted",
+            actor_id="system",
+            matter_id="-",
+            action="database.encrypt",
+            subject_id=str(done["database"]),
+            outcome=str(done["outcome"]),
+            object_type="database",
+            payload={k: v for k, v in done.items() if k not in ("database", "outcome")},
+        )
     return ctx
+
+
+def _encrypted_databases(settings: Settings) -> tuple[bytes | None, list[dict[str, Any]]]:
+    """The databases' key, after putting right a conversion cut short and converting any
+    database an earlier version left plain. Returns the key (None where SQLCipher is not
+    installed or there is no audit key yet) and what was converted or could not be."""
+    databases = (("audit ledger", settings.audit_db_path), ("working database", settings.db_path))
+    if not Path(settings.audit_key_file).exists():
+        return None, []  # first run before the keys exist: the ledger refuses to start anyway
+    key = database_key(settings.audit_key_file, *(path for _name, path in databases))
+    done: list[dict[str, Any]] = []
+    if key is None:
+        return None, done
+    for name, path in databases:
+        recovered = recover_interrupted(path, key)
+        if recovered:
+            done.append({"database": name, "outcome": f"conversion_{recovered}"})
+
+        def ledger_holds(copy: Path) -> None:
+            report = HmacAuditLedger(copy, settings.audit_key_file, db_key=key).report()
+            if not report.ok:
+                raise ConversionFailed(f"the encrypted ledger does not verify: {report.error}")
+
+        try:
+            counts = encrypt_in_place(
+                path, key, check=ledger_holds if path == settings.audit_db_path else None
+            )
+        except DatabaseBusy as exc:
+            done.append({"database": name, "outcome": "not_converted", "why": str(exc)[:200]})
+            continue
+        except Exception as exc:  # the plain database keeps working; the checks report it
+            log.warning("could not encrypt the %s", name, exc_info=True)
+            why = f"{type(exc).__name__}: {exc}"[:200]
+            done.append({"database": name, "outcome": "not_converted", "why": why})
+            continue
+        if counts is not None:
+            done.append({"database": name, "outcome": "encrypted", **counts})
+    return key, done

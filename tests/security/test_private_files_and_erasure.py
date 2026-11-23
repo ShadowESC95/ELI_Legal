@@ -17,6 +17,7 @@ from pathlib import Path
 
 import pytest
 
+from eli_legal.application import container
 from eli_legal.application.services import build_services
 from eli_legal.demo import build_demo_workspace
 from eli_legal.demo_run import demo_settings, setup_demo
@@ -92,8 +93,16 @@ def test_a_deleted_file_is_overwritten_before_it_is_removed(tmp_path):
     assert same.read_bytes() == b"\0" * len(secret)
 
 
-def test_deleting_a_matters_content_leaves_none_of_it_in_the_database_file_or_its_log(demo):
-    sv, mid = demo
+def test_deleting_a_matters_content_leaves_none_of_it_in_the_database_file_or_its_log(
+    tmp_path, monkeypatch
+):
+    # Checked on a readable file. Encrypted (wherever SQLCipher is installed) nothing of a case
+    # can be read in the file at all; this proves a decrypted page holds no residue either.
+    monkeypatch.setattr(container, "database_key", lambda *a, **k: None)
+    workspace = build_demo_workspace(tmp_path / "demo")
+    sv = build_services(demo_settings(tmp_path, workspace), install_network_guard=False)
+    mid = setup_demo(sv, workspace)
+    assert not sv.ctx.store.encrypted
     token = "qzxvbnmkjhwtoken"
     matter = sv.matters.get(mid, A)
     document = sv.ingestion.register(

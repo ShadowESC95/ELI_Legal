@@ -38,6 +38,11 @@ class MissingAuditKey(AuditIntegrityError):
     pass
 
 
+class DatabaseKeyError(AuditIntegrityError):
+    """A database cannot be opened with the key it was encrypted with: the key is wrong or
+    missing, or SQLCipher is not there to read it. Never answered with a new, empty database."""
+
+
 class NetworkDenied(EliLegalError):
     """Outbound network use that the approved-source policy does not permit."""
 

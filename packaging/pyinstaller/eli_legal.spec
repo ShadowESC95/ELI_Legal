@@ -29,6 +29,9 @@ for name in ("THIRD_PARTY_NOTICES.md", "LICENSE", "NOTICE", "README.md"):
 
 hidden = collect_submodules("eli_legal") + collect_submodules("uvicorn")
 hidden += ["pypdf", "cryptography", "PySide6.QtCore", "PySide6.QtGui", "PySide6.QtWidgets"]
+# SQLCipher: the databases are encrypted with it (its OpenSSL is built into the extension).
+hidden += ["sqlcipher3", "sqlcipher3.dbapi2", "sqlcipher3._sqlite3"]
+datas += copy_metadata("sqlcipher3-wheels")
 
 excluded = [
     # A browser engine is not part of this product; neither is anything used only to develop it.

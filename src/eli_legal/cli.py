@@ -357,6 +357,8 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     from eli_legal.security.supply_chain import REPORTING
 
     print(f"  security: {REPORTING}")
+    from eli_legal.persistence.connect import ENCRYPTION_AVAILABLE
+
     if settings.network_default.lower() != "deny":
         problems.append("network default is not deny")
     for label, path in (("policy", settings.policy_file), ("workflow", settings.workflow_file)):
@@ -372,6 +374,17 @@ def cmd_doctor(args: argparse.Namespace) -> int:
             print(
                 f"  audit chain: {'valid' if chain.ok else 'INVALID — ' + chain.error} ({chain.count} events)"
             )
+            if sv.ctx.store.encrypted and sv.ctx.audit.encrypted:
+                print("  databases: encrypted (SQLCipher, AES-256); key in the secrets folder")
+            else:
+                print(
+                    "  attention: the databases are not encrypted"
+                    + (
+                        " (SQLCipher is not installed)"
+                        if not ENCRYPTION_AVAILABLE
+                        else " (they could not be converted: see the routine checks)"
+                    )
+                )
             if not chain.ok:
                 problems.append(f"audit chain invalid: {chain.error}")
             print(f"  jurisdiction packs: {', '.join(sv.ctx.jurisdictions.codes())}")
@@ -389,6 +402,29 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     if not problems:
         print("  OK")
     return 1 if problems else 0
+
+
+def cmd_database_key(args: argparse.Namespace) -> int:
+    """Write the databases' key, unwrapped, for safekeeping off this machine (a password manager,
+    a safe): without it the databases cannot be opened on another machine or Windows account. To
+    restore, put the file back as secrets/database.key."""
+    from eli_legal.security.db_key import key_path, read_key
+
+    settings = Settings()
+    held = key_path(settings.audit_key_file)
+    if not held.exists():
+        print(f"no database key at {held}: the databases are not encrypted yet")
+        return 1
+    out = Path(args.out)
+    if out.exists():
+        print(f"{out} exists: choose a new file")
+        return 1
+    fd = os.open(out, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w", encoding="ascii") as fh:
+        fh.write(read_key(held).hex() + "\n")
+    print(f"the databases' key is in {out}: anyone with it and the data can read every case.")
+    print("Keep it off this machine, apart from the backups of data/, then delete this copy.")
+    return 0
 
 
 def cmd_show_policy(args: argparse.Namespace) -> int:
@@ -1658,6 +1694,12 @@ def build_parser() -> argparse.ArgumentParser:
         "user_id"
     )
     add("doctor", cmd_doctor, "check the installation")
+    p = add(
+        "database-key",
+        cmd_database_key,
+        "write the databases' encryption key to a file, for safekeeping off this machine",
+    )
+    p.add_argument("--out", required=True)
     add("show-policy", cmd_show_policy, "print the runtime policy")
     add("jurisdictions", cmd_jurisdictions, "list jurisdiction packs")
 

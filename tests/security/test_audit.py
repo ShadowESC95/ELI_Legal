@@ -6,6 +6,7 @@ import pytest
 from eli_legal.adapters.local.hmac_audit import Checkpoint, HmacAuditLedger
 from eli_legal.domain.errors import AuditIntegrityError, MissingAuditKey
 from eli_legal.domain.models import AuditEvent
+from eli_legal.security.db_key import open_existing
 from tests.conftest import make_key
 
 
@@ -116,7 +117,8 @@ def test_the_ledger_refuses_content_so_logs_stay_minimal(tmp_path):
 
 def test_a_run_never_starts_on_a_ledger_that_does_not_verify(held_run):
     sv, mid, _rid = held_run
-    with sqlite3.connect(sv.ctx.settings.audit_db_path) as con:
+    settings = sv.ctx.settings
+    with open_existing(settings.audit_db_path, settings.audit_key_file) as con:
         con.execute("DELETE FROM audit_log WHERE seq = (SELECT MAX(seq) FROM audit_log)")
     with pytest.raises(AuditIntegrityError):
         sv.runs.start(mid, actor_id="sec.byrne")

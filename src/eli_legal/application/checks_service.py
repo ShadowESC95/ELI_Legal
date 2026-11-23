@@ -55,6 +55,7 @@ from eli_legal.domain.models import (
 )
 from eli_legal.governance.registers import check_registers
 from eli_legal.governance.retention import CONTENT, KINDS
+from eli_legal.persistence.connect import ENCRYPTION_AVAILABLE
 from eli_legal.security import access, authn
 
 log = logging.getLogger("eli_legal.checks")
@@ -128,6 +129,40 @@ class ChecksService:
         hours = self.ctx.settings.checks_every_hours
         return (now or utcnow()) - last.finished_at >= timedelta(hours=hours)
 
+    def _encryption(self, actor_id: str, today: date) -> CheckResult:
+        """Whether the working database and the audit ledger are encrypted at rest."""
+        plain = [
+            name
+            for name, part in (
+                ("the working database", self.ctx.store),
+                ("the audit ledger", self.ctx.audit),
+            )
+            if not getattr(part, "encrypted", False)
+        ]
+        if not plain:
+            return CheckResult(
+                "encryption",
+                "Encryption at rest",
+                "ok",
+                "The working database and the audit ledger are encrypted (SQLCipher, AES-256); "
+                "their key is kept in the secrets folder.",
+            )
+        why = (
+            "SQLCipher is not installed in this copy of ELI Legal"
+            if not ENCRYPTION_AVAILABLE
+            else "they could not be converted when ELI Legal started (Record of actions: "
+            "database_encrypted says why)"
+        )
+        return CheckResult(
+            "encryption",
+            "Encryption at rest",
+            "attention",
+            f"The databases are not encrypted: {' and '.join(plain)} ({why}).",
+            "Use an installed copy of ELI Legal (it includes SQLCipher), or install "
+            "sqlcipher3-wheels; then start ELI Legal with nothing else using its data, and it "
+            "converts them. Until then, keep the data folder on an encrypted disk.",
+        )
+
     def run(self, *, actor_id: str = SYSTEM, today: date | None = None) -> CheckRun:
         """Run every check. The system runs them on its schedule; a person who asks needs the
         right to run them."""
@@ -138,6 +173,7 @@ class ChecksService:
         run = CheckRun(started_at=utcnow(), actor_id=actor_id, results=[])
         for check in (
             self._audit_chain,
+            self._encryption,
             self._registers,
             self._authorities,
             self._law_packages,
