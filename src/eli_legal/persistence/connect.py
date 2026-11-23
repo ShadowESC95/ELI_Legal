@@ -147,7 +147,8 @@ def _search_sample(con: Any) -> tuple[str, list[str]] | None:
 
 
 def _sync(path: Path) -> None:
-    with open(path, "rb") as fh:
+    # Opened for writing: Windows will not flush a file through a read-only handle (EBADF).
+    with open(path, "r+b") as fh:
         os.fsync(fh.fileno())
     if os.name != "nt":
         fd = os.open(path.parent, os.O_RDONLY)
