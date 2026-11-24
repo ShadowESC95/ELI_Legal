@@ -23,6 +23,7 @@ from eli_legal.domain.enums import HoldScope, ReviewDecision, VerificationStatus
 from eli_legal.domain.models import Claim, Hold, RelianceBlock, Run
 from eli_legal.domain.release import ReleasePackage
 from eli_legal.gui import theme
+from eli_legal.gui.hold_window import HoldWindow
 from eli_legal.gui.run_controls import RESUMABLE, hold_run, lift_hold, restart_run
 from eli_legal.gui.tabs.base import Tab
 from eli_legal.gui.widgets import (
@@ -77,12 +78,13 @@ class ReviewTab(Tab):
         self.show_closed.toggled.connect(self.refresh)
         self.holds = table(["On hold", "Why", "What the system found", "What", "State"], stretch=3)
         self.holds.itemSelectionChanged.connect(self._explain)
+        self.holds.doubleClicked.connect(lambda _index: self._open_hold())
         self.explain = label("", wrap=True, selectable=True)
         page = QWidget()
         box = QVBoxLayout(page)
         box.addWidget(
             label(
-                "A hold closes when its check passes, or when a named person decides, with reasons. Nothing reaches review while one is open. Select a hold to see what it means and what you can do.",
+                "A hold closes when its check passes, or when a named person decides, with reasons. Nothing reaches review while one is open. Double-click a hold, or select it and press Open, to see what caused it (the exact words, or the original) and decide it.",
                 "muted",
                 wrap=True,
             )
@@ -98,6 +100,12 @@ class ReviewTab(Tab):
         self._explain()
         box.addWidget(
             row(
+                button(
+                    "Open…",
+                    self._open_hold,
+                    kind="primary",
+                    tip="What caused it, the exact words or the original, and what you can do",
+                ),
                 button("Verify by hand…", self._verify, tip="You checked the authority yourself"),
                 button("Take out of reliance…", lambda: self._resolve("exclude"), kind="danger"),
                 button(
@@ -141,6 +149,26 @@ class ReviewTab(Tab):
         page = QWidget()
         box = QVBoxLayout(page)
         box.addWidget(self.decision_note)
+        # When this person cannot decide the report: who can, and how to get it to them.
+        self.who_text = label("", wrap=True, selectable=True)
+        self.switch_person = button(
+            "Switch person…",
+            self._switch_person,
+            kind="primary",
+            tip="Sign out here and sign in as the person who decides",
+        )
+        self.name_reviewer = button(
+            "Name another reviewer…",
+            lambda: self._go_reviewers(),
+            tip="Case details → Name the reviewers",
+        )
+        self.who_card = card(
+            "Who can decide this",
+            self.who_text,
+            row(self.switch_person, self.name_reviewer, None),
+        )
+        self.who_card.hide()
+        box.addWidget(self.who_card)
         split = QSplitter(Qt.Orientation.Vertical)
         split.setChildrenCollapsible(False)
         split.addWidget(
@@ -382,22 +410,17 @@ class ReviewTab(Tab):
             f"The run is <b style='color:{colour}'>{plain.state(status).lower()}</b>. {ready}"
         )
         reviewing = status == "awaiting_human_review"
-        # Whoever ran the work does not review it (unless the policy says otherwise).
-        own = (
-            reviewing
-            and self.sv.ctx.policy.require_reviewer_distinct_from_operator
-            and summary.get("started_by") == self.actor
+        # Who may decide, by the rules the decision applies: never a greyed-out dead end.
+        deciders = (
+            self.sv.reviews.deciders(self.mid, self.rid, actor_id=self.actor) if reviewing else None
         )
-        if own:
-            self.decision_note.setText(
-                self.decision_note.text()
-                + " <b>You ran this work, so another named reviewer decides it.</b>"
-            )
+        blocked = deciders is not None and not deciders["you_can"]
+        self._show_who(deciders if blocked else None)
         for decision_button in (self.approve, self.send_back, self.reject):
-            decision_button.setEnabled(reviewing and not own)
+            decision_button.setEnabled(reviewing and not blocked)
             decision_button.setToolTip(
-                "You ran this work; another named reviewer decides it"
-                if own
+                f"You cannot decide this: you {deciders['why_not']}. See 'Who can decide this'."
+                if blocked and deciders
                 else ""
                 if reviewing
                 else "Only a report awaiting review can be decided"
@@ -497,6 +520,65 @@ class ReviewTab(Tab):
             + (f"<b>The party that filed it answered:</b><ul>{answers}</ul>" if answers else "")
             + f"<span style='color:{theme.MUTED}'>The system found: {_found(hold)}</span>"
         )
+
+    def _show_who(self, deciders: dict | None) -> None:  # type: ignore[type-arg]
+        """Say why this person cannot decide, name who can, and offer the way to them."""
+        if not deciders:
+            self.who_card.hide()
+            return
+        why = deciders["why_not"]
+        mine = (
+            "You started this run, and nobody approves their own run (EU AI Act Art. 14: the "
+            "person who reviews is not the one who ran it)."
+            if why.startswith("started")
+            else f"You cannot decide it: {why}."
+        )
+        who = deciders["who"]
+        if who:
+            names = ", ".join(f"<b>{escape(w['name'])}</b> ({escape(w['user_id'])})" for w in who)
+            how = (
+                f"It can be decided by {names}. They see it under 'waiting for you'. On this "
+                "machine: <b>Switch person…</b> and sign in as them. Elsewhere: they sign in to "
+                "the browser application if the server is running (Settings → System → Server)."
+            )
+        else:
+            how = (
+                "<b>Nobody can decide it yet</b>: no other named reviewer of this matter may "
+                "decide it. Name one (a judge, tribunal member or arbitrator on the matter) with "
+                "<b>Name another reviewer…</b>."
+            )
+        self.who_text.setText(f"{mine}<br>{how}")
+        self.switch_person.setVisible(bool(who))
+        self.who_card.show()
+
+    def _switch_person(self) -> None:
+        window = self.window()
+        if hasattr(window, "sign_out"):
+            window.sign_out()
+
+    def _go_reviewers(self) -> None:
+        window = self.window()
+        if hasattr(window, "go"):
+            window.go("matter")
+        from eli_legal.gui.tabs.matter_tab import MatterTab
+
+        target = getattr(window, "page", None)
+        if callable(target):
+            matter_page = target(MatterTab)
+            matter_page._reviewers()
+
+    def _open_hold(self) -> None:
+        hold_id = selected_id(self.holds)
+        if not hold_id or not self.mid:
+            return
+        window = self.session.attempt(
+            self,
+            lambda: HoldWindow(self, self.session, self.mid, hold_id, record_check=self._record),
+            quiet=True,
+        )
+        if window is not None:
+            window.exec()
+            self.refresh()
 
     def _resolve(self, action: str) -> None:
         hold_id = selected_id(self.holds)

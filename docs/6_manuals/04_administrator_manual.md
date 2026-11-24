@@ -9,9 +9,12 @@ themselves any: that separation is deliberate.
 1. Create the first administrator: start the desktop application, or `eli-legal init --admin <id>`.
    Either asks how long the record is kept (see [section 9](#9-closing-matters-and-retention)).
 2. `eli-legal doctor` checks the installation and says what is wrong in plain words.
-3. Copy `secrets/audit_hmac.key` from the [data folder](01_installation.md#where-your-data-is) to
-   somewhere safe and separate. Without it the ledger cannot be verified and nothing will run.
-4. Put the data folder on an encrypted disk. The software does not encrypt it.
+3. Save the keys apart from the data: copy `secrets/audit_hmac.key` from the
+   [data folder](01_installation.md#where-your-data-is) to somewhere safe and separate (without it
+   the ledger cannot be verified and nothing will run), and save the databases' key with
+   `eli-legal database-key --out <file>.txt` (without it the databases cannot be opened).
+4. Put the machine on an encrypted disk (BitLocker, FileVault, LUKS). ELI Legal encrypts its
+   databases and case files itself, but their keys are on the same machine.
 5. Set up a second factor for yourself: Settings, You, Second factor; or
    `eli-legal second-factor setup`.
 
@@ -43,7 +46,8 @@ Deactivating a user stops their sessions and tokens; their past actions stay in 
 | System | `system_admin` | No matter. Users, configuration, audit verification |
 
 A role alone gives nothing on a matter: the person must also be added to it by its lead, and
-their role must fit the matter's profile. A party's lawyer cannot be added to a tribunal's matter.
+their role must fit the matter's profile. A party's lawyer joins a tribunal's matter only as one
+party's representative (below), never as one of the tribunal's team.
 Settings, "What each role can do" shows exactly what each role may do, in plain words.
 
 ### Roles on a matter, and what each person may read
@@ -84,7 +88,7 @@ every attempt to read it is recorded. A named reviewer must hold a role on the m
 approve. People added before roles on a matter existed keep exactly what their account allowed.
 
 Oversight roles (legal administrator, governance officer, auditor) see a list of every matter in
-Governance, "All matters"; a matter they are not on shows no name, party or content.
+Compliance, "All matters"; a matter they are not on shows no name, party or content.
 
 ## 3. Legal sources
 
@@ -175,8 +179,25 @@ quoted word for word and checked as before.
 ## 5. The server
 
 See [Web application and server](06_web_application_and_server.md) and
-[Server security](../4_security/04_server_security.md). In short: one machine needs nothing; a
-team needs TLS and gets a second factor required by default.
+[Server security](../4_security/04_server_security.md). In short: one machine holds the cases and
+does the work; everyone else uses a browser. A team needs TLS and gets a second factor required by
+default.
+
+**Make sure the server serves your installed data.** The desktop application, the server and the
+command line share one set of live cases only when they use the same data folder. Start the server
+from the desktop application (Settings → System → Server), or with the installed program's `serve`
+(on Linux `eli-legal serve` from the `.deb` or `.run`, or `<AppImage> serve`; on Windows from
+*ELI Legal command line*; on macOS `"/Applications/ELI Legal.app/Contents/MacOS/eli-legal" serve`).
+Do not use a developer's source checkout: it has its own test data and accounts, and its `serve`
+refuses to serve them while an installed copy's data exists unless given `--dev-data`. The server
+prints the data folder it serves, and after signing in the browser shows it too. If people in the
+browser see different cases, or accounts that do not exist on the desktop, they are on a server
+started on other data: stop it and start the right one.
+
+Started from the desktop application, the server stops when the application closes. For a court
+or tribunal, run it as a service so it is there whenever the machine is (an example for Linux is
+in [Server security](../4_security/04_server_security.md#running-it-as-a-service-linux)), and keep the
+desktop application on the same machine for the work only it does.
 
 ## 6. Settings
 
@@ -275,7 +296,7 @@ eli-legal checks run --as-system      # exit status 1 when anything needs attent
 | Retention | Closed matters past their retention period (their own, else the organisation's); open matters idle longer than allowed | **Deletes** a closed matter's documents, text and indexes, once, keeping the record; reports the idle ones |
 | Holds and incidents | Holds open more than 14 days; serious incidents and their Art. 73 deadline | — |
 
-Results are on the Home page and in Governance, "Routine checks"; `eli-legal checks show` prints
+Results are on the Home page and in Compliance, "Routine checks"; `eli-legal checks show` prints
 them. Someone not on a matter is told only that a matter they are not on needs attention.
 
 Still for a person:
@@ -315,7 +336,7 @@ who is named. A matter whose content was deleted reopens with its record and his
 the browser, a closed matter is under "Closed cases" in the matter list, with "Reopen…".
 
 **Each kind of information is kept for its own period**, counted from the day the case is
-closed. The organisation sets them at set-up and in Governance → Compliance → OA-09 (or
+closed. The organisation sets them at set-up and in Compliance → OA-09 (or
 `eli-legal compliance retention --audit-days N --closed-days N [--analysis-days N]
 [--reports-days N] [--evidence-days N] [--record-days N] [--inactive-days N]`):
 
@@ -342,21 +363,25 @@ each under a key per case and kind in the secrets folder (`file_keys`). An evide
 to a folder you choose, or downloaded from the browser, is plain there: that is a hand-over, and
 it is recorded. Files left by an earlier version are sealed the first time 0.8.16 starts.
 
-**Back up the secrets folder with the data folder**, and keep both on an encrypted disk: an
-archive whose key is lost cannot be opened, and a key kept beside a copy of its archive protects
-nothing. The working database of open matters is not encrypted by ELI Legal; full-disk
-encryption (BitLocker, FileVault, LUKS) protects it.
+**Back up the secrets folder with the data folder**, and keep the copies apart: an archive whose
+key is lost cannot be opened, and a key kept beside a copy of its archive protects nothing. The
+working database and the audit ledger are encrypted too (SQLCipher, see [Backups](#7-backups)),
+but all the keys are on the same machine; full-disk encryption (BitLocker, FileVault, LUKS)
+protects the machine itself.
 
 **Retention is chosen when ELI Legal is set up**, not left for later by accident: the first-run
 window asks how long to keep the audit trail (at least six months; six years suggested), a closed
-matter's documents (six years suggested) and how long an open matter may sit idle before it is
-reported (a year suggested; 0 for never). `eli-legal init` asks the same, or takes
-`--audit-days N --closed-matter-days N --inactive-matter-days N`; run unattended without them it
-refuses, unless `--retention-later` says on purpose that they will be set afterwards. Until they
-are set nothing is deleted on time, and the routine checks say so.
+case's papers (six years suggested), its evidence packs and its decision record (ten years
+suggested), and how long an open matter may sit idle before it is reported (a year suggested; 0
+for never). `eli-legal init` asks the same, or takes `--audit-days N --closed-matter-days N
+--inactive-matter-days N` (and `--analysis-days`, `--reports-days`, `--evidence-days`,
+`--record-days`); run unattended without them it refuses, unless `--retention-later` says on
+purpose that they will be set afterwards. Until they are set nothing is deleted on time, and the
+routine checks say so.
 
-Change them in Governance, "Organisation actions", OA-09 (or `eli-legal compliance retention
---audit-days N --closed-days N --inactive-days N`). The audit trail must be kept at least six months
+Change them in Compliance, "Organisation actions", OA-09 (or `eli-legal compliance retention
+--audit-days N --closed-days N --inactive-days N [--analysis-days N] [--reports-days N]
+[--evidence-days N] [--record-days N]`). The audit trail must be kept at least six months
 (EU AI Act Art. 19(1) and 26(6)) and is never shortened by the software: the ledger is permanent
 by design and holds identifiers, hashes and user identities, not document text.
 
@@ -373,7 +398,7 @@ after a matter's content is deleted its search index is merged, the database is 
 write-ahead log emptied, and the files ELI Legal made (reports, outbox copies, evidence packs,
 vault originals) are overwritten before they are removed. The deletion receipt in
 `artifacts/disposals/` records each step. On a solid-state or copy-on-write disk an overwrite may
-not reach the old blocks: keep the data folder on an encrypted disk.
+not reach the old blocks: keep the machine on an encrypted disk.
 
 **Run the checks even when nothing is open.** The desktop application and the server run the
 routine checks while they are open. So that a retention period ends on time when neither is, put
@@ -385,10 +410,10 @@ a Task Scheduler task on Windows, daily at 03:30), `--install` installs it for t
 
 ## 9a. The organisation's compliance work
 
-Governance, "Requirements" shows every requirement of the instruments that apply and where it
+Compliance, "Requirements" shows every requirement of the instruments that apply and where it
 stands: **met by the software**, **met** (the software's part and your organisation's recorded
 part), **waiting for your organisation**, or **review due**. What the software cannot do is a list
-of **organisation actions** (Governance, "Organisation actions"; `eli-legal compliance actions`):
+of **organisation actions** (Compliance, "Organisation actions"; `eli-legal compliance actions`):
 classifying the deployment, the impact assessment, training, the risk review, the technical
 documentation (drafted for you from the system's records), the instructions for use, the accuracy
 evaluation (run for you on a matter with known defects), retention, oversight, the conformity

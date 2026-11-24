@@ -20,7 +20,7 @@ application, and each requirement is shown as one of:
 | **Waiting for your organisation** | Something is still to be done; the action is named |
 | **Review due** | It was recorded, but its review date has passed |
 
-Where to see it: Governance, "Requirements" (desktop and browser), `eli-legal compliance show`,
+Where to see it: Compliance, "Requirements" (desktop and browser), `eli-legal compliance show`,
 and a summary on the Home page. Selecting a requirement shows what the software does (its
 controls) and what your organisation has recorded.
 
@@ -82,7 +82,7 @@ whether it is reportable and, if it was reported, when and under what reference.
 ## The routine checks
 
 They run every day on their own (desktop application or server) and whenever someone with the
-right asks (Governance, "Routine checks"; `eli-legal checks run`). See the
+right asks (Compliance, "Routine checks"; `eli-legal checks run`). See the
 [administrator manual](04_administrator_manual.md#8-routine-checks) for the full list and for
 running them from cron. In short, they confirm that:
 

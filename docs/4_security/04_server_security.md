@@ -39,7 +39,8 @@ no WebSocket, and no route that makes it call another machine.
 ## What it does not include
 
 No web-application firewall, intrusion detection, malware scanning, single sign-on, hardware
-security keys, encryption at rest, or high availability. No penetration test has been carried
+security keys, or high availability. The databases and case files are encrypted at rest, but their
+keys are on the same machine (see [Security and privacy](01_security_and_privacy.md)). No penetration test has been carried
 out. Treat it as software for an internal network, behind your own controls.
 
 ## Deploying it
@@ -91,10 +92,38 @@ the security headers.
 - Run it without TLS beyond one machine. It will refuse.
 - Turn off the second-factor requirement on a network (`--require-second-factor no`) without
   another control that replaces it.
-- Run more than one server process over the same data folder.
-- Put the data folder on an unencrypted disk or a shared drive.
+- Run more than one server process over the same data folder (a server started from the desktop
+  application counts as one: do not also run `serve` beside it).
+- Put the data folder on a shared drive, or the machine on an unencrypted disk.
+- Serve a developer's source checkout: it has its own test data and accounts.
 
 ## Running it as a service (Linux)
+
+**With the desktop application on the same machine** (the usual set-up: one machine holds the
+cases, the desktop application is used there, everyone else uses a browser), run the server as a
+*user* service of the person who uses the desktop application, so both use that person's data
+folder and keys:
+
+```ini
+# ~/.config/systemd/user/eli-legal.service
+[Unit]
+Description=ELI Legal server
+
+[Service]
+ExecStart=%h/.local/bin/eli-legal serve --lan --self-signed
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
+```
+
+`systemctl --user daemon-reload && systemctl --user enable --now eli-legal`, and
+`sudo loginctl enable-linger <user>` so it runs when nobody is signed in. Use the path of your
+installed `eli-legal` (`/usr/bin/eli-legal` from the `.deb`, `~/.local/bin/eli-legal` from the
+`.run`, or the AppImage file). Do not also start the server from the desktop application.
+
+**A server on its own** (no desktop application on the machine), under a dedicated account and
+data folder:
 
 ```ini
 # /etc/systemd/system/eli-legal.service

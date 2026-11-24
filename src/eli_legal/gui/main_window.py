@@ -239,7 +239,7 @@ class MainWindow(QMainWindow):
         # machine or on another signed in to the same data) they are told.
         self.waiting_timer = QTimer(self)
         self.waiting_timer.timeout.connect(self.check_waiting)
-        self.waiting_timer.start(10_000)
+        self.waiting_timer.start(5_000)  # others' work shows here within seconds
         QTimer.singleShot(1500, self.check_waiting)
         self.checks_timer = QTimer(self)
         self.checks_timer.timeout.connect(self.scheduled_checks)
@@ -403,10 +403,13 @@ class MainWindow(QMainWindow):
             assert isinstance(matter_tab, MatterTab)
             matter_tab._new()
             return
+        page, _, spot = page.partition("#")
         name = self._PAGE_KEYS.get(page)
         target = next((p for p in self.pages if type(p).__name__ == name), None)
         if target is not None:
             self.tabs.setCurrentWidget(target)
+        if spot == "issues" and isinstance(target, MatterTab):
+            target.edit_details(focus="issues")
 
     def scheduled_checks(self) -> None:
         """Run the routine checks in the background if they are due and nothing else is."""

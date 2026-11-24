@@ -14,7 +14,7 @@ reviewed by qualified counsel before you rely on them or deploy the system.
 |---|---|
 | Deciding whether to use it | [Overview](1_project/01_overview.md), then [Legal overview](5_legal_and_compliance/01_legal_overview.md) |
 | A judge, tribunal member, arbitrator, mediator, solicitor or barrister | [Quick start](6_manuals/02_quick_start.md), [User manual](6_manuals/03_user_manual.md), [Instructions for use](6_manuals/08_instructions_for_use.md) |
-| Installing or running it | [Installation](6_manuals/01_installation.md), [Administrator manual](6_manuals/04_administrator_manual.md), [Server security](4_security/04_server_security.md) |
+| Installing or running it | [Installation](6_manuals/01_installation.md) (Windows, macOS, Ubuntu, Debian, Fedora, Arch), [Web application and server](6_manuals/06_web_application_and_server.md), [Using the command line](6_manuals/14_command_line_guide.md), [Administrator manual](6_manuals/04_administrator_manual.md), [Server security](4_security/04_server_security.md) |
 | A data-protection officer or compliance lead | [Legal and compliance](5_legal_and_compliance/), [Security and privacy](4_security/01_security_and_privacy.md) |
 | A developer or auditor | [Architecture](3_architecture/01_architecture.md), [Requirements](2_requirements/01_requirements.md), [Test matrix](2_requirements/03_test_matrix.md) |
 
@@ -75,12 +75,12 @@ protection together), a classification assessment, a change assessment and an in
 ### 6. Manuals
 | Document | What it covers |
 |---|---|
-| [01 Installation](6_manuals/01_installation.md) | Installers for each system, installing from source, upgrading, removing |
+| [01 Installation](6_manuals/01_installation.md) | Download, check and install on Windows, macOS, Ubuntu, Debian, Fedora and Arch; the command line on each system; where your data and keys are; upgrading, removing |
 | [02 Quick start](6_manuals/02_quick_start.md) | From nothing to a reviewed report in fifteen minutes, on a synthetic matter |
 | [03 User manual](6_manuals/03_user_manual.md) | The work, step by step, for each kind of user |
 | [04 Administrator manual](6_manuals/04_administrator_manual.md) | Users, roles, sources, the model, backups, upgrades |
 | [05 Desktop application](6_manuals/05_desktop_application.md) | Each tab of the desktop application |
-| [06 Web application and server](6_manuals/06_web_application_and_server.md) | Starting the server, signing in from a browser |
+| [06 Web application and server](6_manuals/06_web_application_and_server.md) | One machine does the work, everyone else in a browser; starting the server on the right data; live updates; signing in |
 | [07 Command-line reference](6_manuals/07_command_line_reference.md) | Every command (generated from the code) |
 | [08 Instructions for use](6_manuals/08_instructions_for_use.md) | Intended purpose, limits and what the user must do |
 | [09 Operations runbook](6_manuals/09_operations_runbook.md) | Day-to-day operation and incident response |
@@ -88,6 +88,7 @@ protection together), a classification assessment, a change assessment and an in
 | [11 Laws & Standards](6_manuals/11_laws_and_standards.md) | The law, regulation and standards packages applied to each matter, and your own |
 | [12 Models](6_manuals/12_models.md) | GGUF files, model servers, ELI v3's model |
 | [13 Compliance and routine checks](6_manuals/13_compliance_and_routine_checks.md) | Where each legal requirement stands, the organisation's actions, and the daily checks that keep everything current |
+| [14 Using the command line](6_manuals/14_command_line_guide.md) | Opening a terminal and calling the program on each system and installer; the commands most people need |
 
 ## Keeping these documents true
 

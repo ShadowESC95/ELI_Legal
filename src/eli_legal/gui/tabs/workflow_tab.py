@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from html import escape
 
 from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPainterPath, QPen, QTransform
@@ -324,8 +325,6 @@ class WorkflowTab(Tab):
             return
         status = run.status
         held = person_hold(self)
-        matter = self.session.matter
-        reviewers = ", ".join(sorted(matter.reviewer_user_ids)) if matter else ""
         done = record is not None and record.status.value == "ok"
         if held is not None:
             why = held.detail.split(";", 1)[-1].strip()
@@ -336,10 +335,18 @@ class WorkflowTab(Tab):
         elif done:
             said = f"<b>Done.</b> {record.detail if record else ''}"
         elif step_id == "human_review" and status is RunStatus.AWAITING_HUMAN_REVIEW:
+            deciders = self.sv.reviews.deciders(self.mid, run.run_id, actor_id=self.actor)
+            who = ", ".join(f"{w['name']} ({w['user_id']})" for w in deciders["who"])
             said = (
-                f"<b>Waiting for a named reviewer</b> ({reviewers}) to read the report, "
-                "acknowledge each stated limit and approve it, return it for correction or "
+                f"<b>Waiting for a named reviewer</b> ({who or 'none yet: name one'}) to read the "
+                "report, acknowledge each stated limit and approve it, return it for correction or "
                 "reject it. Anyone working on the matter can put it on hold first."
+                + (
+                    ""
+                    if deciders["you_can"]
+                    else f" <b>Not you:</b> you {escape(deciders['why_not'])}; Open the decision "
+                    "shows who can, and how."
+                )
             )
         elif step_id != "human_review" and status is RunStatus.APPROVED_FOR_RELIANCE:
             said = (

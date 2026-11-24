@@ -45,7 +45,9 @@ Without a model the system does everything except draft arguments and summarise 
 
 The software does not do these, and a deployment that handles real matters needs them:
 
-- **Encryption at rest**: an encrypted disk or volume for the data folder.
+- **Encryption at rest**: the databases (SQLCipher) and case files (AES-256-GCM) are encrypted by
+  the software; their keys are on the same machine, so use an encrypted disk or volume as well, and
+  keep a copy of the keys apart from the backups.
 - **Backups**, including a separate copy of the audit key.
 - **A certificate** from your own authority for the server, or a checked self-signed one.
 - **A firewall** limiting who can reach the server.

@@ -114,7 +114,8 @@ class JourneyBar(QFrame):
         mine = next((s for s in guide.steps if s.can_do), None)
         theirs = next((s for s in guide.steps if not s.can_do), None)
         if mine is not None:
-            self._page = mine.page
+            # Stating the issues opens the case's details at the issues, not just its page.
+            self._page = mine.page + ("#issues" if mine.title == "State the issues" else "")
             self.next.setText(f"Next: {mine.title} →")
             self.next.setToolTip(mine.why)
             self.next.show()

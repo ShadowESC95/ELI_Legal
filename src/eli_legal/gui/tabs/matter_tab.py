@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 
 from eli_legal.domain import plain
 from eli_legal.domain.profiles import profile_spec
+from eli_legal.gui.details_dialog import MatterDetailsDialog
 from eli_legal.gui.matter_wizard import MatterWizard
 from eli_legal.gui.people import People
 from eli_legal.gui.tabs.base import Tab
@@ -90,7 +91,23 @@ class MatterTab(Tab):
         right = QWidget()
         column = QVBoxLayout(right)
         column.setContentsMargins(0, 0, 0, 0)
-        column.addWidget(card("Matter", self.heading, self.summary, self.note))
+        column.addWidget(
+            card(
+                "Matter",
+                self.heading,
+                self.summary,
+                self.note,
+                row(
+                    button(
+                        "Edit details…",
+                        self.edit_details,
+                        kind="primary",
+                        tip="Name, purpose, forum, rules, the date of the law, parties and issues",
+                    ),
+                    None,
+                ),
+            )
+        )
         column.addWidget(
             card(
                 "People on this matter",
@@ -537,6 +554,29 @@ class MatterTab(Tab):
                     self.mid, actor_id=self.actor, source_ids=dialog.chosen()
                 ),
             )
+
+    def edit_details(self, focus: str = "") -> None:
+        """Correct the case's details; ``focus="issues"`` opens at the issues to decide."""
+        if not self.mid:
+            return
+        matter = self.sv.matters.get(self.mid, self.actor)
+        dialog = MatterDetailsDialog(self, matter, focus=focus)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        self.session.attempt(
+            self,
+            lambda: self.sv.matters.update(
+                self.mid,
+                actor_id=self.actor,
+                name=dialog.name.text(),
+                purpose=dialog.purpose.text(),
+                forum=dialog.forum.text().strip(),
+                procedural_rules=dialog.rules.text().strip(),
+                relevant_date=dialog.chosen_date(),
+                stated_issues=dialog.chosen_issues(),
+                parties=dialog.chosen_parties(),
+            ),
+        )
 
     def _close(self) -> None:
         if not self.mid:

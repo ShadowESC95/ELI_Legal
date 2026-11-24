@@ -2,7 +2,7 @@
 
 Generated from the server's routes by `scripts/generate_reference_docs.py`. Do not edit by hand.
 
-The server exposes 106 operations under `/v1`, plus `/health` and the browser application at `/`.
+The server exposes 132 operations under `/v1`, plus `/health` and the browser application at `/`.
 It has no other routes: no general assistant, no shell, no device or media control, no plug-ins.
 
 ## Conventions
@@ -74,31 +74,43 @@ request body (`Content-Type: application/octet-stream`); optional query fields `
 | `GET` | `/v1/config/models/{ref}/placement` | yes | How that GGUF model would be placed on this machine if it were loaded now: context, layers on the graphics card, and the reasons. Nothing is loaded or changed. |
 | `POST` | `/v1/config/model` | yes | Change the model. A decision, recorded. For GGUF, give the references from the list. |
 | `GET` | `/v1/network` | yes | Whether hard offline is on, what enforces it, and whether it is set for every start. |
-| `POST` | `/v1/network/offline` | config.manage | Switch hard offline on now: from here until the server stops, the kernel refuses every connection it would open. It keeps answering on its own port. |
+| `POST` | `/v1/network/offline` | yes | Switch hard offline on now: from here until the server stops, the kernel refuses every connection it would open. It keeps answering on its own port. |
 | `PUT` | `/v1/network/at-start` | yes | Start hard offline every time, or not. Needs the right to manage the configuration and the passphrase. Switching it off takes effect at the next start. |
 
 ## Matters and documents
 
 | Method | Path | Sign-in | What it does |
 |---|---|---|---|
+| `GET` | `/v1/changes` | yes | Which of the cases this person may see someone else has acted on since event ``since``, and the latest event's number: how every open page stays current with the desktop and with every other browser. Nothing of another case is named. |
 | `GET` | `/v1/matters` | yes | The matters you have access to. |
 | `POST` | `/v1/matters` | yes | Open a matter under a profile, with its legal system, parties, issues and relevant date. |
 | `GET` | `/v1/matters/{matter_id}` | yes | One matter: parties, issues, who has access, the named reviewers, the approved sources. |
-| `PATCH` | `/v1/matters/{matter_id}` | yes | Change the relevant date, issues, forum or rules, or add parties. |
+| `PATCH` | `/v1/matters/{matter_id}` | yes | Change the relevant date, issues, forum or rules, add parties, or set how long the matter's content is kept once it is closed. |
 | `GET` | `/v1/matters/{matter_id}/members` | yes | Who is on the matter: their role on it, whom they act for, what they may read. |
 | `POST` | `/v1/matters/{matter_id}/members/{user_id}` | yes | Give a user access to the matter, optionally in a given role on it and acting for a party. Their account role must fit the matter's profile. |
 | `PATCH` | `/v1/matters/{matter_id}/members/{user_id}` | yes | Change a member's role on the matter, the party they act for, or what they read. |
 | `DELETE` | `/v1/matters/{matter_id}/members/{user_id}` | yes | Remove a user's access to the matter. |
 | `PUT` | `/v1/matters/{matter_id}/reviewers` | yes | Name the people who must approve before anything is relied on. |
 | `PUT` | `/v1/matters/{matter_id}/sources` | yes | Choose which approved legal sources this matter may use. |
-| `POST` | `/v1/matters/{matter_id}/close` | yes | Close the matter, optionally deleting its documents and extracted text. The audit trail is kept. A decision. |
+| `POST` | `/v1/matters/{matter_id}/close` | yes | Close the matter. Its content is kept, archived (encrypted, out of the working database, restored if it is reopened) or deleted. The audit trail is kept. A decision. |
+| `GET` | `/v1/closed-matters` | yes | The closed matters this person may see: where each one's content is, and until when it is kept. |
+| `POST` | `/v1/matters/{matter_id}/reopen` | yes | Reopen a closed matter: its archived content checked and restored, its team given access again if asked. A decision. |
+| `POST` | `/v1/matters/{matter_id}/archive` | yes | Archive a closed matter's content: encrypted, out of the working database, restored if it is reopened. A decision. |
+| `POST` | `/v1/matters/{matter_id}/delete-content` | yes | Delete a closed matter's content for good (its archive's key, if archived). Refused under a preservation hold. A decision. |
 | `GET` | `/v1/matters/{matter_id}/documents` | yes | The documents filed in the matter, with what was read, what was not, and what was flagged. |
 | `POST` | `/v1/matters/{matter_id}/documents` | yes | File a document. The body is the file itself; its name and filing details are in the query. It is stored once, read-only, addressed by its SHA-256, and then read. |
 | `GET` | `/v1/matters/{matter_id}/documents/{document_id}/passages` | yes | A document as the located passages every finding points back to. |
 | `POST` | `/v1/matters/{matter_id}/chat` | yes | Ask about the matter. The answer is its sources; nothing can be decided here. |
+| `GET` | `/v1/matters/{matter_id}/preservation-holds` | yes | Preservation holds on the matter: what they keep from deletion, and why. |
+| `POST` | `/v1/matters/{matter_id}/preservation-holds` | yes | Keep the matter, or named documents, from deletion. A decision: send your passphrase. |
+| `POST` | `/v1/matters/{matter_id}/preservation-holds/{hold_id}/release` | yes | End a preservation hold: the legal or data-protection owner, with the reason. A decision: send your passphrase. |
+| `GET` | `/v1/matters/{matter_id}/reliance-blocks` | yes | Approved reports of the matter suspended from reliance, and how each ended. |
+| `POST` | `/v1/matters/{matter_id}/reliance-blocks/{block_id}/resolve` | yes | End a suspension: the law confirmed again for the report, or a later run, re-checked and approved, that replaces it. A decision: send your passphrase. |
 | `GET` | `/v1/matters/{matter_id}/frameworks` | yes | The packages applied to a matter, and exactly what the model is told about them. |
 | `PUT` | `/v1/matters/{matter_id}/frameworks` | yes | Choose the packages that apply to a matter, from its next run. |
 | `GET` | `/v1/matters/{matter_id}/guide` | yes | Where the matter stands, your role on it, what you read, and what to do next. |
+| `POST` | `/v1/matters/{matter_id}/notifications/{notification_id}/read` | yes | Mark one of your notifications as seen. It stays until the work is done. |
+| `GET` | `/v1/matters/{matter_id}/released/{release_id}` | yes | A copy of a report released to you: format md, docx or pdf. Stamped with your name. |
 
 ## Audit and governance
 
@@ -147,7 +159,7 @@ request body (`Content-Type: application/octet-stream`); optional query fields `
 | `GET` | `/v1/home` | yes | What is waiting for you on every matter you are on, the latest routine checks as you may see them, and where compliance stands. |
 | `GET` | `/v1/compliance` | yes | Every requirement and where it stands; every organisation action, its form and its latest record. |
 | `POST` | `/v1/compliance/actions/{action_id}` | yes | Record an organisation action as done (a form, a statement, a registration number), or as not applying, with reasons. A decision: send your passphrase. |
-| `POST` | `/v1/compliance/retention` | yes | Set how long the audit trail and a closed matter's documents are kept. |
+| `POST` | `/v1/compliance/retention` | yes | Set how long each kind of information is kept: the audit trail, and a closed case's papers, analysis, reports, evidence packs and decision record. |
 | `GET` | `/v1/compliance/training` | yes | Training records, and who works on matters without a current one. |
 | `POST` | `/v1/compliance/training` | yes | Record training a person has completed. |
 | `POST` | `/v1/compliance/evaluation` | yes | Run the accuracy evaluation on the planted-defect matter, against the thresholds. |
@@ -156,29 +168,32 @@ request body (`Content-Type: application/octet-stream`); optional query fields `
 | `GET` | `/v1/checks` | yes | The latest routine checks as you may see them, and when the earlier ones ran. |
 | `POST` | `/v1/checks/run` | yes | Run the routine checks now. |
 | `GET` | `/v1/oversight/matters` | yes | Every matter, for those who oversee the system; content withheld where you are not on the matter. |
-| `GET` | `/v1/notifications` | yes | Your notifications still waiting on you, unseen first, with the count unseen: holds to clear, a restart, a report to review, returned or suspended. |
-| `POST` | `/v1/matters/{matter_id}/notifications/{notification_id}/read` | yes | Mark one of your own notifications as seen; it stays until the work is done. |
+
+## Approval to use it on real matters
+
+| Method | Path | Sign-in | What it does |
+|---|---|---|---|
+| `GET` | `/v1/deployment-authorisations` | yes | The approvals to use ELI Legal on real matters, and their state. |
+| `POST` | `/v1/deployment-authorisations` | yes | Set out what is to be approved, with each piece of evidence as the document itself. A decision: send your passphrase. |
+| `POST` | `/v1/deployment-authorisations/{authorisation_id}/sign` | yes | Sign as the provider lead or the deployer lead. A decision: send your passphrase. |
+| `POST` | `/v1/deployment-authorisations/{authorisation_id}/revoke` | yes | Withdraw it at once. A decision: send your passphrase. |
+
+## What is waiting for you, and reports released to you
+
+| Method | Path | Sign-in | What it does |
+|---|---|---|---|
+| `GET` | `/v1/notifications` | yes | Your notifications that still need you, unseen first, newest first. |
 | `POST` | `/v1/notifications/read` | yes | Mark all your notifications as seen. |
+| `GET` | `/v1/released` | yes | The reports released to you, newest first, and whether each can be opened now. |
 
-### Reports released to you
-
-| Method | Path | Sign-in | What it does |
-|---|---|---|---|
-| `GET` | `/v1/released` | yes | The reports released to you, newest first, and whether each can be opened now and why not. |
-| `GET` | `/v1/matters/{matter_id}/released/{release_id}?format=md\|docx\|pdf` | yes | A copy of a report released to you, stamped with your name; refused unless you are a confirmed recipient still on the matter, the report is not suspended, and its file still matches the approved SHA-256. Recorded. |
-
-### A party's own pages
-
-For someone on a matter as one party's representative (prosecution, defence, a party's lawyers, a
-party acting for themselves). Every other matter route refuses them.
+## A party's own page: its filings and holds
 
 | Method | Path | Sign-in | What it does |
 |---|---|---|---|
-| `GET` | `/v1/party/cases` | yes | The cases on which you act for a party, and how many of your side's filings wait for your answer. |
-| `GET` | `/v1/party/cases/{matter_id}` | yes | One case as your side sees it: the parties, the papers you may read, and holds on your side's filings with any answers. |
-| `POST` | `/v1/party/cases/{matter_id}/filings?filename=…&doc_type=…&title=…&confidential=…` | yes | File a paper (the body is the file) for the party you act for; served on all parties, or with `confidential=true` for the tribunal only. |
+| `GET` | `/v1/party/cases` | yes | The cases on which you act for a party, with how many of your filings await your answer. |
+| `GET` | `/v1/party/cases/{matter_id}` | yes | One case as your side sees it: the parties, the papers you may read, and holds on your filings. |
+| `POST` | `/v1/party/cases/{matter_id}/filings` | yes | File a paper for the party you act for. The body is the file itself. Served on all parties unless ``confidential``, when it is for the tribunal alone. |
 | `GET` | `/v1/party/cases/{matter_id}/filings/{document_id}/passages` | yes | A paper's text, passage by passage, if you may read it. |
-| `POST` | `/v1/party/cases/{matter_id}/holds/{hold_id}/answer` | passphrase | Answer a hold on your side's filing: `kind` `refiled` (with `replacement_document_id`), `withdraw` or `explain`, and `reasons`. The tribunal decides the hold. |
 
 ## Runs, findings, review and release
 
@@ -204,6 +219,7 @@ party acting for themselves). Every other matter route refuses them.
 | `POST` | `/v1/matters/{matter_id}/runs/{run_id}/releases` | yes | Stage an approved report for named recipients; says which are entitled to this matter. |
 | `POST` | `/v1/matters/{matter_id}/releases/{release_id}/send` | yes | Stage the approved report for the confirmed recipients. Nothing leaves this system. |
 | `POST` | `/v1/matters/{matter_id}/runs/{run_id}/evidence-pack` | yes | The run's evidence pack as one archive: identifiers, hashes, versions, decisions. |
+| `POST` | `/v1/party/cases/{matter_id}/holds/{hold_id}/answer` | yes | Answer a hold on one of your side's filings (needs your passphrase again). The tribunal reads your answer and decides the hold. |
 
 ## Incidents
 
@@ -211,5 +227,7 @@ party acting for themselves). Every other matter route refuses them.
 |---|---|---|---|
 | `GET` | `/v1/matters/{matter_id}/incidents` | yes | Incidents recorded for the matter. |
 | `POST` | `/v1/matters/{matter_id}/incidents` | yes | Open an incident. |
+| `POST` | `/v1/matters/{matter_id}/incidents/{incident_id}/awareness` | yes | When the provider or deployer became aware: the Art. 73 deadline counts from it. It may be moved earlier, never later. A decision: send your passphrase. |
+| `POST` | `/v1/matters/{matter_id}/incidents/{incident_id}/assign` | yes | Name the incident's owner and a different stand-in. |
 | `POST` | `/v1/matters/{matter_id}/incidents/{incident_id}/close` | yes | Close an incident, recording what contained it and why it can be closed. |
 | `POST` | `/v1/matters/{matter_id}/incidents/{incident_id}/reporting` | yes | Decide whether a serious incident must be reported (EU AI Act Art. 73), and record the report. A decision: send your passphrase. |

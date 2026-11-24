@@ -184,7 +184,7 @@
   // ── notifications: work waiting for you, from any matter, while you are signed in ──────
   // When a run stops for a person (holds to clear, a report to review, a suspension), everyone
   // signed in who can act on it is told here within seconds. Nothing is sent outside ELI Legal.
-  const NOTE_EVERY_MS = 10000;
+  const NOTE_EVERY_MS = 5000;
   function startNotes() {
     clearInterval(S.notePoll);
     S.notes = { unread: 0, items: [] };
@@ -193,8 +193,35 @@
     pollNotes();
     S.notePoll = setInterval(pollNotes, NOTE_EVERY_MS);
   }
+  // What anyone else does on a case (in the desktop or another browser) shows here within
+  // seconds: the page is drawn again when a case this person can see changed, never while they
+  // are typing or a dialog is open (it is drawn on the next quiet check instead).
+  async function followChanges() {
+    if (!S.user) return;
+    let got;
+    try { got = await api('GET', `/v1/changes?since=${S.head || 0}`, undefined, { quiet: true }); } catch { return; }
+    if (S.head && got.matters.length) {
+      const active = document.activeElement || {};
+      if (document.querySelector('dialog[open]') || ['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName)) return;
+      try {
+        if (S.partyOnly) { S.party = await api('GET', '/v1/party/cases'); render(); }
+        else {
+          const open = S.matter && S.matter.matter_id;
+          if (open && got.matters.includes(open)) {
+            const runId = S.run && S.run.run_id;
+            await openMatter(open, false);
+            if (runId && S.runs.some((r) => r.run_id === runId)) await openRun(runId, false);
+          }
+          S.matters = await api('GET', '/v1/matters');
+          render();
+        }
+      } catch { return; }
+    }
+    S.head = got.head;
+  }
   async function pollNotes() {
     if (!S.user) { clearInterval(S.notePoll); return; }
+    followChanges();
     let got;
     try { got = await api('GET', '/v1/notifications', undefined, { quiet: true }); } catch { return; }
     S.notes = got;
@@ -342,6 +369,7 @@
     fill(root, 
       h('header', { class: 'top' }, h('span', { class: 'brand' }, 'ELI Legal'), h('span', { class: 'muted' }, 'Case'), pick,
         h('span', { class: 'muted' }, profile ? profile.label : ''), h('span', { class: 'spacer' }),
+        S.sys.installation ? h('span', { class: `chip ${S.sys.installation.kind === 'developer checkout' ? 'bad' : ''}`, title: S.sys.installation.folder ? `Data: ${S.sys.installation.folder}` : 'The installation this server serves' }, S.sys.installation.kind === 'developer checkout' ? `Developer test data on ${S.sys.installation.host}` : `${S.sys.installation.host} · ${S.sys.installation.kind}`) : null,
         h('span', { class: `chip ${S.sys.audit.ok ? 'good' : 'bad'}` }, S.sys.audit.ok ? `Audit verified · ${S.sys.audit.events} events` : 'AUDIT CHAIN INVALID'),
         S.sys.network && S.sys.network.hard_offline
           ? h('span', { class: `chip ${/kernel|Firewall/.test(S.sys.network.enforced_by) ? 'good' : 'warn'}`, title: S.sys.network.detail }, /kernel|Firewall/.test(S.sys.network.enforced_by) ? 'Hard offline (kernel-enforced)' : 'Hard offline (this program only)')

@@ -13,7 +13,10 @@ against code.
 2. Real evaluation matters with thresholds set in advance, per jurisdiction and profile.
 3. Validation of the jurisdiction packs by qualified lawyers; then make validation mandatory.
 4. Single sign-on with an organisation's identity provider, and hardware security keys.
-5. Encryption at rest for the vault and stores; OCR on ingestion.
+5. ~~Encryption at rest for the vault and stores; OCR on ingestion~~ (0.8.16: the databases with
+   SQLCipher, case files and archives with AES-256-GCM, each kind under its own key; OCR of scans
+   and images with Tesseract). Next: keys held by the operating system's keychain on macOS and
+   Linux, as the Windows Data Protection API already holds the database key there.
 6. ~~Semantic retrieval alongside keyword search~~ (0.8: searching and linking by meaning, measured
    on the research and linking benchmarks). Next: a reranker, and the benchmarks on real matters.
 7. Fact selection beyond dated and monetary statements when no model is configured.

@@ -27,7 +27,7 @@ an administrator unlocks it. Sign out when you leave the machine.
 | Start a new case | Walk through every part of a new case, in order, and see which are done |
 | How to use | Learn the steps of a case and what any word means |
 | Home | See where the open matter stands, your role on it, what to do next (with a button that takes you there, or who can do it if you cannot), what is waiting for you on your other matters, and the routine checks |
-| Case details | Open a case; see parties, issues, relevant date; decide who has access, who reviews, which sources apply |
+| Case details | Open a case; see and correct its parties, issues and relevant date (Edit details…); decide who has access, who reviews, which sources apply |
 | Documents | File documents; read any document as numbered passages; see what was not read and what was flagged |
 | Ask about the case | Ask about the case and get its own passages back, with where each comes from |
 | Progress | Start, stop or restart a run; see what each step did |
@@ -35,10 +35,12 @@ an administrator unlocks it. Sign out when you leave the machine.
 | Findings | See every finding with its source passage and checks |
 | Review and approve | Deal with holds and checks; read the report; decide; release |
 | Record of actions | See everything that happened, verify it, export it |
+| Released to me | Read or save reports released to you |
 | Compliance, Legal sources, Laws and standards, Settings | Oversight and administration |
 
 Everything can be made larger with Ctrl and + (Ctrl and − smaller, Ctrl and 0 normal size), and
-resting the pointer on a heading or a field explains it.
+resting the pointer on a heading or a field explains it. What someone else does on the case you
+have open (in a browser, or on another machine) shows on your page within about five seconds.
 
 ## Step by step
 
@@ -65,7 +67,10 @@ what the report may say.
 Set the **relevant date**: the date as at which the law is to be checked. For most disputes
 that is the date of the events, not today.
 
-State the **issues** as you understand them. The system will also lift issues from the papers.
+State the **issues** as you understand them, one per line. The system will also lift issues
+from the papers. They can be corrected at any time on Case details, **Edit details…**, with the
+name, purpose, forum, rules, relevant date and parties; **Next: State the issues** opens it at
+the issues. A change applies from the next run.
 
 Choose **the team**: tick who else works on the matter and each person's **role on it**. You lead
 it. A colleague can decide (resolve holds, approve, release), work the case (add documents, run,
@@ -83,7 +88,9 @@ instructions aimed at an AI), that party is asked for its answer; you are told w
 in, read it beside the hold, and decide the hold yourself.
 
 Name the **reviewer**: tick "I review and approve the report myself", or "Reviews" beside a
-colleague whose account can approve. Without a reviewer, no run will start.
+colleague whose account can approve. Without a reviewer, no run will start. **Nobody approves a
+run they started**: if you will start runs yourself, name a second reviewer, or have a colleague
+(a registrar or case worker) start them.
 
 Tick the **legal sources** and the **law and standards** that apply; those recommended for this
 kind of matter and legal system are ticked for you.
@@ -105,7 +112,9 @@ window stays usable (the status line counts them: "Reading 3 of 12"); when they 
 told in plain words what was read, what could not be read and why, and what was flagged.
 
 Then check the list. A file marked **not read** (a scan, a photograph, a damaged file) will hold
-the run until you either supply a readable version or accept the gap. A file marked **flagged**
+the run until you describe it by hand from the original, file a readable copy, or accept the gap
+(step 4). A damaged image is said to be damaged ("could not be opened"); an image with no writing
+OCR can read is said to need a person to look at it. A file marked **flagged**
 contains text addressed to an AI system; it is treated as evidence of that fact and never as an
 instruction, and it too is held for you to decide.
 
@@ -123,11 +132,17 @@ and each is recorded in the audit trail. Nothing is ever sent outside ELI Legal.
 
 ### 3. Start a run
 
-On the DAG screen. It takes seconds without a model and minutes with one. You can keep working.
+On Progress, **Start a run**. It takes seconds without a model and minutes with one. You can keep
+working. Whoever starts it cannot approve it.
 
 ### 4. Read what it held, and why
 
-Review, Holds. Each hold says what is held and why.
+Review and approve, Holds. Each hold says what is held and why. **Double-click a hold** (or select
+it and press **Open…**) to see what caused it: the document, who filed it and when, and the exact
+words that caused the hold highlighted in its full text (each match named, in a list you can click
+to jump to it), or the original itself (an image or a PDF shown on screen; a damaged file is said
+to be damaged). If the party that filed it answered, the answer is there. The window offers only
+what fits that kind of hold.
 
 | You see | It means | What to do |
 |---|---|---|
@@ -138,22 +153,33 @@ Review, Holds. Each hold says what is held and why.
 | Status last confirmed too long ago | The source's information is older than the limit for this legal system | Check current status yourself and record the result |
 | Proposition not confirmed | Words attributed to an authority are not its own words | Read the passage and record whether it supports the proposition |
 
-Two ways to close a hold, both needing your passphrase and reasons:
+Ways to close a hold, each needing your passphrase and reasons:
 
-- **Take out of reliance.** The item stays on the record, marked excluded, and is listed in the
-  report under "not to be relied on".
+- **Take out of reliance** (a finding), or **take the document out of the analysis**. The item stays
+  on the record, marked excluded, and is listed in the report under "not to be relied on".
+- **Accept it as ordinary evidence** (a document flagged for words addressed to an AI system, once
+  you have read the marked words).
+- **Describe it by hand** (a document that could not be read). Look at the original and type what
+  it shows or says; your words become its text, marked as described by you, and the hold closes.
+  Restart the run so the analysis uses them.
+- **File a readable copy** (a document that could not be read): a clearer scan, the native file or
+  a written description, filed for the same party; the hold closes, naming the copy, once the copy
+  is read.
 - **Accept the gap.** The run continues without it, and the report says so.
+- **Save a copy of the original**, to look at it in your own program: a hand-over, recorded.
 
 Or answer the check yourself (Review, Checks for you): say what you checked it against and what
 you found. That is recorded as your verification, in your name.
 
 ### 5. Restart, and read the report
 
-Restart the run from the DAG screen. When every hold is closed the report is built and the run
-waits for review.
+Restart the run from Progress (**Restart…**; from the beginning unless you choose a step). When
+every hold is closed the report is built and the run waits for review. If a step says a law or
+standards package has changed since the run was prepared, restart it from the beginning or start
+a new run: it is then prepared with the package as it is now.
 
 Read the report against the sources. For each finding you care about, open the passage it
-points to (Findings, or Evidence). The report's sections:
+points to (Findings, or Documents). The report's sections:
 
 1. The matter. 2. Documents considered, including any not read. 3. Chronology. 4. Each issue:
 the evidence, the authorities located, and (with a model) arguments open to each party.
@@ -162,7 +188,11 @@ the evidence, the authorities located, and (with a model) arguments open to each
 
 ### 6. Decide
 
-Review, Decision. Tick each stated limit to acknowledge it, give your reasons, and choose:
+Review and approve, Decision. Only a named reviewer who did not start the run can decide it. If
+that is not you, the page says so in a box, **Who can decide this**: it names each person who can
+and why you cannot, and offers **Switch person…** (sign out, so they can sign in on this machine)
+and **Name another reviewer…**; they can also decide in the browser if the server is running.
+Otherwise tick each stated limit to acknowledge it, give your reasons, and choose:
 
 - **Approve for reliance.** Binds to this exact version. If anything changes, approval lapses.
 - **Return for correction.** Say what is wrong.
@@ -218,7 +248,7 @@ conversation is not kept.
   the system misread it, take the finding out of reliance and tell your administrator.
 - An argument is attributed to the wrong party: possible with a model. Check each one.
 - The audit chain will not verify: stop. Do not continue the matter. Tell your administrator.
-- You think the system has caused or nearly caused harm: open an incident (Governance).
+- You think the system has caused or nearly caused harm: open an incident (Compliance, Incidents).
 
 ## If something is marked withheld
 

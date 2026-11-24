@@ -4,6 +4,7 @@ import hashlib
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from eli_legal.application.container import AppContext
 from eli_legal.application.deployment_service import require_deployment
@@ -47,6 +48,48 @@ class ReviewService:
     """The human review gate. Nothing is released for reliance except through here."""
 
     ctx: AppContext
+
+    def deciders(self, matter_id: str, run_id: str, *, actor_id: str) -> dict[str, Any]:
+        """Who may decide this run's report, by the same rules the decision itself applies: a
+        named reviewer of the matter, whose role reviews this kind of matter, whose account is
+        active, and (unless the policy allows it) not the person who ran the work. Says whether
+        ``actor_id`` may, and if not, why, so nobody is left at a greyed-out button."""
+        ctx = self.ctx
+        matter = ctx.matter_for(matter_id, actor_id, "matter.read")
+        run = ctx.store.get(Run, matter.matter_id, run_id)
+        if run is None:
+            raise NotFound(f"run not found in this matter: {run_id}")
+        spec = profile_spec(matter.profile)
+        distinct = ctx.policy.require_reviewer_distinct_from_operator
+
+        def why_not(user_id: str) -> str:
+            user = ctx.store.get_user(user_id)
+            if user is None or not user.active:
+                return "the account is suspended or removed"
+            if user.actor_type is not ActorType.HUMAN:
+                return "only a person reviews"
+            if user_id not in matter.reviewer_user_ids:
+                return "not a named reviewer of this matter"
+            if not (user.roles & spec.reviewer_roles):
+                return "the account's role does not review this kind of matter"
+            if distinct and user_id == run.initiated_by:
+                return "started this run, and nobody approves their own run"
+            return ""
+
+        names = {u.user_id: u.display_name for u in ctx.store.list_users()}
+        who = [
+            {"user_id": uid, "name": names.get(uid, uid)}
+            for uid in sorted(matter.reviewer_user_ids)
+            if not why_not(uid)
+        ]
+        reason = why_not(actor_id)
+        return {
+            "you_can": not reason,
+            "why_not": reason,
+            "who": who,
+            "started_by": run.initiated_by,
+            "started_by_name": names.get(run.initiated_by, run.initiated_by),
+        }
 
     def release_for_reliance(self, run: Run, review: HumanReview | None) -> Run:
         return HumanReviewGate().release(run, review)

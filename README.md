@@ -27,7 +27,7 @@ documents ─▶ ingest ─▶ coverage ─▶ facts ─▶ issues ─▶ eviden
 | Step | What happens | What can stop it |
 |---|---|---|
 | Ingest | PDF, DOCX, ODT, RTF, HTML, e-mail and text are read into paragraphs with page/paragraph locators. Originals are stored once, read-only, addressed by SHA-256. | A file that cannot be read is reported, never guessed at. |
-| Coverage | Every document is accounted for. | An unread document holds the run until a named person accepts the gap. |
+| Coverage | Every document is accounted for. | An unread document holds the run until a named person describes it by hand from the original, files a readable copy, or accepts the gap. |
 | Facts | Factual statements are taken **word for word** from the documents, with date, party and locator. | — |
 | Issues | Issues stated at intake, lifted from the papers, or proposed by a model (labelled as proposed). Facts are filed under the issues they bear on by their words and, with an embedding model, their meaning. | — |
 | Legal research | Approved sources only, searched by the words of each issue and, with an embedding model on this machine, by meaning. Also lists every authority the parties cite, with the sentence citing it. | An unapproved source cannot be reached. |
@@ -37,7 +37,7 @@ documents ─▶ ingest ─▶ coverage ─▶ facts ─▶ issues ─▶ eviden
 | Gate | A finding is verified only when **every** check its kind requires has passed. | A held finding holds everything relying on it. |
 | Analysis | With a model: arguments open to each party, from verified findings only, attributed by the system. | An argument stating an outcome, or a figure or citation not in its basis, is discarded. |
 | Report | Rendered from verified findings; held and excluded findings are shown separately with reasons. | — |
-| Human review | A named reviewer approves the exact report version, acknowledging every stated limit. | No reviewer, open hold, changed findings or altered file: no approval. |
+| Human review | A named reviewer approves the exact report version, acknowledging every stated limit. Nobody approves a run they started: another named reviewer decides. | No reviewer, open hold, changed findings or altered file: no approval. |
 | Release | Staged in an outbox for entitled recipients confirmed by a named person. Nothing is sent. | A recipient who is not entitled blocks the release. |
 
 Every step, hold, decision and release is written to a tamper-evident audit ledger. No audit key,
@@ -54,8 +54,8 @@ say:
 | `neutral_facilitator` | mediator, conciliator | mediation brief (with a shared version that omits anything given in confidence by one party) | No |
 | `party_representative` | solicitor, barrister, in-house counsel, paralegal | privileged case-preparation memorandum | A merits assessment is permitted; decision wording never is |
 
-A party's lawyer cannot be added to a tribunal's matter, and a technical administrator has no
-access to any matter.
+A party's lawyer joins a tribunal's matter only as one party's representative (below), never as
+one of the tribunal's team, and a technical administrator has no access to any matter.
 
 Each person on a matter also has a **role on it** (lead, decision-maker, case worker, assistant,
 observer or auditor) that can only narrow what their account allows, and a **clearance** for its
@@ -83,31 +83,54 @@ rules of law, and are marked unvalidated until a lawyer qualified in that jurisd
 off. The law itself always comes from an approved source. See
 [docs/3_architecture/05_jurisdiction_packs.md](docs/3_architecture/05_jurisdiction_packs.md).
 
-## Install and try it
+## Run on your system
 
-Installers for Linux (AppImage, `.run`, `.deb`), Windows and macOS are on the
-[releases page](https://github.com/ShadowESC95/ELI_Legal/releases); see
-[Installation](docs/6_manuals/01_installation.md). From a source checkout:
+Download from the [latest release](https://github.com/ShadowESC95/ELI_Legal/releases/latest) and
+check the file against `SHA256SUMS` first: the builds are not signed. An installed copy asks for a
+licence key the first time it starts (an ELI Legal key, or an ELI v3 key that includes it). The
+full guide is [Installation](docs/6_manuals/01_installation.md); the command line is explained in
+[Using the command line](docs/6_manuals/14_command_line_guide.md).
+
+| | Download | Install | Open the desktop app | Start the server (browser app) | The command line |
+|---|---|---|---|---|---|
+| **Windows 10/11** | `ELI_Legal-<v>-windows-x64-setup.exe` | Run it (SmartScreen: *More info* → *Run anyway*) | Start menu → **ELI Legal** | In the app: Settings → System → Server; or `eli-legal serve` | Start menu → **ELI Legal command line**, then `eli-legal <command>` |
+| **macOS** (Apple silicon / Intel) | `ELI_Legal-<v>-macos-arm64.dmg` / `-x86_64.dmg` | Drag to Applications; first time right-click → **Open** | Applications → **ELI Legal** | In the app: Settings → System → Server; or the command below with `serve` | `"/Applications/ELI Legal.app/Contents/MacOS/eli-legal" <command>` |
+| **Ubuntu, Debian** | `eli-legal_<v>_amd64.deb` (or the AppImage) | `sudo apt install ./eli-legal_<v>_amd64.deb` | Applications menu, or `eli-legal-gui` | In the app, or `eli-legal serve` | `eli-legal <command>` |
+| **Fedora and other Linux** | `ELI_Legal-<v>-linux-x86_64.run` (or the AppImage) | `sh ELI_Legal-<v>-linux-x86_64.run` | Applications menu, or `eli-legal-gui` | In the app, or `eli-legal serve` | `eli-legal <command>` (in `~/.local/bin`) |
+| **Arch Linux** | `ELI_Legal-<v>-linux-x86_64.AppImage` (or the `.run`) | `sudo pacman -S fuse2`, then `chmod +x` the file | `./ELI_Legal-<v>-linux-x86_64.AppImage` | `./ELI_Legal-<v>-linux-x86_64.AppImage serve` | `./ELI_Legal-<v>-linux-x86_64.AppImage <command>` |
+
+The server listens on this machine only (`http://localhost:8443/`) until it is started for the
+network with TLS. **Run ELI Legal on one machine that holds the cases and does the work, and let
+everyone else use a browser**: the desktop application and a server started from it, or with the
+installed program's `serve`, share the same live data. See
+[Web application and server](docs/6_manuals/06_web_application_and_server.md).
+
+From a source checkout (developers):
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -e '.[dev,all]'
 eli-legal demo                      # a synthetic dispute, start to finish, narrated
 ./eli_legal.sh                      # the desktop application
-eli-legal serve                     # the server and browser application, on this machine
 ```
+
+A source checkout keeps its own test data in `./data` of the folder it is run from, not your
+installed copy's data; `eli-legal serve` there refuses to serve it while an installed copy's data
+exists, unless you pass `--dev-data`.
 
 ## Three ways to use it
 
 | | Start with | For |
 |---|---|---|
-| Desktop application | `eli-legal-gui` | One person at their own machine |
-| Server and browser application | `eli-legal serve` | A chambers, firm or tribunal, over HTTPS |
+| Desktop application | the ELI Legal menu entry, or `eli-legal-gui` | The machine that holds the cases, and one person at it |
+| Server and browser application | Settings → System → Server in the desktop app, or `eli-legal serve` | Everyone else in a chambers, firm, court or tribunal, from a browser, over HTTPS on the network |
 | Command line | `eli-legal` | Administration and scripted use |
 
 All three show the same screens or commands over the same services: **Start a new case · How to
 use · Home · Case details · Documents · Ask about the case · Progress · Who does each step · Findings · Review and
-approve · Record of actions · Compliance · Legal sources · Laws and standards · Settings**. Every
+approve · Record of actions · Compliance · Released to me · Legal sources · Laws and standards ·
+Settings**. What anyone does on a case shows on everyone else's open page within about five
+seconds, in the desktop application and in the browser. Every
 word is explained when the pointer rests on it, and everything can be made larger with Ctrl and +. Home says where the open matter stands, what to do next and who can do it; a new
 matter is opened step by step, with its team, reviewers, sources and laws; everything a person
 reads is in plain words. There is no general assistant, no shell and no web access in any of them.
@@ -171,7 +194,10 @@ established.
 ## The server
 
 `eli-legal serve` listens on this machine only. To let others connect it must have TLS
-(`--tls-cert`/`--tls-key`, or `--self-signed`), and it refuses to start otherwise. It checks the
+(`--tls-cert`/`--tls-key`, or `--self-signed`), and it refuses to start otherwise. It prints the
+data folder it serves, and after signing in the browser's header shows which machine and
+installation it serves (administrators also see the folder; developer test data is shown in red),
+so a server started on the wrong data is plain at once. It checks the
 host name, origin, size and rate of every request before any route runs; uses a cookie scripts
 cannot read plus a CSRF value; sends a strict content-security policy; shows all matter content
 as text; and cannot be made to read the machine or call out. See
@@ -199,8 +225,22 @@ eli-legal status $M                 # where it stands, and what to do next
 eli-legal checks show                # the latest routine checks
 ```
 
-Every command is in the [command-line reference](docs/6_manuals/07_command_line_reference.md).
+`eli-legal` is the command as the `.deb` and `.run` installers and Windows' *ELI Legal command
+line* name it; on macOS it is `"/Applications/ELI Legal.app/Contents/MacOS/eli-legal"`, and with
+the AppImage it is the AppImage file itself. See [Using the command line](docs/6_manuals/14_command_line_guide.md);
+every command is in the [command-line reference](docs/6_manuals/07_command_line_reference.md).
 A model is optional: without one, facts are selected by rule and no arguments are drafted.
+
+## Keeping and protecting the record
+
+Each kind of information is kept for its own period, set at set-up and in Compliance (OA-09): the
+audit trail at least six months (six years suggested), and from a case's closing its papers (six
+years suggested), its analysis and reports (as long as the papers unless set otherwise), its
+evidence packs and its decision record (ten years suggested). A closed case leaves the case list
+(File → Closed cases) and each kind of its content is archived under its own key, restored if the
+case is reopened, and destroyed for good (its key destroyed) when its period ends, unless a
+preservation hold keeps it. Save the databases' key once with `eli-legal database-key --out <file>`
+and keep it off the machine. See [the administrator manual](docs/6_manuals/04_administrator_manual.md#9-closing-matters-and-retention).
 
 ## Loading it into ELI v3
 
@@ -238,7 +278,12 @@ question and Bundles menu).
   from and until when, and what repealed it, on the matter's relevant date. No open database records
   whether a judgment was later overruled, so a judgment's standing goes to a person unless a licensed
   citator is connected; for an EU judgment the person is told which later judgments cite it. Other legal systems use a corpus you load.
-- **No encryption at rest.** Use an encrypted volume. OCR of scans and photographs needs Tesseract installed (and Poppler for PDF pages); the installers do not include them.
+- **Keys kept on the same machine.** The databases (SQLCipher) and every case file ELI Legal
+  keeps (AES-256-GCM) are encrypted at rest, but their keys are in the `secrets/` folder of the
+  same machine (on Windows also tied to the account): they protect copies and backups made without
+  that folder, not the machine itself. Use full-disk encryption, and back up `secrets/` apart from
+  `data/`. OCR of scans and photographs needs Tesseract installed (and Poppler for PDF pages); the
+  installers do not include them.
 - **Unsigned installers.** The Windows and macOS builds are made and smoke-tested by the release workflow but have not been used by a person.
 - **No single sign-on or hardware keys.** Passphrase, lock-out and one-time codes only.
 - **Not penetration-tested.** Keep the server on an internal network.

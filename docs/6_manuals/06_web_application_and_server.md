@@ -1,7 +1,32 @@
 # Web application and server
 
-The server lets people use ELI Legal from a browser, with the same fifteen pages as the desktop
-application and the same rules. It also offers an API for programs. It is one command.
+The server lets people use ELI Legal from a browser, with the same sixteen pages as the desktop
+application and the same rules. It also offers an API for programs.
+
+## One machine does the work
+
+Run ELI Legal on **one machine** that holds the cases and does all the work (reading papers, the
+model, the checks): the desktop application there, and the server started from it or beside it.
+Everyone else (judges, panel members, registrars, each party's lawyers, a party acting for
+themselves, the governance officer) uses a **browser** on their own computer, tablet or phone and
+signs in with their own account. Nothing is installed on their devices, and their devices do no
+heavy work.
+
+**The desktop application and the server share the same live data only when they use the same
+data folder**: the installed program's (see [Where your data is](01_installation.md#where-your-data-is)).
+A server started from the desktop application (below) always does. A server started from the
+command line does when it is the installed program's `serve`. A developer's source checkout has
+its own test data and accounts; its `serve` refuses to serve them while an installed copy's data
+exists, unless given `--dev-data`. The server prints the data folder it serves when it starts, and
+after signing in the browser's header shows which machine and installation it is serving (an
+administrator also sees its data folder by resting the pointer on it; "Developer test data" is shown
+in red): if it is not the one you expect, you are on the wrong data.
+
+**What anyone does shows everywhere.** An action taken in the desktop application or in any
+browser shows on everyone else's open page within about five seconds, without pressing F5 (in the
+desktop application on the pages that only show the case; in the browser on the page in front of
+you, but never while you are filling in a form or a box is open). What is waiting for each person
+("waiting for you", the bell) is updated the same way.
 
 ## Starting it
 
@@ -13,7 +38,9 @@ shown, if there is none) and everyone needs a code from an authenticator app. Th
 address to give everyone. The server runs while that window is open, on the same data, and stops
 when it closes; starting and stopping are both in the audit trail. Nobody else can start it.
 
-**From the command line:**
+**From the command line**, with the installed program (on Windows from *ELI Legal command line*;
+on macOS `"/Applications/ELI Legal.app/Contents/MacOS/eli-legal" serve`; with the AppImage
+`./ELI_Legal-0.8.18-linux-x86_64.AppImage serve`; see [Using the command line](14_command_line_guide.md)):
 
 | Situation | Command | Then open |
 |---|---|---|
@@ -22,9 +49,16 @@ when it closes; starting and stopping are both in the audit trail. Nobody else c
 | A team, no certificate yet | `eli-legal serve --lan --self-signed` | the address it prints |
 | Behind your reverse proxy | `eli-legal serve --behind-proxy --trusted-proxy 127.0.0.1 --allowed-host legal.example` | your proxy's address |
 
-At least one user must exist first, for example `eli-legal init --admin jay` (your own user id). The server prints where it
-is listening, the certificate's fingerprint, whether a second factor is required, and when
-sessions end. Stop it with Ctrl+C.
+At least one user must exist first, for example `eli-legal init --admin jay` (your own user id). The server prints
+the data folder it serves, where it is listening, the certificate's fingerprint, whether a second
+factor is required, and when sessions end. Stop it with Ctrl+C. Started this way it keeps running
+when the desktop application closes; to have it start with the machine, run it as a service (an
+example for Linux is in [Server security](../4_security/04_server_security.md)).
+
+**Letting other machines reach it.** Start it for the network (*Other computers on the network*,
+or `--lan`), give everyone the address it shows (`https://<this machine's name or address>:8443/`),
+and allow that port through this machine's firewall if it has one (Windows asks the first time;
+on Linux, for example, `sudo ufw allow 8443/tcp`). Keep it on your internal network.
 
 It will not listen beyond this machine without TLS, or without naming the reverse proxy it
 trusts (`--behind-proxy --trusted-proxy`). The proxy must pass on the original `Host` header, or
@@ -60,10 +94,16 @@ application:
 - **Notifications.** The bell in the header says how many things are waiting for you: holds to
   clear, a report to review, a report returned or suspended, on any matter you can act on. When a
   new one arrives a notice appears with an **Open** button, and the count shows in the browser
-  tab, within about ten seconds, whoever else is signed in. Nothing is sent outside ELI Legal.
-- **Not in the browser yet:** deployment authorisations, preservation holds, ending a reliance
-  suspension, incident awareness and owners, choosing a real rather than a practice matter, and
-  re-reading a document. Use the desktop application, the command line or the API for those.
+  tab, within a few seconds, whoever else is signed in. Nothing is sent outside ELI Legal.
+- **Live pages.** What someone else does on the case you have open shows on your page within about
+  five seconds, without reloading; never while you are filling in a form or a box is open.
+- **Not in the browser yet:** the hold window (the exact words that caused a hold, the original
+  shown on screen, describing an unreadable document by hand, filing a readable copy in its
+  place), editing a case's details after it is opened (its issues, parties, name and purpose; the API can
+  change the issues, dates, forum and rules), deployment
+  authorisations, preservation holds, ending a reliance suspension, incident awareness and
+  owners, choosing a real rather than a practice matter, and re-reading a document. Use the
+  desktop application on the main machine, the command line or the API for those.
 - **Runs** execute on the server. You can close the browser and come back.
 - **Reports released to you** are on *Released to me*: read them, or download them as PDF, Word or
   Markdown, each copy stamped with your name (see the [User manual](03_user_manual.md#reports-released-to-you)).

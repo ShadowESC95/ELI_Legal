@@ -133,6 +133,12 @@ class TesseractOcr:
                     [str(self.tesseract), str(source), "stdout", "-l", self.language, "tsv"],
                     capture_output=True, text=True, timeout=TIMEOUT, check=True,
                 )  # fmt: skip
+            except subprocess.CalledProcessError as exc:
+                # Tesseract could not open it at all: a damaged file, or not an image.
+                said = next(
+                    (ln.strip() for ln in (exc.stderr or "").splitlines() if ln.strip()), ""
+                )
+                raise ImageNotOpened(said[:160]) from exc
             except (OSError, subprocess.SubprocessError):
                 return []
         rows = result.stdout.splitlines()
@@ -149,6 +155,10 @@ class TesseractOcr:
             for number, lines in sorted(by_page.items())
         ]
         return [p for p in pages if p.paragraphs]
+
+
+class ImageNotOpened(Exception):
+    """The file could not be opened as an image (damaged, or not what its name says)."""
 
 
 def _page_from_tsv(number: int, tsv: str) -> OcrPage:

@@ -1199,3 +1199,79 @@ def test_what_someone_else_does_on_the_case_shows_without_pressing_f5(desk, monk
     assert "someone else" in d.window.statusBar().currentMessage()
     d.window.check_waiting()
     assert redrawn == [1], "only when something new has happened"
+
+
+def test_case_details_are_edited_here_and_stating_the_issues_opens_them(desk, monkeypatch):
+    from PySide6.QtWidgets import QDialog
+
+    from eli_legal.gui import details_dialog
+    from eli_legal.gui.tabs.matter_tab import MatterTab
+
+    opened: list[bool] = []
+
+    def answer(self):  # type: ignore[no-untyped-def]
+        opened.append(self.issues.hasFocus() or True)
+        self.name.setText("Harbour Freight Ltd v Northwind Logistics Ltd")
+        self.issues.setPlainText("Was time of the essence?\n\nWas the notice of 28 April valid?")
+        return QDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(details_dialog.MatterDetailsDialog, "exec", answer)
+    d = desk()
+    before = d.sv.matters.get(d.mid, ARBITRATOR)
+    d.window.go("matter#issues")  # where "Next: State the issues" goes
+    assert opened and isinstance(d.window.tabs.currentWidget(), MatterTab)
+    matter = d.sv.matters.get(d.mid, ARBITRATOR)
+    assert matter.stated_issues == ["Was time of the essence?", "Was the notice of 28 April valid?"]
+    assert matter.name == "Harbour Freight Ltd v Northwind Logistics Ltd"
+    assert [p.party_id for p in matter.parties] == [p.party_id for p in before.parties]
+    assert not d.warnings
+
+
+def test_a_hold_opens_on_the_marked_words_or_the_original_and_is_decided_there(desk):
+    from eli_legal.gui.hold_window import HoldWindow
+
+    d = desk()
+    with authn.harness("test-harness"):
+        run = d.sv.runs.start(d.mid, actor_id=SECRETARY)
+    holds = {h.reason_code: h for h in d.sv.holds.list(d.mid, run.run_id, actor_id=ARBITRATOR)}
+
+    flagged = HoldWindow(d.window, d.session, d.mid, holds["prompt_injection_detected"].hold_id)
+    assert "#f2c14e" in flagged.text.toHtml(), "the words that caused it are highlighted"
+    assert flagged.found.count() >= 1 and flagged.views.tabText(0) == "The text, marked"
+    flagged.close()
+
+    photo_hold = next(
+        h
+        for c, h in holds.items()
+        if h.scope.value == "document" and c != "prompt_injection_detected"
+    )
+    photo = HoldWindow(d.window, d.session, d.mid, photo_hold.hold_id)
+    assert photo.views.count() == 2 and photo.views.currentIndex() == 1, "the original first"
+    shown = photo.views.widget(1)
+    assert "cannot be opened as an image" in shown.text()
+    photo._act("accept_gap")  # the reason and the passphrase are answered as a person would
+    assert photo.result() == QtWidgets.QDialog.DialogCode.Accepted
+    after = {
+        h.hold_id: h
+        for h in d.sv.holds.list(d.mid, run.run_id, actor_id=ARBITRATOR, open_only=False)
+    }
+    assert after[photo_hold.hold_id].status.value == "resolved" and not d.warnings
+
+
+def test_a_report_you_cannot_decide_says_who_can_and_offers_the_way_to_them(desk):
+    d = desk()
+    review = d.page(ReviewTab)
+    review._show_who(
+        {"you_can": False, "why_not": "started this run, and nobody approves their own run",
+         "who": [{"user_id": "judge", "name": "Judy"}], "started_by": ARBITRATOR}
+    )  # fmt: skip
+    assert not review.who_card.isHidden() and not review.switch_person.isHidden()
+    text = review.who_text.text()
+    assert "nobody approves their own run" in text and "<b>Judy</b> (judge)" in text
+    review._show_who(
+        {"you_can": False, "why_not": "started this run, and nobody approves their own run",
+         "who": [], "started_by": ARBITRATOR}
+    )  # fmt: skip
+    assert "Nobody can decide it yet" in review.who_text.text() and review.switch_person.isHidden()
+    review._show_who(None)
+    assert review.who_card.isHidden()

@@ -31,4 +31,7 @@
 | Step-up | Giving the passphrase again at the moment of a decision. |
 | Treatment | How later law has affected an authority: overruled, reversed, amended, repealed, followed. |
 | Verification | One of seven checks: provenance, evidence support, citation, current law, proposition, dependency, outcome boundary. |
-| Waive / exclude | The two ways a person closes a hold: accept the gap and continue, or take the item out of reliance. |
+| Waive / exclude | Two ways a person closes a hold: accept the gap (or accept flagged words as ordinary evidence) and continue, or take the item out of reliance. |
+| Describe by hand | Closing a hold on a document that could not be read: a person types what the original shows or says, and the words become its text, marked as theirs. |
+| Readable copy | Closing a hold on a document that could not be read by filing a clearer scan, the native file or a written description for the same party; the hold closes once the copy is read. |
+| Data folder | Where an installed copy keeps its databases, keys and files (Linux `~/.local/share/eli-legal`, Windows `%LOCALAPPDATA%\ELI Legal`, macOS `~/Library/Application Support/ELI Legal`). The desktop application, the server and the command line share one set of cases only when they use the same one. |

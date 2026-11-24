@@ -2,25 +2,28 @@
 
 Generated from the program by `scripts/generate_reference_docs.py`. Do not edit by hand.
 
+To open a terminal and call the program on your system (Windows, macOS, Linux, the
+AppImage), see the [command-line guide](14_command_line_guide.md).
+
 `eli-legal <command> --help` shows the options of any command. Sign in first
 (`eli-legal login <user>`); a decision asks for your passphrase again. For scripted use,
 `--passphrase-stdin` reads the passphrase from standard input instead of the terminal.
 
 | Command | What it does |
 |---|---|
-| `eli-legal init --admin --name --audit-days --closed-matter-days --inactive-matter-days --retention-later` | create directories, the audit key and the first administrator |
+| `eli-legal init --admin --name --audit-days --closed-matter-days --inactive-matter-days --analysis-days --reports-days --evidence-days --record-days --retention-later` | create directories, the audit key and the first administrator |
 | `eli-legal login <user_id>` | sign in with your passphrase |
 | `eli-legal logout` | end your session |
 | `eli-legal whoami` | show who is signed in |
 | `eli-legal passphrase <user_id>` | change your passphrase, or set another user's |
 | `eli-legal gui` | open the desktop application |
-| `eli-legal serve --host --port --lan --tls-cert --tls-key --self-signed --behind-proxy --trusted-proxy --allowed-host --require-second-factor --api-docs` | start the server and browser application |
+| `eli-legal serve --host --port --lan --tls-cert --tls-key --self-signed --behind-proxy --trusted-proxy --allowed-host --require-second-factor --api-docs --dev-data` | start the server and browser application |
 | `eli-legal second-factor` | set up or remove an authenticator code |
 | `eli-legal second-factor setup` | set up your own |
 | `eli-legal second-factor remove <user_id>` | remove yours, or (administrator) someone else's |
 | `eli-legal unlock <user_id>` | unlock an account locked after failed sign-ins |
 | `eli-legal doctor` | check the installation |
-| `eli-legal database-key --out FILE` | write the databases' encryption key to a new file, for safekeeping off the machine (without it the databases cannot be opened elsewhere); restore by putting it back as `secrets/database.key` |
+| `eli-legal database-key --out` | write the databases' encryption key to a file, for safekeeping off this machine |
 | `eli-legal show-policy` | print the runtime policy |
 | `eli-legal jurisdictions` | list jurisdiction packs |
 | `eli-legal user` | manage users |
@@ -97,7 +100,7 @@ Generated from the program by `scripts/generate_reference_docs.py`. Do not edit 
 | `eli-legal compliance actions` | what the organisation must do, and where each stands |
 | `eli-legal compliance form <action>` | the questions of an action, as JSON to fill in |
 | `eli-legal compliance record <action> --answers --confirm --notes --reference --not-applicable` | record an action as done, or as not applying |
-| `eli-legal compliance retention --audit-days --closed-days --inactive-days` | how long the audit trail and closed matters are kept |
+| `eli-legal compliance retention --audit-days --closed-days --inactive-days --analysis-days --reports-days --evidence-days --record-days` | how long the audit trail and closed matters are kept |
 | `eli-legal compliance training <user_id> --course --completed --expires` | list training records, or record one |
 | `eli-legal compliance evaluate` | run the accuracy evaluation on the planted-defect matter |
 | `eli-legal compliance draft <kind>` | draft the Annex IV documentation or the declaration |
@@ -111,7 +114,7 @@ Generated from the program by `scripts/generate_reference_docs.py`. Do not edit 
 | `eli-legal audit verify --against` |  |
 | `eli-legal audit checkpoint --out` |  |
 | `eli-legal audit tail <matter> -n` |  |
-| `eli-legal evidence <matter> <run> --out` | export the evidence pack for a run |
+| `eli-legal evidence <matter> <run> --out --keep` | export the evidence pack for a run |
 | `eli-legal monitor` | post-deployment monitoring snapshot |
 | `eli-legal governance --root` | check the governance registers against the code |
 | `eli-legal edition` | ELI edition pack: show, install into or verify against an ELI checkout |

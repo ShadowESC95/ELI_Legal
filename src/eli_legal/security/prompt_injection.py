@@ -88,6 +88,20 @@ class PromptInjectionDetector:
             reasons.append("hidden_characters")
         return InjectionAssessment(bool(reasons), tuple(reasons))
 
+    def spans(self, text: str) -> list[tuple[str, int, int]]:
+        """Where in the text each pattern matched, (name, start, end), in order: what a person
+        reads to decide a hold. Invisible characters are given one by one."""
+        found = [
+            (name, m.start(), m.end())
+            for name, pattern in _PATTERNS
+            for m in pattern.finditer(text)
+            if m.end() > m.start()
+        ]
+        hidden = [("hidden_characters", m.start(), m.end()) for m in _HIDDEN.finditer(text)]
+        if len(hidden) >= 5:
+            found += hidden
+        return sorted(found, key=lambda s: (s[1], -s[2]))
+
 
 def strip_hidden_characters(text: str) -> str:
     return _HIDDEN.sub("", text)

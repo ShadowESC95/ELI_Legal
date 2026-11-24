@@ -4,6 +4,7 @@ from dataclasses import dataclass, replace
 from datetime import date
 from pathlib import Path
 
+from eli_legal.adapters.local.ocr import ImageNotOpened
 from eli_legal.adapters.local.parsers import ParsedDocument, Segment, detect_media_type
 from eli_legal.application.container import AppContext
 from eli_legal.domain.enums import AccessScope, DocumentStatus, DocumentType
@@ -298,7 +299,15 @@ class IngestionService:
             raise UnsupportedDocument("image file, and " + ocr.image_reason.split(": ", 1)[-1])
         document.ocr_engine = ocr.version
         segments: list[Segment] = []
-        for page in ocr.read_image(raw, Path(document.filename).suffix.lower()):
+        try:
+            pages = ocr.read_image(raw, Path(document.filename).suffix.lower())
+        except ImageNotOpened as exc:
+            document.unread_pages = [1]
+            raise UnsupportedDocument(
+                "image file that could not be opened: it is damaged, or not the kind of file its "
+                "name says" + (f" ({exc})" if str(exc) else "")
+            ) from exc
+        for page in pages:
             if page.words < 3:
                 continue
             document.ocr_pages[str(page.number)] = page.confidence
@@ -308,7 +317,10 @@ class IngestionService:
             )
         if not segments:
             document.unread_pages = [1]
-            raise UnsupportedDocument("image file that OCR could not read: no text found in it")
+            raise UnsupportedDocument(
+                "image with no writing OCR could read (a photograph, a drawing, or text too "
+                "faint): a person must look at it"
+            )
         return replace(parsed, segments=tuple(segments))
 
     def ingest_path(

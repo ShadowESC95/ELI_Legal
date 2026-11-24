@@ -93,7 +93,9 @@ def test_an_image_ocr_cannot_read_is_reported_unread_not_guessed(demo):
     sv.ctx.ocr = TesseractOcr.find("auto")
     document = _add(sv, mid, "broken.jpg", b"\xff\xd8\xff\xe0" + bytes(range(256)) * 4)
     assert document.status is DocumentStatus.UNSUPPORTED
-    assert "could not read" in document.error
+    assert "could not be opened" in document.error and "damaged" in document.error, (
+        "a damaged image is called damaged, not a picture with no writing"
+    )
 
 
 @pytest.mark.skipif(not HAVE_TESSERACT, reason="Tesseract is not installed here")

@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from eli_legal.application.container import AppContext
 from eli_legal.domain.enums import (
@@ -26,6 +27,7 @@ from eli_legal.domain.errors import (
     PolicyDenied,
 )
 from eli_legal.domain.models import (
+    Chunk,
     Claim,
     Document,
     Hold,
@@ -255,6 +257,243 @@ class HoldService:
         holds = self.ctx.holds.all_holds(matter.matter_id, run_id)
         return [h for h in holds if not open_only or h.status is HoldStatus.OPEN]
 
+    # ── seeing what caused a hold ────────────────────────────────────────────
+    def evidence(self, matter_id: str, hold_id: str, *, actor_id: str) -> dict[str, Any]:
+        """Everything a person needs to decide a hold: the document (who filed it, when, its
+        fingerprint, how it was read) and its passages with the exact words that caused the
+        hold marked, or the finding with the passage it came from; whether the original can be
+        looked at; and what can be done about this kind of hold. A document the person is not
+        cleared to read is described, not shown."""
+        ctx = self.ctx
+        matter = ctx.matter_for(matter_id, actor_id, "matter.read")
+        mid = matter.matter_id
+        hold = ctx.store.get(Hold, mid, hold_id)
+        if hold is None:
+            raise NotFound(f"hold not found in this matter: {hold_id}")
+        seen = ctx.authorizer().visibility(matter, actor_id)
+        documents = ctx.store.list(Document, mid)
+        refs = {d.document_id: f"D{n}" for n, d in enumerate(documents, start=1)}
+        parties = {p.party_id: f"{p.name} ({p.role})" for p in matter.parties}
+        out: dict[str, Any] = {
+            "hold": hold,
+            "kind": hold.scope.value,
+            "document": None,
+            "passages": [],
+            "claim": None,
+            "actions": (
+                []
+                if hold.status is not HoldStatus.OPEN
+                else _CLAIM_ACTIONS
+                if hold.scope is HoldScope.CLAIM
+                else ["lift"]
+                if hold.scope is HoldScope.RUN and hold.reason_code == HELD_BY_PERSON
+                else _ACTIONS.get(hold.reason_code, [])
+            ),
+        }
+
+        def describe(document: Document) -> dict[str, Any]:
+            visible = seen.document_visible(document)
+            return {
+                "document_id": document.document_id,
+                "ref": refs.get(document.document_id, ""),
+                "filename": document.filename if visible else "[withheld]",
+                "media_type": document.media_type,
+                "bytes": document.size_bytes,
+                "type": document.doc_type.value,
+                "filed_by": parties.get(document.party_id or "", "the tribunal (no party)"),
+                "received": document.ingested_at,
+                "sha256": document.sha256,
+                "status": document.status.value,
+                "read_with": document.read_with,
+                "error": document.error,
+                "flags": list(document.injection_flags),
+                "unread_pages": list(document.unread_pages),
+                "pictured_pages": list(document.pictured_pages),
+                "ocr_pages": dict(document.ocr_pages),
+                "described_by": document.described_by,
+                "visible": visible,
+                "original": visible and _viewable(document.media_type),
+            }
+
+        def passages(document: Document, marks: Any) -> list[dict[str, Any]]:
+            if not seen.document_visible(document):
+                return [{"locator": "—", "text": seen.marker(document.access_scope,
+                                                              document.party_id), "marks": []}]  # fmt: skip
+            out_ = []
+            for chunk in ctx.store.chunks_for(mid, document.document_id):
+                shown = seen.chunk(chunk, document)
+                out_.append(
+                    {"locator": shown.locator, "text": shown.text, "chunk_id": chunk.chunk_id,
+                     "marks": marks(shown.text, chunk.chunk_id)}
+                )  # fmt: skip
+            return out_
+
+        if hold.scope is HoldScope.DOCUMENT:
+            document = ctx.store.require(Document, mid, hold.subject_id)
+            out["document"] = describe(document)
+            if hold.reason_code == "prompt_injection_detected":
+                out["passages"] = passages(
+                    document, lambda text, _cid: [list(s) for s in ctx.detector.spans(text)]
+                )
+            else:
+                out["passages"] = passages(document, lambda _t, _c: [])
+        elif hold.scope is HoldScope.CLAIM:
+            claim = ctx.store.get(Claim, mid, hold.subject_id)
+            if claim is not None:
+                links = [
+                    {"target": e.target_type, "id": e.target_id, "locator": e.locator,
+                     "quote": e.quote, "relationship": e.relationship}
+                    for e in claim.evidence
+                ]  # fmt: skip
+                out["claim"] = {
+                    "text": claim.text,
+                    "status": claim.status.value,
+                    "why": claim.status_reason,
+                    "citation": claim.citation or "",
+                    "evidence": links,
+                }
+                quotes = {e.chunk_id: e.quote for e in claim.evidence if e.chunk_id and e.quote}
+                source = next(
+                    (e.target_id for e in claim.evidence if e.target_type == "document"), None
+                )
+                linked = next((d for d in documents if d.document_id == source), None)
+                if linked is not None:
+                    out["document"] = describe(linked)
+
+                    def quoted(text: str, chunk_id: str) -> list[list[Any]]:
+                        quote = quotes.get(chunk_id, "")
+                        at = text.find(quote) if quote else -1
+                        return [["the finding's source", at, at + len(quote)]] if at >= 0 else []
+
+                    out["passages"] = passages(linked, quoted)
+        return out
+
+    def describe(
+        self, matter_id: str, hold_id: str, *, actor_id: str, text: str, reason: str
+    ) -> Hold:
+        """A person reads the original of a document that could not be read (a photograph, a
+        damaged scan, pages OCR missed) and types what it shows or says. The words become the
+        document's passages, marked as theirs; the hold closes as corrected; the analysis uses
+        them once it is restarted. Recorded in their name, the words not in the ledger."""
+        ctx = self.ctx
+        authn.require_step_up(actor_id, "describe a document by hand")
+        matter = ctx.matter_for(matter_id, actor_id, "hold.resolve")
+        ctx.authorizer().require_matter(matter, actor_id, "document.waive")
+        mid = matter.matter_id
+        hold = ctx.store.get(Hold, mid, hold_id)
+        if hold is None:
+            raise NotFound(f"hold not found in this matter: {hold_id}")
+        if hold.status is not HoldStatus.OPEN:
+            raise InvalidState("hold is already resolved")
+        if hold.scope is not HoldScope.DOCUMENT or hold.reason_code not in _UNREAD:
+            raise InvalidState("only a document that could not be read is described by hand")
+        words = text.strip()
+        if len(words) < 10:
+            raise InvalidInput("say what the original shows or says")
+        if len(reason.strip()) < 10:
+            raise InvalidInput("give the reason for this decision")
+        document = ctx.store.require(Document, mid, hold.subject_id)
+        user = ctx.user(actor_id)
+        existing = ctx.store.chunks_for(mid, document.document_id)
+        pages = document.unread_pages or document.pictured_pages
+        where = f"p.{','.join(map(str, pages))} " if pages and pages != [1] else ""
+        added = Chunk(
+            matter_id=mid,
+            document_id=document.document_id,
+            ordinal=len(existing),
+            locator=f"{where}described by hand by {user.display_name} ({actor_id})",
+            text=words,
+            text_hash=content_hash(words),
+        )
+        ctx.store.replace_chunks(mid, document.document_id, [*existing, added])
+        document.described_by = actor_id
+        document.description_reason = reason.strip()[:200]
+        document.pages_checked = sorted(set(document.pages_checked) | set(pages))
+        document.segment_count = len(existing) + 1
+        document.char_count += len(words)
+        if document.status in (DocumentStatus.UNSUPPORTED, DocumentStatus.FAILED):
+            document.status = DocumentStatus.PROCESSED
+        document.read_with = (document.read_with + "; " if document.read_with else "") + (
+            "described by hand"
+        )
+        ctx.store.put(document)
+        ctx.log(
+            "document_described",
+            actor_id=actor_id,
+            matter_id=mid,
+            action="document.waive",
+            subject_id=document.document_id,
+            outcome="described",
+            object_type="document",
+            output_hash=added.text_hash,
+            payload={"characters": len(words), "hold": hold.hold_id, "why": reason.strip()[:200]},
+        )
+        return ctx.holds.resolve(
+            hold,
+            resolved_by=actor_id,
+            resolution=HoldResolution.CORRECTED,
+            reason=f"described by hand from the original: {reason.strip()}",
+        )
+
+    def replace_with_copy(
+        self,
+        matter_id: str,
+        hold_id: str,
+        *,
+        actor_id: str,
+        filename: str,
+        raw: bytes,
+        reason: str,
+    ) -> tuple[Hold | None, Document]:
+        """File a readable copy of a document that could not be read, for the same party, of
+        the same kind and as widely seen. If the copy is read, the hold on the original closes
+        with the copy named; if not, the copy is held too and the original's hold stays."""
+        ctx = self.ctx
+        authn.require_step_up(actor_id, "file a readable copy")
+        matter = ctx.matter_for(matter_id, actor_id, "hold.resolve")
+        mid = matter.matter_id
+        hold = ctx.store.get(Hold, mid, hold_id)
+        if hold is None or hold.status is not HoldStatus.OPEN:
+            raise InvalidState("that hold is not open")
+        if hold.scope is not HoldScope.DOCUMENT or hold.reason_code not in _UNREAD:
+            raise InvalidState("only a document that could not be read is replaced by a copy")
+        if len(reason.strip()) < 10:
+            raise InvalidInput("give the reason for this decision")
+        original = ctx.store.require(Document, mid, hold.subject_id)
+        from eli_legal.application.ingestion_service import IngestionService
+
+        intake = IngestionService(ctx)
+        copy = intake.register(
+            matter=matter, actor_id=actor_id, filename=filename, raw=raw,
+            doc_type=original.doc_type, party_id=original.party_id,
+            access_scope=original.access_scope,
+            custodian=f"readable copy of {original.filename}, filed by {actor_id}",
+        )  # fmt: skip
+        copy = intake.process(copy, actor_id=actor_id, type_given=True)
+        if copy.status is not DocumentStatus.PROCESSED or copy.unread_pages:
+            return None, copy
+        ctx.authorizer().require_matter(matter, actor_id, "document.waive")
+        documents = ctx.store.list(Document, mid)
+        ref = next(
+            (
+                f"D{n}"
+                for n, d in enumerate(documents, start=1)
+                if d.document_id == copy.document_id
+            ),
+            copy.filename,
+        )
+        original.status = DocumentStatus.WAIVED
+        original.waived_by = actor_id
+        original.waiver_reason = f"replaced by a readable copy ({ref}): {reason.strip()[:150]}"
+        ctx.store.put(original)
+        done = ctx.holds.resolve(
+            hold,
+            resolved_by=actor_id,
+            resolution=HoldResolution.CORRECTED,
+            reason=f"a readable copy was filed as {ref} ({copy.filename}): {reason.strip()}",
+        )
+        return done, copy
+
     def resolve(
         self, matter_id: str, hold_id: str, *, actor_id: str, action: str, reason: str
     ) -> Hold:
@@ -450,3 +689,19 @@ class HoldService:
         return ctx.holds.resolve(
             hold, resolved_by=actor_id, resolution=HoldResolution.LIFTED, reason=reason
         )
+
+
+# What can be done about each kind of hold, in the order offered (gui/hold_window.py).
+_UNREAD = ("coverage_gap", "pages_not_read", "image_text_unread", "ocr_low_confidence")
+_ACTIONS: dict[str, list[str]] = {
+    "prompt_injection_detected": ["accept_evidence", "exclude_document", "save_original"],
+    **{
+        code: ["describe", "readable_copy", "accept_gap", "exclude_document", "save_original"]
+        for code in _UNREAD
+    },
+}
+_CLAIM_ACTIONS = ["record_check", "exclude_finding"]
+
+
+def _viewable(media_type: str) -> bool:
+    return media_type.startswith("image/") or media_type == "application/pdf"

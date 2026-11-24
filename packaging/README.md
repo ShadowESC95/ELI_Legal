@@ -2,7 +2,7 @@
 
 | Target | Build with | Produces (in `dist/installers`) | Built and tested |
 |---|---|---|---|
-| Linux | `packaging/linux/build.sh` | `ELI_Legal-<v>-linux-<arch>.AppImage`, `.run` (installer), `eli-legal_<v>_<arch>.deb`, `.tar.gz` | Yes, on the development machine |
+| Linux | `packaging/linux/build.sh` | `ELI_Legal-<v>-linux-<arch>.AppImage`, `.run` (installer), `eli-legal_<v>_<arch>.deb`, `.tar.gz` | Yes, by the release workflow (built on Ubuntu 22.04: runs on Ubuntu, Debian, Fedora, Arch and others with glibc 2.35 or newer) |
 | Windows | `packaging\windows\build.ps1` | `ELI_Legal-<v>-windows-x64-setup.exe` (Inno Setup) | By the release workflow: silent install, start, uninstall. Not used by a person |
 | macOS | `packaging/macos/build.sh` | `ELI_Legal-<v>-macos-<arch>.dmg` | By the release workflow: the program runs the synthetic dispute. Not used by a person |
 | Any, from source | `./install.sh` or `install.ps1` | a private Python environment and launchers | Both, by the tests on every change: Linux, macOS and Windows, installed, started and removed |
@@ -37,8 +37,8 @@ desktop application; with arguments it is the command line and server.
 - **Signing.** None of the builds is signed. Windows SmartScreen and macOS Gatekeeper will warn
   or block. Signing needs the publisher's own certificates: see the variables named at the top of
   `windows/build.ps1` and `macos/build.sh`.
-- **A licence.** There is no `LICENSE` file in this repository. The installers include one
-  automatically when it exists; until then they state that all rights are reserved.
+- **A licence.** `LICENSE` (the ELI End User Licence Agreement and the ELI Legal Product Schedule)
+  is included in every build. An installed copy asks for a licence key on first start.
 - **Third-party licences.** `scripts/third_party_notices.py` regenerates
   `THIRD_PARTY_NOTICES.md` from the build environment at every build. Qt and PySide6 are LGPL-3.0:
   they are shipped as separate, replaceable library files and must stay that way.

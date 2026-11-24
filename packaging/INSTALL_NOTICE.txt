@@ -16,9 +16,17 @@ Where your data is kept
     Linux    ~/.local/share/eli-legal
     Windows  %LOCALAPPDATA%\ELI Legal
     macOS    ~/Library/Application Support/ELI Legal
-  Removing the program never removes that folder. Back it up, and keep a copy
-  of the audit key somewhere else: without the key the ledger cannot be
-  verified.
+  Removing the program never removes that folder. The databases and case files
+  in it are encrypted; the keys are in its secrets folder. Back up the data and
+  the secrets folders, and store the copies apart. Save the databases' key once
+  with "eli-legal database-key --out <file>" and keep it off this machine:
+  without it the databases cannot be opened, and without the audit key the
+  ledger cannot be verified.
+
+Starting it
+  The desktop application: your applications menu (ELI Legal), or
+  "eli-legal-gui". The command line and the server: "eli-legal --help",
+  "eli-legal serve". On first start it asks for a licence key.
 
 Before using it on a real matter
   Read docs/README.md, in particular the legal and compliance folder. This

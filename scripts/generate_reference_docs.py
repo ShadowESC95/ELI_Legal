@@ -20,7 +20,7 @@ SECTIONS = (
     ("Signing in and your own account", ("/health", "/v1/boundaries", "/v1/auth")),
     ("Users and roles", ("/v1/users", "/v1/roles")),
     ("The installation", ("/v1/system", "/v1/workflow", "/v1/config", "/v1/network")),
-    ("Matters and documents", ("/v1/matters",)),
+    ("Matters and documents", ("/v1/matters", "/v1/closed-matters", "/v1/changes")),
     ("Audit and governance", ("/v1/audit", "/v1/governance", "/v1/monitoring")),
     ("Approved legal sources", ("/v1/sources", "/v1/authorities")),
     ("Law and standards packages", ("/v1/frameworks",)),
@@ -28,6 +28,9 @@ SECTIONS = (
         "What to do next, compliance and the routine checks",
         ("/v1/words", "/v1/home", "/v1/compliance", "/v1/checks", "/v1/oversight"),
     ),
+    ("Approval to use it on real matters", ("/v1/deployment-authorisations",)),
+    ("What is waiting for you, and reports released to you", ("/v1/notifications", "/v1/released")),
+    ("A party's own page: its filings and holds", ("/v1/party",)),
 )
 
 
@@ -144,6 +147,9 @@ def cli_reference() -> str:
         "# Command-line reference",
         "",
         "Generated from the program by `scripts/generate_reference_docs.py`. Do not edit by hand.",
+        "",
+        "To open a terminal and call the program on your system (Windows, macOS, Linux, the",
+        "AppImage), see the [command-line guide](14_command_line_guide.md).",
         "",
         "`eli-legal <command> --help` shows the options of any command. Sign in first",
         "(`eli-legal login <user>`); a decision asks for your passphrase again. For scripted use,",

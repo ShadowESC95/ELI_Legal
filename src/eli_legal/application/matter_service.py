@@ -24,6 +24,7 @@ from eli_legal.domain.errors import (
 )
 from eli_legal.domain.models import (
     Chunk,
+    Claim,
     ClosedTeam,
     Document,
     Hold,
@@ -586,6 +587,41 @@ class MatterService:
             for c in self.ctx.store.chunks_for(matter.matter_id, document_id)
         ]
 
+    def original(
+        self, matter_id: str, document_id: str, actor_id: str, *, purpose: str = "viewed"
+    ) -> tuple[Document, bytes]:
+        """A document's original, as filed (checked against its hash), to look at in the
+        application or to save a copy of: ``purpose`` is "viewed" or "saved", and is recorded.
+        Refused, and the attempt recorded, for a document the person is not cleared to read."""
+        matter = self.ctx.matter_for(matter_id, actor_id, "document.read")
+        document = self.ctx.store.require(Document, matter.matter_id, document_id)
+        seen = self.ctx.authorizer().visibility(matter, actor_id)
+        if not seen.document_visible(document):
+            self.ctx.log(
+                "content_withheld",
+                actor_id=actor_id,
+                matter_id=matter.matter_id,
+                action="document.read",
+                subject_id=document_id,
+                outcome="withheld",
+                object_type="document",
+                payload={"scope": document.access_scope.value, "role": seen.role},
+            )
+            raise PolicyDenied("you are not cleared to read this document")
+        raw = self.ctx.vault.read(matter.matter_id, document.sha256)
+        self.ctx.log(
+            "document_opened",
+            actor_id=actor_id,
+            matter_id=matter.matter_id,
+            action="document.read",
+            subject_id=document_id,
+            outcome="saved" if purpose == "saved" else "viewed",
+            object_type="document",
+            output_hash=document.sha256,
+            payload={"bytes": len(raw)},
+        )
+        return document, raw
+
     def members(self, matter_id: str, actor_id: str) -> list[MemberView]:
         """Who is on the matter, their role on it, whom they act for and what they may read."""
         matter = self.ctx.matter_for(matter_id, actor_id, "matter.read")
@@ -864,11 +900,54 @@ class MatterService:
         add_parties: Sequence[tuple[str, str]] = (),
         retention_days: int | None = None,
         organisation_retention: bool = False,
+        name: str | None = None,
+        purpose: str | None = None,
+        parties: Sequence[Party] | None = None,
     ) -> Matter:
         """Change a matter's details. ``retention_days`` sets how long its content is kept
-        once closed; ``organisation_retention`` returns it to the organisation's period."""
+        once closed; ``organisation_retention`` returns it to the organisation's period.
+        ``parties`` replaces the list: a party keeps its identity when renamed, and one that a
+        member acts for, or that filed papers or findings, cannot be removed."""
         matter = self.ctx.matter_for(matter_id, actor_id, "matter.manage")
         changed = []
+        if name is not None:
+            if not name.strip():
+                raise InvalidInput("a matter needs a name")
+            matter.name = " ".join(name.split())[:200]
+            changed.append("name")
+        if purpose is not None:
+            if not purpose.strip():
+                raise InvalidInput("say what the matter is for")
+            matter.purpose = purpose.strip()[:500]
+            changed.append("purpose")
+        if parties is not None:
+            kept = {p.party_id for p in parties}
+            mid = matter.matter_id
+            for gone in [p for p in matter.parties if p.party_id not in kept]:
+                used = (
+                    gone.party_id in matter.member_parties.values()
+                    or any(d.party_id == gone.party_id for d in self.ctx.store.list(Document, mid))
+                    or any(c.party_id == gone.party_id for c in self.ctx.store.list(Claim, mid))
+                )
+                if used:
+                    raise InvalidState(
+                        f"{gone.name} cannot be removed: someone acts for them, or papers or "
+                        "findings are theirs. Rename them instead."
+                    )
+            cleaned = []
+            for p in parties:
+                if not p.name.strip() or not p.role.strip():
+                    raise InvalidInput("each party needs a name and a role")
+                cleaned.append(
+                    Party(
+                        name=" ".join(p.name.split())[:200],
+                        role=" ".join(p.role.split())[:60],
+                        party_id=p.party_id,
+                        represented_by=p.represented_by,
+                    )
+                )
+            matter.parties = cleaned
+            changed.append("parties")
         if retention_days is not None:
             matter.retention_days = _retention_days(retention_days)
             changed.append("retention_days")
@@ -879,7 +958,7 @@ class MatterService:
             matter.relevant_date = relevant_date
             changed.append("relevant_date")
         if stated_issues is not None:
-            matter.stated_issues = list(stated_issues)
+            matter.stated_issues = [" ".join(i.split()) for i in stated_issues if i.strip()]
             changed.append("stated_issues")
         if forum is not None:
             matter.forum = forum

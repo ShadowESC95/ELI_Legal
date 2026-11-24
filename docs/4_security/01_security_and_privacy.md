@@ -23,8 +23,9 @@
 | Credentials | passphrases as salted PBKDF2-SHA-256 hashes; session and API tokens stored only as hashes; sessions expire; changing a passphrase or deactivating a user ends them | the command-line session file is readable by that operating-system user |
 | Server | TLS or loopback only; host, origin, rate and size checks before any route; HttpOnly SameSite cookie plus CSRF value; strict content-security policy; matter content shown as text; no CORS; see [Server security](04_server_security.md) | not penetration-tested; no web-application firewall; one process |
 
-**Not provided by the software.** Encryption at rest (use an encrypted volume), backups, key
-escrow and malware scanning of uploads. TLS is provided by the server itself, or by your reverse
+**Not provided by the software.** Full-disk encryption of the machine (the software encrypts its
+databases and case files, but the keys are on the same machine), backups, key escrow (save the
+database key yourself with `eli-legal database-key --out`) and malware scanning of uploads. TLS is provided by the server itself, or by your reverse
 proxy. OCR needs Tesseract installed (and Poppler for scanned PDF pages); without it a scan or a
 photograph is reported unread and holds the run. The server rate-limits sign-in and requests per
 address.

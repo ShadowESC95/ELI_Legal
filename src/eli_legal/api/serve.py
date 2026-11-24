@@ -51,6 +51,12 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
         help="auto (default) requires it whenever other machines can connect",
     )
     parser.add_argument("--api-docs", action="store_true", help="serve /docs (off by default)")
+    parser.add_argument(
+        "--dev-data",
+        action="store_true",
+        help="from a developer checkout, serve its test data even though an installed copy's "
+        "data exists (otherwise refused, to keep the browser and the desktop on one set of data)",
+    )
 
 
 def build_config(
@@ -153,8 +159,14 @@ def banner(config: ServerConfig, cert: Path | None) -> str:
 def run(args: argparse.Namespace, services: Services | None = None) -> int:
     import uvicorn
 
+    from eli_legal.paths import installation, serving_test_data_by_mistake
+
     from .app import create_app
 
+    mistake = serving_test_data_by_mistake()
+    if mistake and not getattr(args, "dev_data", False) and services is None:
+        print(f"refused: {mistake}", file=sys.stderr)
+        return 2
     settings = Settings()
     config, cert, key = build_config(args, settings)
     problems = config.problems()
@@ -174,6 +186,8 @@ def run(args: argparse.Namespace, services: Services | None = None) -> int:
 
     typesetter = ensure_typesetter()  # on the main thread, before any request; kept alive below
     print(banner(config, cert), flush=True)
+    where = installation()
+    print(f"  data: {where['folder']} ({where['kind']})", flush=True)
     server_config = hardened(create_app(sv, config), config, cert, key)
     sockets = None
     if settings.hard_offline:

@@ -45,6 +45,41 @@ def home_dir() -> Path | None:
     return None
 
 
+def installation() -> dict[str, str]:
+    """Which ELI Legal this is and whose data it uses: an installed copy (the user's own data
+    folder), a folder named by ELI_LEGAL_HOME, or a developer checkout (the ./data of the folder
+    it was started in, which is not the installed copy's data)."""
+    home = home_dir()
+    if os.environ.get("ELI_LEGAL_HOME", "").strip():
+        kind = "the folder ELI_LEGAL_HOME names"
+    elif home is not None:
+        kind = "installed copy"
+    else:
+        kind = "developer checkout"
+    return {
+        "kind": kind,
+        "folder": str((home or Path(".")).resolve()),
+        "installed_data": str(user_data_dir()),
+    }
+
+
+def serving_test_data_by_mistake() -> str:
+    """Why serving from here would be a mistake, or "": a developer checkout serves the test
+    data beside the code, while this account has an installed copy's data that its people use."""
+    where = installation()
+    installed = Path(where["installed_data"])
+    if where["kind"] != "developer checkout" or not (installed / "data").is_dir():
+        return ""
+    return (
+        f"this is a developer checkout of ELI Legal: it would serve the test data in "
+        f"{where['folder']}, not your installed ELI Legal's data in {installed}, where your "
+        "cases, accounts and passphrases are. Serve those instead: in the desktop application, "
+        "Settings → System → Server; or the installed program with serve (the AppImage, "
+        "eli-legal from the .deb or .run installer, eli-legal.exe on Windows). To serve this "
+        "checkout's test data on purpose, add --dev-data."
+    )
+
+
 def runtime_dir() -> Path:
     """What this machine taught the program: measured model sizes, the graphics runtime in use.
     Nothing here is a record of a matter."""

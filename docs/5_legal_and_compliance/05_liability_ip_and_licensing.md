@@ -2,14 +2,14 @@
 
 Not legal advice. This is where the commercial and property questions are collected.
 
-## 1. This product's own licence: undecided
+## 1. This product's own licence: proprietary
 
-**The repository contains no licence file.** Under copyright law that means all rights are
-reserved to the author, and no one else has permission to use, copy, modify or distribute the
-software. That is a sound default while it is unpublished, and a blocker the moment anyone else
-is to run it.
+ELI Legal is proprietary commercial software. `LICENSE`, shipped with every build, reserves all
+rights and grants a licence only under the ELI End User Licence Agreement and the ELI Legal Product
+Schedule: a licence to ELI Legal bought on its own, or an ELI v3 licence that includes it. An
+installed copy checks for a licence key offline when it starts.
 
-The options, for the owner to choose between:
+The options that were weighed:
 
 | Option | Effect |
 |---|---|
@@ -17,10 +17,10 @@ The options, for the owner to choose between:
 | Source-available licence | The source can be read, with limits on use. ELI v3 uses one of these alongside a commercial agreement; using the same pair would be consistent |
 | Open-source licence | Anyone may use and modify it. Compatible with selling support or hosted service, not with selling licences |
 
-Whatever is chosen should state: the intended purpose and the prohibited uses; that the output
+The licence should state, and is to be checked by counsel for stating: the intended purpose and the prohibited uses; that the output
 is decision support and not legal advice; who is provider and who is deployer; the limits on
 liability; and what support and security updates are promised, and for how long. The installers
-pick up a `LICENSE` file automatically once one exists.
+include `LICENSE`.
 
 ## 2. Liability
 

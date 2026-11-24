@@ -12,7 +12,7 @@ the end. Not legal advice: a deploying organisation must do its own assessment.
 |---|---|---|---|
 | **Art. 5** Principles | Lawfulness, fairness and transparency; purpose limitation; minimisation; accuracy; storage limitation; integrity and confidentiality; accountability | One matter, one purpose, no memory across matters and no training on matter data; the audit ledger holds identifiers and hashes, never text; facts are quoted word for word with their location; closing a matter can delete its content; access by role and matter | GDPR-05 |
 | **Art. 25** Data protection by design and by default | Measures built into the processing itself, with the protective setting as the default | Network denied by default; a model must run on the same machine; matter isolation enforced in the store, not left to the caller; the least access by default (an administrator sees no matter); logs minimised by a guard that refuses content | GDPR-25 |
-| **Art. 32** Security of processing | Measures appropriate to the risk | Proven identity, lock-out and a second factor; a decision needs the passphrase again; a hardened server over TLS; originals stored read-only under their hash; a tamper-evident ledger. **Encryption at rest, backup and patching are the deployer's** | GDPR-32 |
+| **Art. 32** Security of processing | Measures appropriate to the risk | Proven identity, lock-out and a second factor; a decision needs the passphrase again; a hardened server over TLS; originals stored read-only under their hash; a tamper-evident ledger; the databases and case files encrypted at rest. **Full-disk encryption, backup and patching are the deployer's** | GDPR-32 |
 
 Section 5 below takes Article 5 principle by principle.
 
@@ -68,8 +68,8 @@ watch that figure.
 | Purpose limitation | One matter, one purpose; no memory across matters; no reuse of data to train anything | Do not repurpose a matter's data |
 | Data minimisation | The audit ledger holds identifiers and hashes, not text; chat history is not kept | File only what the matter needs |
 | Accuracy | Facts are quoted word for word with their location | Correct the source record if a document is wrong |
-| Storage limitation | Closing a matter can delete documents, text and indexes while keeping the decision record | Set retention periods; apply them |
-| Integrity and confidentiality | Access by role and matter; proven identity; network denied; tamper-evident ledger | Encrypted storage; backups; a second factor; physical security |
+| Storage limitation | Each kind of a closed matter's content (papers, analysis, reports, evidence packs) is kept for its own period and then deleted, or its archive's key destroyed, by the routine checks; the decision record goes last | Set the periods for each kind (Compliance, OA-09); apply them |
+| Integrity and confidentiality | Access by role and matter; proven identity; network denied; tamper-evident ledger; databases (SQLCipher) and case files (AES-256-GCM) encrypted at rest | Full-disk encryption (the keys are on the same machine); backups kept apart from the keys; a second factor; physical security |
 | Accountability | Registers, audit trail, evidence pack | Keep your own records |
 
 ## 6. Telling people, and their rights
@@ -106,8 +106,9 @@ assessment; the two can be done together.
 ## 8. Security (Article 32) and breaches (Articles 33, 34)
 
 The measures are listed in [Security and privacy](../4_security/01_security_and_privacy.md) and
-[Server security](../4_security/04_server_security.md). The software does not encrypt data at
-rest; the deployer must. A breach must be notified to the supervisory authority within 72 hours
+[Server security](../4_security/04_server_security.md). The software encrypts its databases and case
+files at rest, but their keys are on the same machine: the deployer must still encrypt the
+machine's disk and keep the saved database key apart from the backups. A breach must be notified to the supervisory authority within 72 hours
 of becoming aware of it unless it is unlikely to result in a risk to people, and to the people
 affected where the risk is high. Incidents can be recorded in the system; the notification
 procedure is the deployer's.

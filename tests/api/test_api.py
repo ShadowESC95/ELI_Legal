@@ -411,3 +411,49 @@ def test_a_deployment_is_proposed_with_its_evidence_and_signed_by_two_leads_over
     assert admin.decide("POST", sign, {"as_lead": "deployer"}).json()["status"] == "approved"
     listed = governance.get("/v1/deployment-authorisations").json()
     assert [a["status"] for a in listed] == ["approved"]
+
+
+def test_every_open_page_learns_what_others_changed_on_cases_it_may_see_and_nothing_else(api):
+    client, mid, _rid, auth, app = api
+    sv = app.state.services if hasattr(app.state, "services") else None
+    start = client.get("/v1/changes", headers=auth[A]).json()
+    assert start["matters"] == [] and start["head"] > 0, "the first call says where things are"
+    head = start["head"]
+
+    def happened(actor: str, matter: str) -> None:
+        from eli_legal.security import authn as _authn
+
+        with _authn.harness("test-harness"):
+            services.ctx.log(
+                "matter_updated", actor_id=actor, matter_id=matter, action="matter.manage",
+                subject_id=matter, outcome="details_updated", object_type="matter", payload={},
+            )  # fmt: skip
+
+    services = sv or _services_of(app)
+    happened(A, mid)  # one's own doing
+    happened(S, "mat_someone_elses_case")  # a case A is not on
+    seen = client.get(f"/v1/changes?since={head}", headers=auth[A]).json()
+    assert seen["matters"] == [] and seen["head"] == head + 2
+    happened(S, mid)  # someone else, on A's case
+    seen = client.get(f"/v1/changes?since={seen['head']}", headers=auth[A]).json()
+    assert seen["matters"] == [mid]
+    assert client.get(f"/v1/changes?since={head}", headers=auth["admin"]).json()["matters"] == [], (
+        "the administrator is on no case, so learns of none"
+    )
+
+
+def _services_of(app):  # type: ignore[no-untyped-def]
+    for route in app.routes:
+        for cell in getattr(getattr(route, "endpoint", None), "__closure__", None) or ():
+            value = cell.cell_contents
+            if hasattr(value, "ctx") and hasattr(value, "matters"):
+                return value
+    raise AssertionError("services not found")
+
+
+def test_the_server_says_which_installation_it_serves_and_only_an_administrator_sees_where(api):
+    client, _mid, _rid, auth, _app = api
+    mine = client.get("/v1/system", headers=auth[A]).json()["installation"]
+    assert mine["kind"] and mine["host"] and mine["folder"] == ""
+    admin = client.get("/v1/system", headers=auth["admin"]).json()["installation"]
+    assert admin["folder"], "the administrator sees the data folder"

@@ -14,7 +14,13 @@
 | "that code is not correct, or has already been used" | Wrong code, a code used twice, or the phone's clock is wrong | Wait for the next code; set the phone's time to automatic |
 | "this session belongs to X; it cannot act as Y" | A command was run for a different user than the one signed in | `eli-legal login <you>` |
 | "to …, confirm your passphrase" | The action is a decision | Give your passphrase when asked |
-| The desktop application does not open on Linux | Missing graphics libraries | `sudo apt install libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3 libxcb-cursor0` |
+| The desktop application does not open on Linux | Missing graphics libraries | Ubuntu, Debian: `sudo apt install libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3 libxcb-cursor0`; Fedora: `sudo dnf install mesa-libEGL mesa-libGL libxkbcommon fontconfig dbus-libs xcb-util-cursor`; Arch: `sudo pacman -S --needed libglvnd libxkbcommon fontconfig dbus xcb-util-cursor` |
+| The AppImage says it cannot mount, or "fuse: device not found" (Arch and others) | FUSE 2 is not installed | Arch: `sudo pacman -S fuse2`; Fedora: `sudo dnf install fuse`; Ubuntu 24.04: `sudo apt install libfuse2t64`; or add `--appimage-extract-and-run` as the first argument |
+| `eli-legal: command not found` | The program is not on your `PATH`, or you used the AppImage or macOS app | Use the full name: the AppImage file (`./ELI_Legal-<v>-linux-x86_64.AppImage <command>`), `"/Applications/ELI Legal.app/Contents/MacOS/eli-legal"` on macOS, *ELI Legal command line* on Windows; after the `.run` installer add `~/.local/bin` to `PATH`. See [Using the command line](14_command_line_guide.md) |
+| Windows says "Windows protected your PC" | The build is unsigned | Check the file against `SHA256SUMS`, then *More info*, *Run anyway* |
+| macOS says the application "cannot be opened" | The build is unsigned | Right-click it in Applications, *Open*; or `xattr -dr com.apple.quarantine "/Applications/ELI Legal.app"` |
+| It asks for a licence key | An installed copy needs one | Paste an ELI Legal key, or an ELI v3 key that includes it; or `eli-legal licence activate <key>` |
+| "the database key (…) is missing, and … cannot be opened without it", or "… could not be opened with its key" | `secrets/database.key` is missing or wrong (a restore without `secrets/`, another Windows account) | Put back the key saved with `eli-legal database-key --out`, as `secrets/database.key`. Without it the databases cannot be opened |
 | "the program does not run on this system" from the installer | The build needs a newer system library than this machine has | Use a build made for an older system, or install from source |
 
 ## The model and the graphics card
@@ -51,18 +57,24 @@ Refusals are shown in the system's own words. The commonest:
 |---|---|---|
 | "user … is not permitted to perform …" | Your role does not include that action | Ask someone whose role does; or an administrator to review roles |
 | A matter is missing from your list, or opening it is refused | You were not added to it | Someone already on the matter adds you |
-| You cannot be added to a matter | Your role does not fit the matter's profile | A party's lawyer cannot join a tribunal's matter, by design |
+| You cannot be added to a matter | Your role does not fit the matter's profile | A party's lawyer joins a tribunal's matter only as one party's representative: the lead adds them with *Grant access…*, naming the party they act for |
 | "matter … is closed" | The matter was closed | Closed matters cannot be worked on |
 | "no document has been ingested into this matter" | Nothing was filed | File the documents first |
-| "no named human with a reviewing role for this profile is assigned to the matter" | The matter has no reviewer | Matter, Set reviewers |
-| The first step is held for an unapproved source | The matter has no approved source, or its source was revoked | Matter, Set sources; Sources, Approve |
+| "no named human with a reviewing role for this profile is assigned to the matter" | The matter has no reviewer | Case details, Name the reviewers… |
+| The first step is held for an unapproved source | The matter has no approved source, or its source was revoked | Case details, Choose sources…; Legal sources, Approve |
 | The report warns that a jurisdiction pack is unvalidated | No qualified lawyer has signed the pack off | Expected until one does. It is a stated limit you must acknowledge |
-| A document is "unsupported" or "failed" | A scan, an image, a damaged or encrypted file | Supply a text version, or accept the gap in Review |
+| A document is "unsupported" or "failed" | A scan, an image, a damaged or encrypted file | Review and approve, Holds: double-click the hold, look at the original, then describe it by hand, file a readable copy, or accept the gap |
+| "image file that could not be opened: it is damaged, or not the kind of file its name says" | The file is not a readable image (cut short, or another kind of file renamed) | Ask the party who filed it for a readable copy, or accept the gap. OCR is not the cause |
+| "image with no writing OCR could read" | A photograph or drawing, or text too faint | Look at it in the hold window and describe it by hand |
 | Every authority is held with "status last confirmed … older than the …-day limit" | The source's status data is stale | Refresh the corpus; or verify each by hand |
 | Every citation in one form is held as not found | The source is recorded as complete for a form it does not fully cover, or the pack does not recognise the form | Correct the source record; check the jurisdiction pack |
 | No arguments in the report | No model is set, or the issue was only proposed by the model | Set a model; confirm the issue |
 | "… hold(s) are open" | You tried to approve while holds remain | Close each hold |
-| "run is …; only a run awaiting review can be approved" | The run was not restarted after the holds were closed | DAG, Restart |
+| "run is …; only a run awaiting review can be approved" | The run was not restarted after the holds were closed | Progress, Restart… |
+| Approve, Return and Reject are greyed out; "You ran this work, so another named reviewer decides it" | Nobody approves a run they started | The box *Who can decide this* names who can: **Switch person…** and let them sign in on this machine, or they decide in the browser. If nobody else can, **Name another reviewer…** |
+| "the law and standards package … has changed or been removed since this run was prepared" | A package the run was prepared under was updated, removed or replaced | Restart the run from its first step (Progress, Restart…, the first step) or start a new run; restarting from a later step keeps the old package and fails again |
+| Start a run and Restart are greyed out on Progress | A run is still working in this application (a model step can take minutes) | Wait for it, or Stop it; the step map shows which step is running |
+| **Next: State the issues** stays in the stage bar | The case has no issues stated | Press it: Case details, Edit details… opens at the issues; one per line |
 | "run is …; only a held or stopped run can restart" | The run is in another state | Start a new run |
 | "these limits must be acknowledged before approval" | A stated limit was not ticked | Tick each one |
 | "the findings changed after the draft was built" or "the report hash given does not match the current report" | The report you read is no longer the current one | Restart the run and read the new version |
@@ -83,6 +95,9 @@ Refusals are shown in the system's own words. The commonest:
 | "the body is larger than …" | A file over the limit | Raise `ELI_LEGAL_SERVER_MAX_UPLOAD_MB`, or split the file |
 | Signed out unexpectedly | Thirty idle minutes, or your passphrase or second factor was changed | Sign in again |
 | A blank page | JavaScript is off, or a browser extension blocked the script | Allow scripts from the server's own address |
+| The browser shows different cases, events or accounts from the desktop application (for example "You have no matters yet", or only a `judge` account) | The server was started on other data: a developer's source checkout, the demo, or another `ELI_LEGAL_HOME` | Stop it. Start it from the desktop application (Settings → System → Server) or with the installed program's `serve`. The server prints the data folder it serves, and the browser shows it after signing in |
+| "refused: this is a developer checkout of ELI Legal: it would serve the test data in …, not your installed ELI Legal's data in …" | `eli-legal serve` was run from a source checkout while an installed copy's data exists | Use the installed program; `--dev-data` only if you really mean the checkout's test data |
+| Other machines cannot reach the server | It listens on this machine only, or a firewall blocks the port | Start it for the network with TLS (`--lan`), give them the address it prints, and allow port 8443 through the firewall |
 
 ## The audit trail
 

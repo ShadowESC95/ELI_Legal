@@ -67,7 +67,8 @@ Within a matter, a document is filed with a scope: all parties, the neutral only
 confidence, or privileged. A mediator's shared brief leaves out anything one party gave in
 confidence. Choose the scope deliberately at filing; it is the control.
 
-A party's lawyer cannot be added to a tribunal's matter, and an administrator has no access to
+A party's lawyer joins a tribunal's matter only as one party's representative (filing their side's
+papers and answering holds on them, never seeing the tribunal's analysis), and an administrator has no access to
 any matter.
 
 ## 5. Competence and supervision

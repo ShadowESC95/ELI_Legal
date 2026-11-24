@@ -87,7 +87,7 @@ Status: **met** means implemented and tested. **Partly** and **not met** say wha
 | SP-03 | Legal sources are reachable only if registered and approved | DG-01.3 | Met |
 | SP-04 | Text addressed to a model is flagged, held and kept out of every prompt | DG-01.7 | Met for known patterns |
 | SP-05 | Edits, removals and truncation of the audit ledger are detected | MO-01.1 | Met |
-| SP-06 | Encryption at rest | — | **Not met**: use an encrypted volume |
+| SP-06 | Encryption at rest | DG-01.42; DG-01.44 | Met for the databases (SQLCipher) and case files (AES-256-GCM); the keys are on the same machine, so full-disk encryption is still needed |
 | SP-07 | Malware scanning of uploads | — | **Not met**: files are parsed, never executed; scan them before filing |
 
 ## 6. Installation and operation

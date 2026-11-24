@@ -198,7 +198,9 @@ class FrameworkLibrary:
             if pack is None or pack.fingerprint != fingerprint:
                 raise VerificationGateFailed(
                     f"the law and standards package {pack_id!r} has changed or been removed since "
-                    "this run was prepared; restart the run so the report reflects what applies now"
+                    "this run was prepared, so it cannot carry on: start a new run (Progress → "
+                    "Start a run), or restart this one from its first step (Restart… → Intake "
+                    "officer), so it is prepared under what applies now"
                 )
             out.append(pack)
         return out

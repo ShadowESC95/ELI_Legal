@@ -70,8 +70,8 @@ server, and a command line. It can also be loaded into ELI v3 as a separately li
 
 | Part | What it is | Start it with |
 |---|---|---|
-| Desktop application | Fifteen pages: Start a new case, How to use, Home, Case details, Documents, Ask about the case, Progress, Who does each step, Findings, Review and approve, Record of actions, Compliance, Legal sources, Laws and standards, Settings | `eli-legal-gui` |
-| Server and browser application | The same fifteen pages in a browser, over HTTPS, for a chambers, firm or tribunal | `eli-legal serve` |
+| Desktop application | Sixteen pages: Start a new case, How to use, Home, Case details, Documents, Ask about the case, Progress, Who does each step, Findings, Review and approve, Record of actions, Compliance, Released to me, Legal sources, Laws and standards, Settings | the ELI Legal menu entry, or `eli-legal-gui` |
+| Server and browser application | The same sixteen pages in a browser, over HTTPS, for everyone else in a chambers, firm, court or tribunal, on the same live data as the desktop application | Settings → System → Server in the desktop application, or `eli-legal serve` |
 | Command line | Every operation, for scripted and administrative use | `eli-legal` |
 | ELI v3 edition | The same services, presented to ELI v3 as a separately licensed edition | see [ELI v3 integration](../3_architecture/03_eli_v3_integration.md) |
 
@@ -93,15 +93,16 @@ signs it off, and every report says so.
 | Area | State |
 |---|---|
 | Whole lifecycle, three profiles, eight packs | Built and tested |
-| Desktop application, server, browser application, command line | Built and tested on Linux |
-| Installers | Published on the GitHub releases page for Linux (AppImage, `.run`, `.deb`), Windows and macOS. Unsigned; Windows and macOS not yet used by a person |
+| Desktop application, server, browser application, command line | Built and tested; the tests run on Linux, Windows and macOS for every release |
+| Installers | Published on the GitHub releases page for Linux (AppImage, `.run`, `.deb`, `.tar.gz`; Ubuntu, Debian, Fedora, Arch and others), Windows and macOS. Unsigned; Windows and macOS built and smoke-tested by the release workflow |
 | Identity: passphrase, lock-out, second factor, step-up for decisions | Built and tested |
 | Accuracy on real matters | **Not measured.** Only a synthetic matter has been evaluated |
-| Live legal database connector | **None.** One connector reads a corpus you load yourself |
+| Live legal database connectors | The EU's Publications Office (CELLAR, EUR-Lex) and the UK's legislation.gov.uk and Find Case Law, once their licences are read and they are approved; other systems use a corpus you load. **No case-law citator** |
 | Jurisdiction packs validated by a qualified lawyer | **None** |
 | Conformity assessment under the EU AI Act | **Not done** |
-| Encryption at rest, optical character recognition | **Not included** |
-| A licence for the software | **Not yet chosen** |
+| Encryption at rest | Included: the databases (SQLCipher) and every case file (AES-256-GCM); the keys are on the same machine |
+| Optical character recognition | Included, where Tesseract (and Poppler for PDF pages) is installed |
+| A licence for the software | Proprietary: the ELI End User Licence Agreement and the ELI Legal Product Schedule, in `LICENSE` |
 
 See [Roadmap](04_roadmap.md) for what remains and [Legal overview](../5_legal_and_compliance/01_legal_overview.md)
 for what must be settled before use on a real matter.

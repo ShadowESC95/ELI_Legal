@@ -151,6 +151,10 @@ class Document:
     waived_by: str | None = None
     waiver_reason: str = ""
     ingested_at: datetime = field(default_factory=utcnow)
+    # What a person typed from the original where it could not be read (a photograph, a damaged
+    # scan): who, and why; the words are passages marked as theirs.
+    described_by: str | None = None
+    description_reason: str = ""
 
 
 @dataclass(slots=True)

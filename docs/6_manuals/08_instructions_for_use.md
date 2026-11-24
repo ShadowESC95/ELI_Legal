@@ -35,8 +35,9 @@ human reviewer; unattended use.
 ## What the organisation must do
 
 Name reviewers who are qualified and have time to review; approve sources and record their terms;
-have each jurisdiction pack validated; set retention periods; keep the audit key and off-machine
-checkpoints; watch `eli-legal monitor`; assess changes before use; train users; complete the
+have each jurisdiction pack validated; set retention periods for each kind of record; keep the
+audit key, the databases' key and off-machine checkpoints apart from the data; run the server on
+the machine that holds the cases, from the installed program; watch `eli-legal monitor`; assess changes before use; train users; complete the
 classification, impact and data-protection assessments that apply to it.
 
 ## Signing in

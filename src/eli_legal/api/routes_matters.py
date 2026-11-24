@@ -2,6 +2,7 @@
 
 # No "from __future__ import annotations": see routes_auth.
 import contextvars
+import platform
 import re
 from typing import Annotated, Any
 
@@ -50,13 +51,40 @@ def register(app: FastAPI, sv: Services, cfg: ServerConfig, access: Access) -> N
     Actor = Annotated[str, Depends(access.user)]
     js = codec.to_jsonable
 
+    @app.get("/v1/changes")
+    def changes(actor: Actor, since: int = 0) -> dict[str, Any]:
+        """Which of the cases this person may see someone else has acted on since event
+        ``since``, and the latest event's number: how every open page stays current with the
+        desktop and with every other browser. Nothing of another case is named."""
+        head = sv.ctx.audit.head()
+        if since <= 0 or since >= head:
+            return {"head": head, "matters": []}
+        visible = {m.matter_id for m in sv.matters.list_for(actor)}
+        visible |= {str(c["matter_id"]) for c in sv.parties.cases(actor)}
+        changed = {
+            str(e.get("matter_id"))
+            for e in sv.ctx.audit.since(since)
+            if e.get("matter_id") in visible and e.get("actor_id") != actor
+        }
+        return {"head": head, "matters": sorted(changed)}
+
     @app.get("/v1/system")
     def system(actor: Actor) -> dict[str, Any]:
         """What this installation is, for the screens that need to offer choices."""
         chain = sv.ctx.audit.report()
         packs = [sv.ctx.jurisdictions.get(code) for code in sv.ctx.jurisdictions.codes()]
+        from eli_legal.paths import installation
+
+        where = installation()
+        may_see_folder = sv.ctx.authorizer().bindings.can(actor, "config.manage")
         return {
             "version": __version__,
+            # Which installation this server is, so nobody mistakes it for another one.
+            "installation": {
+                "kind": where["kind"],
+                "host": platform.node(),
+                "folder": where["folder"] if may_see_folder else "",
+            },
             "model": _public(sv.config.current()),
             "network_default": sv.ctx.settings.network_default,
             "network": sv.network.status(),
