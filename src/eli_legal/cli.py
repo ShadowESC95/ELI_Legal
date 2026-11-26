@@ -1467,16 +1467,61 @@ def cmd_licence(args: argparse.Namespace) -> int:
             else "no ELI Legal key here"
         )
         return 0
-    got = licensing.status()
+    if args.licence_cmd == "buy":
+        return _buy_licence(args)
+    st = licensing.standing()
     _out(
         {
-            "licensed": got.granted,
-            "reason": got.reason,
+            "licensed": st.granted,
+            "reason": st.reason,
+            "on_trial": st.on_trial,
+            "trial_days_left": st.days_left if st.on_trial else None,
+            "real_matters": st.real_matters,
+            "summary": st.describe(),
             "required": licensing.required(),
             "keys": str(licensing.store().directory),
+            "buy": licensing.BUY,
         }
     )
     return 0
+
+
+def _buy_licence(args: argparse.Namespace) -> int:
+    """Open the store with a claim, then wait for the key and activate it here."""
+    import time
+    import webbrowser
+
+    from eli_sdk import store as eli_store
+
+    from eli_legal import licensing
+
+    claim = eli_store.new_claim()
+    url = licensing.buy_link(claim, offering=args.offering)
+    print(f"Buy here (it opens in your browser): {url}")
+    webbrowser.open(url)
+    print(
+        "Complete the payment in your browser. Your key is emailed to you; if the store can tell "
+        "this program, it is activated here as well. Ctrl+C stops waiting."
+    )
+    deadline = time.monotonic() + max(10, int(args.wait))
+    while time.monotonic() < deadline:
+        try:
+            done = licensing.collect(claim)
+        except eli_store.StoreError:
+            print(
+                "The store cannot hand the key to this program. When the email arrives: "
+                "eli-legal licence activate YOUR-KEY"
+            )
+            return 1
+        if done:
+            for lic in done:
+                print(
+                    f"activated: {lic.label} {lic.major_version}.x, {lic.tier}, {lic.seats} seat(s)"
+                )
+            return 0
+        time.sleep(5)
+    print("No payment seen yet. When the email arrives: eli-legal licence activate YOUR-KEY")
+    return 1
 
 
 def cmd_framework(args: argparse.Namespace) -> int:
@@ -2210,6 +2255,11 @@ def build_parser() -> argparse.ArgumentParser:
         "key", help="an ELI Legal key, or an ELI v3 key that includes it"
     )
     s.add_parser("remove")
+    b = s.add_parser(
+        "buy", help="open the store; the key is emailed (and activated here where it can be)"
+    )
+    b.add_argument("--offering", help="one offering (legal-personal, legal-pro…); default: choose")
+    b.add_argument("--wait", type=int, default=1800, help="seconds to wait for the payment")
 
     p = add("model", cmd_model, "show, find or choose the model")
     s = p.add_subparsers(dest="model_cmd", required=True)

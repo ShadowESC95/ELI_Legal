@@ -94,6 +94,10 @@ def why_not(ctx: AppContext, matter: Matter, *, reviewer_id: str = "",
     """What stops work on this real matter now, in words; empty when it may go ahead."""
     if not matter.real:
         return []
+    from eli_legal import licensing
+
+    if not licensing.covers_real_matters():  # a trial covers practice matters only
+        return [licensing.real_matter_refusal()]
     today = utcnow().date()
     approved = [
         a for a in ctx.store.list_registry(KIND, DeploymentAuthorisation) if _in_force(a, today)

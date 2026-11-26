@@ -448,6 +448,11 @@ class MatterService:
         spec = profile_spec(profile)
         authz = self.ctx.authorizer()
         authz.require_global(actor_id, "matter.create")
+        if real:
+            from eli_legal import licensing
+
+            if not licensing.covers_real_matters():
+                raise PolicyDenied(licensing.real_matter_refusal())
         if not authz.bindings.can(actor_id, "matter.create", roles=spec.roles | OVERSIGHT_ROLES):
             raise PolicyDenied(
                 f"none of {actor_id!r}'s roles may open a matter under the {profile.value} profile"

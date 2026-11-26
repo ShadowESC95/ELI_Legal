@@ -33,9 +33,15 @@ download against `SHA256SUMS` before running it:
 | macOS | `shasum -a 256 -c SHA256SUMS --ignore-missing`, or `shasum -a 256 <file>` and compare |
 | Windows (PowerShell) | `Get-FileHash .\ELI_Legal-0.8.19-windows-x64-setup.exe -Algorithm SHA256`, and compare with its line in `SHA256SUMS` |
 
-**A licence key.** An installed copy asks for one the first time it starts: paste an ELI Legal key,
-or an ELI v3 key that includes ELI Legal. A key activated in ELI v3 counts here too. From the
-command line: `eli-legal licence activate <key>`, and `eli-legal licence` shows the state.
+**A licence, or the seven-day trial.** An installed copy runs for seven days from its first use
+without a key. The trial covers **practice matters only**: opening a real matter needs a paid
+licence (and, as always, a signed deployment authorisation). A key can be entered at any time,
+during the trial or after it: **Help → Licence…** in the desktop application (**Buy a
+licence…** opens the store; **Enter a key…** takes an ELI Legal key, or an ELI v3 key that
+includes ELI Legal), or from the command line `eli-legal licence activate <key>`;
+`eli-legal licence buy` opens the store and waits for the key; `eli-legal licence` shows the
+state, including the days left. A key activated in ELI v3 counts here too. Deleting the trial's
+record, moving the data folder or setting the clock back does not start a new trial.
 
 ## Windows
 
@@ -213,7 +219,7 @@ powershell -ExecutionPolicy Bypass -File install.ps1      # Windows
 This makes a private Python environment and launchers. `./install.sh --no-gui` installs the
 command line and server only. `--uninstall` removes it and keeps your data.
 
-ELI Legal needs eli-sdk 1.1.0, which is not published. A licensee installing from source gets
+ELI Legal needs eli-sdk 1.2.1, which is not published. A licensee installing from source gets
 its wheel with their licence and points pip at its folder first:
 `PIP_FIND_LINKS=/path/to/folder ./install.sh` (on Windows, set `$env:PIP_FIND_LINKS` before
 running `install.ps1`). The ready-made installers above include it, and SQLCipher, which encrypts

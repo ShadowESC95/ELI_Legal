@@ -21,9 +21,9 @@ import urllib.request
 from pathlib import Path
 
 REPO = "ShadowESC95/eli-sdk"
-TAG = "v1.1.0"
-WHEEL = "eli_sdk-1.1.0-py3-none-any.whl"
-SHA256 = "0a4a8e7edfba62860e58a5ea4201d261b6f1faaf28d230312ba6677c442a5a0d"
+TAG = "v1.2.1"
+WHEEL = "eli_sdk-1.2.1-py3-none-any.whl"
+SHA256 = "3efe5cf3e2b7e8850a203899968e96760e129ea9fc2dc00c9945138d119180f3"
 API = "https://api.github.com"
 
 

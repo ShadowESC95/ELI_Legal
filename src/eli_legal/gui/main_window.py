@@ -221,6 +221,11 @@ class MainWindow(QMainWindow):
         self.usage = QLabel("")
         self.usage.setProperty("class", "muted")
         self.statusBar().addPermanentWidget(self.usage)
+        # On a trial: how long is left, and that it covers practice matters only (Help → Licence…).
+        self.licence_state = QLabel("")
+        self.licence_state.setProperty("class", "muted")
+        self.statusBar().addPermanentWidget(self.licence_state)
+        self._show_licence()
         self._meter = UsageMeter()
         self._reader = _UsageReader(self)
         self._reader.ready.connect(self._show_usage)
@@ -460,6 +465,7 @@ class MainWindow(QMainWindow):
             "What this system does and does not do",
             lambda: QMessageBox.information(self, "Boundaries", BOUNDARIES),
         )
+        add(help_menu, "Licence…", self.licence)
         add(
             help_menu,
             "About",
@@ -469,6 +475,25 @@ class MainWindow(QMainWindow):
                 f"<h2>ELI Legal {__version__}</h2><p>Governed legal case preparation.</p><p>Decision support only: it renders no verdict and gives no legal advice.</p>",
             ),
         )
+
+    def licence(self) -> None:
+        """Where the licence stands; buy one or enter a key."""
+        from eli_legal.gui.licence_dialog import LicenceDialog
+
+        ctx = self.session.sv.ctx
+        LicenceDialog(self, network=ctx.guard, offline=ctx.settings.hard_offline).exec()
+        self._show_licence()
+
+    def _show_licence(self) -> None:
+        from eli_legal import licensing
+
+        st = licensing.standing()
+        self.licence_state.setText(
+            f"Trial: {st.days_left} day{'s' if st.days_left != 1 else ''} left, practice only"
+            if st.on_trial
+            else ""
+        )
+        self.licence_state.setVisible(st.on_trial)
 
     def page(self, kind: type) -> Tab:
         return next(p for p in self.pages if isinstance(p, kind))

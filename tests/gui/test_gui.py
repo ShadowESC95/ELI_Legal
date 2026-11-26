@@ -1295,3 +1295,64 @@ def test_a_report_you_cannot_decide_says_who_can_and_offers_the_way_to_them(desk
     assert "Nobody can decide it yet" in review.who_text.text() and review.switch_person.isHidden()
     review._show_who(None)
     assert review.who_card.isHidden()
+
+
+def test_the_licence_window_takes_a_key_or_activates_a_purchase_by_itself(qt, monkeypatch):
+    """Help → Licence…: a key entered, or a purchase in the browser that activates itself here;
+    with hard offline on, nothing is sent. On a trial the window and the status bar say so."""
+    import time
+    from contextlib import contextmanager
+
+    from PySide6.QtWidgets import QInputDialog
+
+    from eli_legal import licensing
+    from eli_legal.gui import licence_dialog
+    from eli_legal.gui.licence_dialog import LicenceDialog
+    from tests.unit.test_licensing import _Issuer
+
+    issuer = _Issuer()
+    monkeypatch.setattr(licensing, "_public_key", issuer.public)
+    monkeypatch.setattr(licensing, "_hosted", False)
+    monkeypatch.setenv("ELI_LEGAL_REQUIRE_LICENCE", "1")
+    monkeypatch.setattr(licensing, "_used_before", lambda: True)  # no trial left here
+
+    blocking = LicenceDialog(None, blocking=True)
+    assert "not licensed" in blocking.state.text() and blocking.close_button.text() == "Quit"
+    monkeypatch.setattr(
+        QInputDialog, "getMultiLineText", lambda *a, **k: (issuer.key(product="legal"), True)
+    )
+    blocking._enter()
+    assert blocking.licensed and licensing.standing().real_matters
+    licensing.remove()
+
+    opened: list[str] = []
+    monkeypatch.setattr(
+        licence_dialog.QDesktopServices, "openUrl", lambda url: opened.append(url.toString())
+    )
+    let_through: list[str] = []
+
+    class Guard:
+        @contextmanager
+        def allow(self, *, host, reason):
+            let_through.append(host)
+            yield
+
+    bought = issuer.key(product="legal", license_id="bought")
+    monkeypatch.setattr(
+        licensing, "collect", lambda claim: [licensing.store().add(bought, issuer.public)]
+    )
+    window = LicenceDialog(None, network=Guard())
+    window._buy()
+    assert opened and "claim=" in opened[0] and not window.buy.isEnabled()
+    window._poll()
+    deadline = time.monotonic() + 5
+    while window._busy and time.monotonic() < deadline:
+        qt.processEvents()
+        time.sleep(0.01)
+    qt.processEvents()
+    assert "Activated" in window.waiting.text() and window.licensed
+    assert let_through == ["licences.geteli.tech"], "the store let through for that request alone"
+    licensing.remove()
+
+    offline = LicenceDialog(None, offline=True)
+    assert not offline.buy.isEnabled() and "Hard offline is on" in offline.state.text()

@@ -84,6 +84,17 @@ def _no_ambient_settings(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Ite
         monkeypatch.setenv(name, str(tmp_path / "home" / "data"))
     for name in ("ELI_MODELS_DIR", "ELI_V3_ROOT"):
         monkeypatch.delenv(name, raising=False)
+    # The trial's record and the data that shows earlier use are the test's own folders, never
+    # this account's (eli_sdk finds those from the account itself, whatever HOME says).
+    from eli_legal import licensing
+
+    monkeypatch.setattr(
+        licensing, "_trial_locations", [tmp_path / "trial" / "a", tmp_path / "trial" / "b"]
+    )
+    monkeypatch.setattr(
+        licensing, "_default_data_folders", lambda: [tmp_path / "home" / "data" / "eli-legal"]
+    )
+    monkeypatch.setenv("ELI_KEYS_DIR", str(tmp_path / "keys"))
     monkeypatch.setattr(hardware, "detect", lambda force=False: replace(NO_CARD))
     monkeypatch.setattr(hardware, "vram_holders", lambda: [])
     # Tests call the services directly as several people. The harness vouches for each name
