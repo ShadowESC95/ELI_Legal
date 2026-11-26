@@ -40,7 +40,7 @@ when it closes; starting and stopping are both in the audit trail. Nobody else c
 
 **From the command line**, with the installed program (on Windows from *ELI Legal command line*;
 on macOS `"/Applications/ELI Legal.app/Contents/MacOS/eli-legal" serve`; with the AppImage
-`./ELI_Legal-0.8.18-linux-x86_64.AppImage serve`; see [Using the command line](14_command_line_guide.md)):
+`./ELI_Legal-0.8.19-linux-x86_64.AppImage serve`; see [Using the command line](14_command_line_guide.md)):
 
 | Situation | Command | Then open |
 |---|---|---|
