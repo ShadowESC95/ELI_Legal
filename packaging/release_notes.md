@@ -8,6 +8,7 @@ Governed legal case preparation: it takes the papers in a dispute, establishes w
 - **Licence window.** **Help → Licence…** shows where the licence stands (the trial's days left, the licence's tier and seats) with **Buy a licence…**, which opens the store (the key is emailed when payment completes, and is activated here by itself where the store can tell this program), and **Enter a key…**, at any time during the trial or after it. The status bar shows the days left. From the command line: `eli-legal licence buy` and `eli-legal licence` (status). With hard offline on, nothing is sent.
 - **Keys from the licence store, and withdrawn keys.** ELI Legal reads keys signed by the store's certified issuer, keys bound to one machine, and ELI's signed revocation lists (a refunded or leaked key stops working), with eli-sdk 1.2. An ELI v3 key that includes a bundle released later still opens ELI Legal.
 - Your personal email address is no longer shown in the licence prompt.
+- **From 0.8.19, which was not published: one status for a practice review, everywhere.** On a practice matter the approved report's summary box said "Status: Approved for reliance" under a banner saying "Practice review complete — not for reliance". It now says what the banner says, and an approved practice run is shown as **Practice review complete** on every screen, in its step record and in the demonstration; the case details say whether the case is a practice or a real matter. Decision D-32, control RM-01.10.
 
 ## Still to know
 

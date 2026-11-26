@@ -2,7 +2,7 @@
 
 How to download ELI Legal, check it, install it and start it on Windows, macOS and Linux
 (Ubuntu, Debian, Fedora, Arch and others), where it keeps your data, and how to upgrade and
-remove it. The examples use version 0.8.19; use the version you downloaded.
+remove it. The examples use version 0.8.20; use the version you downloaded.
 
 ## Which file
 
@@ -10,18 +10,18 @@ All files are on the [latest release](https://github.com/ShadowESC95/ELI_Legal/r
 
 | Your system | File | Built and tested |
 |---|---|---|
-| Windows 10 or 11 (64-bit) | `ELI_Legal-0.8.19-windows-x64-setup.exe` | By the release workflow (install, start, uninstall); the tests run on Windows for every release |
-| macOS, Apple silicon | `ELI_Legal-0.8.19-macos-arm64.dmg` | By the release workflow; the tests run on macOS for every release |
-| macOS, Intel | `ELI_Legal-0.8.19-macos-x86_64.dmg` | As above |
-| Ubuntu, Debian | `eli-legal_0.8.19_amd64.deb` | Built and tested |
-| Any Linux (x86-64), nothing installed | `ELI_Legal-0.8.19-linux-x86_64.AppImage`: one file, run it | Built and tested |
-| Any Linux (x86-64), installed for you | `ELI_Legal-0.8.19-linux-x86_64.run` | Built and tested |
-| Any Linux (x86-64), unpack and run | `ELI_Legal-0.8.19-linux-x86_64.tar.gz` | Built and tested |
+| Windows 10 or 11 (64-bit) | `ELI_Legal-0.8.20-windows-x64-setup.exe` | By the release workflow (install, start, uninstall); the tests run on Windows for every release |
+| macOS, Apple silicon | `ELI_Legal-0.8.20-macos-arm64.dmg` | By the release workflow; the tests run on macOS for every release |
+| macOS, Intel | `ELI_Legal-0.8.20-macos-x86_64.dmg` | As above |
+| Ubuntu, Debian | `eli-legal_0.8.20_amd64.deb` | Built and tested |
+| Any Linux (x86-64), nothing installed | `ELI_Legal-0.8.20-linux-x86_64.AppImage`: one file, run it | Built and tested |
+| Any Linux (x86-64), installed for you | `ELI_Legal-0.8.20-linux-x86_64.run` | Built and tested |
+| Any Linux (x86-64), unpack and run | `ELI_Legal-0.8.20-linux-x86_64.tar.gz` | Built and tested |
 | Anything with Python 3.10 or newer | `install.sh` or `install.ps1` from the source tree | Run on Linux, macOS and Windows by the tests on every change |
 
 Every file includes the desktop application, the server with its browser application, and the
 command line; Python and the graphical toolkit are inside. `SHA256SUMS` lists every file's
-fingerprint and `ELI_Legal-0.8.19-sbom.cdx.json` is the bill of materials (what the build
+fingerprint and `ELI_Legal-0.8.20-sbom.cdx.json` is the bill of materials (what the build
 contains).
 
 **The builds are not signed.** Windows SmartScreen and macOS Gatekeeper will warn. Check a
@@ -31,7 +31,7 @@ download against `SHA256SUMS` before running it:
 |---|---|
 | Linux | `sha256sum -c SHA256SUMS --ignore-missing` (in the folder holding both) |
 | macOS | `shasum -a 256 -c SHA256SUMS --ignore-missing`, or `shasum -a 256 <file>` and compare |
-| Windows (PowerShell) | `Get-FileHash .\ELI_Legal-0.8.19-windows-x64-setup.exe -Algorithm SHA256`, and compare with its line in `SHA256SUMS` |
+| Windows (PowerShell) | `Get-FileHash .\ELI_Legal-0.8.20-windows-x64-setup.exe -Algorithm SHA256`, and compare with its line in `SHA256SUMS` |
 
 **A licence, or the seven-day trial.** An installed copy runs for seven days from its first use
 without a key. The trial covers **practice matters only**: opening a real matter needs a paid
@@ -45,7 +45,7 @@ record, moving the data folder or setting the clock back does not start a new tr
 
 ## Windows
 
-1. Run `ELI_Legal-0.8.19-windows-x64-setup.exe`. If SmartScreen stops it, choose **More info**,
+1. Run `ELI_Legal-0.8.20-windows-x64-setup.exe`. If SmartScreen stops it, choose **More info**,
    then **Run anyway** (after checking the fingerprint).
 2. It installs for you, with no administrator rights. Tick *Add the eli-legal command to PATH* if
    you want to type `eli-legal` in any terminal.
@@ -80,7 +80,7 @@ on an older system a model runs on the processor.
 ### Ubuntu and Debian: the package
 
 ```
-sudo apt install ./eli-legal_0.8.19_amd64.deb
+sudo apt install ./eli-legal_0.8.20_amd64.deb
 ```
 
 It installs the program to `/opt/eli-legal/app`, the commands `eli-legal` and `eli-legal-gui` to
@@ -90,8 +90,8 @@ application needs. Remove it with `sudo apt remove eli-legal`. Your data is kept
 ### Any Linux: the installer
 
 ```
-sh ELI_Legal-0.8.19-linux-x86_64.run --verify     # check the file is intact; installs nothing
-sh ELI_Legal-0.8.19-linux-x86_64.run              # install for you
+sh ELI_Legal-0.8.20-linux-x86_64.run --verify     # check the file is intact; installs nothing
+sh ELI_Legal-0.8.20-linux-x86_64.run              # install for you
 ```
 
 It installs the program to `~/.local/opt/eli-legal`, adds the commands `eli-legal` and
@@ -113,10 +113,10 @@ administrator rights. If `~/.local/bin` is not on your `PATH`, it tells you: add
 One file. Nothing is installed.
 
 ```
-chmod +x ELI_Legal-0.8.19-linux-x86_64.AppImage
-./ELI_Legal-0.8.19-linux-x86_64.AppImage                 # the desktop application
-./ELI_Legal-0.8.19-linux-x86_64.AppImage serve           # the server
-./ELI_Legal-0.8.19-linux-x86_64.AppImage doctor          # any command-line command
+chmod +x ELI_Legal-0.8.20-linux-x86_64.AppImage
+./ELI_Legal-0.8.20-linux-x86_64.AppImage                 # the desktop application
+./ELI_Legal-0.8.20-linux-x86_64.AppImage serve           # the server
+./ELI_Legal-0.8.20-linux-x86_64.AppImage doctor          # any command-line command
 ```
 
 With no arguments it opens the desktop application; with arguments it is the command line and
@@ -131,7 +131,7 @@ adding `--appimage-extract-and-run` as the first argument.
 ### Any Linux: the archive
 
 ```
-tar -xzf ELI_Legal-0.8.19-linux-x86_64.tar.gz
+tar -xzf ELI_Legal-0.8.20-linux-x86_64.tar.gz
 ./eli-legal/eli-legal-gui                # the desktop application
 ./eli-legal/eli-legal <command>          # the command line and the server
 ```
@@ -150,11 +150,11 @@ There is no Arch package; the AppImage, the `.run` installer and the archive all
 
 ```
 sudo pacman -S --needed fuse2                       # for the AppImage
-chmod +x ELI_Legal-0.8.19-linux-x86_64.AppImage
-./ELI_Legal-0.8.19-linux-x86_64.AppImage            # the desktop application
+chmod +x ELI_Legal-0.8.20-linux-x86_64.AppImage
+./ELI_Legal-0.8.20-linux-x86_64.AppImage            # the desktop application
 ```
 
-or `sh ELI_Legal-0.8.19-linux-x86_64.run` to install it with `eli-legal` and `eli-legal-gui` in
+or `sh ELI_Legal-0.8.20-linux-x86_64.run` to install it with `eli-legal` and `eli-legal-gui` in
 `~/.local/bin` and a menu entry. On a minimal system the desktop application needs
 `sudo pacman -S --needed libglvnd libxkbcommon fontconfig dbus xcb-util-cursor`. The `.deb` is for
 Debian and Ubuntu only.
@@ -197,11 +197,11 @@ how you installed ELI Legal:
 | macOS `.dmg` | Applications → Utilities → **Terminal** | `"/Applications/ELI Legal.app/Contents/MacOS/eli-legal" --help` |
 | `.deb` (Ubuntu, Debian) | your desktop's **Terminal** (Ctrl+Alt+T on Ubuntu) | `eli-legal --help` |
 | `.run` installer (any Linux) | Terminal | `eli-legal --help` (in `~/.local/bin`) |
-| AppImage (any Linux, Arch) | Terminal, in the folder holding the file | `./ELI_Legal-0.8.19-linux-x86_64.AppImage --help` |
+| AppImage (any Linux, Arch) | Terminal, in the folder holding the file | `./ELI_Legal-0.8.20-linux-x86_64.AppImage --help` |
 | Archive (`.tar.gz`) | Terminal, in the folder you unpacked it in | `./eli-legal/eli-legal --help` |
 
 To type less on macOS, add `alias eli-legal='"/Applications/ELI Legal.app/Contents/MacOS/eli-legal"'`
-to `~/.zshrc`; with the AppImage, `alias eli-legal="$HOME/Downloads/ELI_Legal-0.8.19-linux-x86_64.AppImage"`
+to `~/.zshrc`; with the AppImage, `alias eli-legal="$HOME/Downloads/ELI_Legal-0.8.20-linux-x86_64.AppImage"`
 to `~/.bashrc`. Every installed form uses your installed data folder, so the command line, the
 desktop application and the server all see the same cases.
 

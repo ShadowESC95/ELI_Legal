@@ -17,7 +17,7 @@ installing it, and the commands most people need. Every command and option is li
 | macOS `.dmg` | Applications → Utilities → **Terminal** | `"/Applications/ELI Legal.app/Contents/MacOS/eli-legal"` |
 | Ubuntu or Debian `.deb` | **Terminal** (Ctrl+Alt+T on Ubuntu) | `eli-legal` |
 | Linux `.run` installer | Terminal | `eli-legal` (in `~/.local/bin`) |
-| Linux AppImage (also Arch) | Terminal, then `cd` to the folder holding the file | `./ELI_Legal-0.8.19-linux-x86_64.AppImage` |
+| Linux AppImage (also Arch) | Terminal, then `cd` to the folder holding the file | `./ELI_Legal-0.8.20-linux-x86_64.AppImage` |
 | Linux archive (`.tar.gz`) | Terminal, in the folder you unpacked | `./eli-legal/eli-legal` |
 
 In the rest of this guide the program is written `eli-legal`. On macOS, or with the AppImage, type
@@ -28,7 +28,7 @@ the name from the table instead, or make a short name for it once:
 alias eli-legal='"/Applications/ELI Legal.app/Contents/MacOS/eli-legal"'
 
 # AppImage (bash): add to ~/.bashrc, then open a new terminal
-alias eli-legal="$HOME/Downloads/ELI_Legal-0.8.19-linux-x86_64.AppImage"
+alias eli-legal="$HOME/Downloads/ELI_Legal-0.8.20-linux-x86_64.AppImage"
 ```
 
 `eli-legal` typed in a developer's source checkout (with its `.venv` active) is a different
