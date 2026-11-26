@@ -39,6 +39,10 @@
   const say = (code) => (S.w && S.w.states[code]) || words(code).replace(/^./, (c) => c.toUpperCase());
   const toneOf = (code) => (S.w && S.w.tones[code]) || '';
   const tag = (code) => h('span', { class: toneOf(code) || null }, say(code));
+  // A run's state on the open matter: on a practice matter an approved run is a practice review,
+  // never "approved for reliance" (the same single status as its report's banner).
+  const runCode = (code) => { const c = String(code ?? '').toLowerCase(); return c === 'approved_for_reliance' && S.matter && !S.matter.real ? 'practice_review_complete' : c; };
+  const runSay = (code) => say(runCode(code));
   const checkName = (code) => (S.w && S.w.checks[code] ? S.w.checks[code].name : words(code));
   const holdWhy = (code) => (S.w && S.w.holds[code] ? S.w.holds[code].headline : words(code));
   const roleName = (code) => (S.w && S.w.roles[code] ? S.w.roles[code].label : words(code));
@@ -397,7 +401,7 @@
   const needMatter = () => (S.matter ? null : card('No matter is open', h('p', { class: 'muted' }, 'Open one in the Matter tab first.')));
   const needRun = () => needMatter() || (S.run ? null : card('No run yet', h('p', { class: 'muted' }, 'Start one in the DAG tab once the documents are in.')));
   const runPicker = () => h('select', { 'aria-label': 'Run', onchange: (e) => attempt(() => openRun(e.target.value)) },
-    S.runs.map((r) => h('option', { value: r.run_id, selected: S.run && r.run_id === S.run.run_id }, `${when(r.created_at)}  ·  ${say(r.status)}  ·  ${r.run_id.slice(-8)}`)));
+    S.runs.map((r) => h('option', { value: r.run_id, selected: S.run && r.run_id === S.run.run_id }, `${when(r.created_at)}  ·  ${runSay(r.status)}  ·  ${r.run_id.slice(-8)}`)));
 
   // ── Home ───────────────────────────────────────────────────────────────────
   const PAGE_TAB = { matter: 'matter', evidence: 'evidence', workflow: 'dag', review: 'review', findings: 'findings', governance: 'governance', settings: 'settings', laws: 'laws' };
@@ -565,7 +569,7 @@
       const v = await ask(title, [{ name: 'ids', label, type: 'select', multiple: true, options, value: current }], 'Set', intro);
       if (v && await attempt(() => api('PUT', `${M()}/${path}`, { ids: v.ids }), 'Recorded.')) again();
     };
-    const right = card(m.name, facts([['State', say(m.status)], ['For', profile ? profile.label : words(m.profile)], ['Legal system', m.jurisdiction], ['Forum', m.forum || '—'],
+    const right = card(m.name, facts([['State', say(m.status)], ['Kind', (S.w && S.w.matter_kinds && S.w.matter_kinds[m.real ? 'real' : 'practice']) || (m.real ? 'Real matter' : 'Practice matter: nothing in it is for reliance')], ['For', profile ? profile.label : words(m.profile)], ['Legal system', m.jurisdiction], ['Forum', m.forum || '—'],
       ['Rules', m.procedural_rules || '—'], ['Relevant date', m.relevant_date || 'not set'], ['Purpose', m.purpose]]),
       h('h3', null, 'Parties'), list(m.parties.map((p) => `${p.name} — ${p.role}`)),
       h('h3', null, 'Issues stated at intake'), list(m.stated_issues),
@@ -830,7 +834,7 @@
         : done && done.status === 'ok' ? `Done. ${done.detail || ''}`
           : isReview && st === 'awaiting_human_review' ? `Waiting for a named reviewer (${S.matter.reviewer_user_ids.join(', ')}) to read the report, acknowledge each stated limit, and approve, return or reject it. Anyone working on the matter can put it on hold first.`
             : !isReview && st === 'approved_for_reliance' ? 'Waiting for a person to prepare the release, confirm each recipient and stage it in the outbox. The approved report can still be put on hold, which suspends reliance on it.'
-              : `Not reached yet: the run is ${say(st).toLowerCase()}.`;
+              : `Not reached yet: the run is ${runSay(st).toLowerCase()}.`;
       detail.append(card('What this step needs', h('p', null, said), h('div', { class: 'row' },
         isReview ? btn('Open the decision…', () => { S.tab = 'review'; render(); }, st === 'awaiting_human_review' && !held ? 'go' : null)
           : btn('Open the release…', () => { S.tab = 'review'; render(); }, st === 'approved_for_reliance' && !held ? 'go' : null),
@@ -852,7 +856,7 @@
     };
     if (busy()) S.poll = setInterval(async () => { try { await openRun(S.run.run_id); } catch { /* shown on the next action */ } }, 1500);
     const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
-    const state = S.run ? `${say(S.run.status)}${S.run.open_holds.length ? ` · ${plural(S.run.open_holds.length, 'hold', 'holds')} open` : ''}${S.run.open_tasks ? ` · ${plural(S.run.open_tasks, 'check', 'checks')} for a person` : ''}` : 'no run yet';
+    const state = S.run ? `${runSay(S.run.status)}${S.run.open_holds.length ? ` · ${plural(S.run.open_holds.length, 'hold', 'holds')} open` : ''}${S.run.open_tasks ? ` · ${plural(S.run.open_tasks, 'check', 'checks')} for a person` : ''}` : 'no run yet';
     return h('div', null, h('div', { class: 'row' }, h('span', { class: 'muted' }, 'Run'), S.runs.length ? runPicker() : null, h('span', { class: `chip ${busy() ? 'warn' : ''}` }, state), h('span', { class: 'spacer' }),
       btn('▶ Start a run', begin, 'go'), btn('↻ Restart…', restart), btn('■ Stop', stop, 'danger')),
     h('div', { class: 'cols' }, card('Case-preparation workflow', dag(statuses, step.id, pick),
@@ -937,13 +941,13 @@
           if (sent && sent !== true) fill(staged, list(sent.map((r) => `${r.recipient_id}: ${words(r.status)} ${r.detail || ''}`)), h('p', { class: 'muted' }, 'Staged in the outbox. Nothing has been sent anywhere.'));
         }, 'go')));
     };
-    return h('div', null, h('div', { class: 'row' }, h('span', { class: 'muted' }, 'Run'), runPicker(), h('span', { class: 'chip' }, say(S.run.status))),
+    return h('div', null, h('div', { class: 'row' }, h('span', { class: 'muted' }, 'Run'), runPicker(), h('span', { class: 'chip' }, runSay(S.run.status))),
       card(`Holds (${holds.length})`, h('p', { class: 'muted' }, 'A hold closes when its check passes, or when a named person decides, with reasons. Nothing reaches review while one is open. Each reason below says what it means and what you can do.'),
         holds.length ? h('ul', null, [...new Set(holds.map((x) => x.reason_code))].map((code) => h('li', null, h('b', null, `${holdWhy(code)}. `), S.w && S.w.holds[code] ? `${S.w.holds[code].why} ${S.w.holds[code].options.join(' ')}` : ''))) : null,
         table([['Held', (x) => (x.scope === 'claim' ? 'a finding' : `a ${words(x.scope)}`)], ['Why', (x) => h('span', { title: S.w && S.w.holds[x.reason_code] ? `${S.w.holds[x.reason_code].why} ${S.w.holds[x.reason_code].options.join(' ')}` : '' }, holdWhy(x.reason_code))], ['What the system found', (x) => x.detail], ['What', subject, 'wide'],
           ['The filing party answered', (x) => ((x.answers || []).length ? x.answers.map((a) => `${when(a.at)} ${a.by}: ${a.kind === 'refiled' ? 'filed a readable copy' : a.kind === 'withdraw' ? 'asks to withdraw it' : 'explains'}. ${a.reasons}`).join(' · ') : '')], ['', (x) => (x.reason_code === 'held_by_person' ? h('div', { class: 'row' }, btn('Lift the hold…', liftHold)) : h('div', { class: 'row' }, btn('Take out of reliance…', () => resolve(x, 'exclude'), 'danger'), btn('Accept the gap…', () => resolve(x, 'waive'))))]], holds, { empty: 'No open holds.' })),
       card(`Checks for you (${tasks.filter((t) => t.status === 'open').length})`, table([['Check', (t) => checkName(t.verification_type)], ['Question', 'question'], ['Finding', (t) => subject({ subject_id: t.claim_id }), 'wide'], ['', (t) => (t.status === 'open' ? btn('Answer…', () => answer(t)) : words(t.status))]], tasks, { empty: 'Nothing is waiting for a person.' })),
-      h('div', { class: 'cols' }, card('Report', report ? [facts([['Version', report.version], ['State', h('span', { class: report.release_status === 'approved_for_reliance' ? 'good' : 'warn' }, words(report.release_status))], ['SHA-256', h('span', { class: 'mono' }, report.sha256)]]),
+      h('div', { class: 'cols' }, card('Report', report ? [facts([['Version', report.version], ['State', h('span', { class: toneOf(runCode(report.release_status)) || 'warn' }, runSay(report.release_status))], ['SHA-256', h('span', { class: 'mono' }, report.sha256)]]),
         h('div', { class: 'row' }, btn('Download', () => attempt(() => download('GET', `${R()}/report.md`, `report_${S.run.run_id}.md`)))), h('div', { class: 'scroll' }, h('pre', null, report.text))] : h('p', { class: 'muted' }, 'No report has been drafted for this run yet.')),
       h('div', null, card('Decision', report ? [h('p', { class: 'muted' }, 'You approve this exact version, and only after acknowledging every limit it states.'), ticks.map(([, box, text]) => h('label', { class: 'check' }, box, text)), h('label', null, 'Reasons'), reasons,
         h('div', { class: 'row' }, btn('Approve for reliance', () => decide('approve'), 'go'), btn('Return for correction', () => decide('return_for_correction')), btn('Reject', () => decide('reject'), 'danger'), h('span', { class: 'spacer' }), btn('Put on hold…', holdRun), personHold() ? btn('Lift the hold…', liftHold) : null)] : h('p', { class: 'muted' }, 'There is nothing to decide yet.')),

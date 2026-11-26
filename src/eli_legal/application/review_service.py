@@ -193,7 +193,7 @@ class ReviewService:
                 if decision is ReviewDecision.REJECT
                 else RunStatus.RETURNED_FOR_CORRECTION
             )
-            return self._record(run, review, actor_id)
+            return self._record(run, review, actor_id, practice=not matter.real)
 
         if run.status is not RunStatus.AWAITING_HUMAN_REVIEW:
             raise VerificationGateFailed(
@@ -267,7 +267,9 @@ class ReviewService:
         approved.audit_head = report.audit_head
         ctx.store.put(approved)
         run.report_id = approved.report_id
-        return self._record(run, review, actor_id, approved_hash=approved.sha256)
+        return self._record(
+            run, review, actor_id, approved_hash=approved.sha256, practice=not matter.real
+        )
 
     def _deny(self, run: Run, actor_id: str, why: str) -> None:
         self.ctx.log(
@@ -284,14 +286,26 @@ class ReviewService:
         raise PolicyDenied(why)
 
     def _record(
-        self, run: Run, review: HumanReview, actor_id: str, approved_hash: str | None = None
+        self,
+        run: Run,
+        review: HumanReview,
+        actor_id: str,
+        approved_hash: str | None = None,
+        *,
+        practice: bool = False,
     ) -> HumanReview:
         ctx = self.ctx
         run.reviewer_user_id = actor_id
         ctx.store.put(review)
         ctx.store.put(run)
         outcome = {
-            ReviewDecision.APPROVE: (StepStatus.OK, "approved for reliance"),
+            # A practice matter is reviewed, never relied on: its step says so, like its report.
+            ReviewDecision.APPROVE: (
+                StepStatus.OK,
+                "practice review complete (not for reliance)"
+                if practice
+                else "approved for reliance",
+            ),
             ReviewDecision.REJECT: (StepStatus.FAILED, "rejected"),
             ReviewDecision.RETURN_FOR_CORRECTION: (StepStatus.HELD, "returned for correction"),
         }[review.decision]

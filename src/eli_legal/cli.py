@@ -955,8 +955,9 @@ def cmd_docs(args: argparse.Namespace) -> int:
 
 # ── runs, findings, holds, verification ──────────────────────────────────────
 def _print_summary(summary: dict[str, Any]) -> None:
+    real = bool(summary.get("real"))
     print(
-        f"run {summary['run_id']}: {plain.state(summary['status'])}  "
+        f"run {summary['run_id']}: {plain.run_state(summary['status'], real=real)}  "
         f"(started by {summary['started_by']})"
     )
     for step in summary["steps"]:
@@ -972,7 +973,7 @@ def _print_summary(summary: dict[str, Any]) -> None:
     if summary["report"]:
         r = summary["report"]
         print(
-            f"  report v{r['version']} {plain.state(r['release_status']).lower()}  "
+            f"  report v{r['version']} {plain.run_state(r['release_status'], real=real).lower()}  "
             f"sha256 {r['sha256']}\n    {r['path']}"
         )
 

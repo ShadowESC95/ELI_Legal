@@ -22,6 +22,8 @@ _STATES: dict[str, str] = {
     "stopped": "Stopped",
     "awaiting_human_review": "Waiting for review",
     "approved_for_reliance": "Approved for reliance",
+    # an approved run on a practice matter: reviewed, never relied on (see run_state)
+    "practice_review_complete": "Practice review complete",
     "rejected": "Rejected",
     "returned_for_correction": "Returned for correction",
     # releases
@@ -91,6 +93,31 @@ def state(value: object) -> str:
     return _STATES.get(text.lower(), text.replace("_", " ").capitalize())
 
 
+def run_code(value: object, *, real: bool) -> str:
+    """A run's (or its report's) state code as shown on its matter. On a practice matter an
+    approved run is a completed practice review, never "approved for reliance": one status,
+    the same as the report's banner, wherever it is shown."""
+    raw = str(getattr(value, "value", value) or "").lower()
+    return "practice_review_complete" if raw == "approved_for_reliance" and not real else raw
+
+
+def run_state(value: object, *, real: bool) -> str:
+    """:func:`state` for a run or report on its matter: "Practice review complete" on a
+    practice matter where a real one says "Approved for reliance"."""
+    return state(run_code(value, real=real))
+
+
+def matter_kind(real: bool) -> str:
+    """Whether a matter's work may be relied on, said the same way everywhere."""
+    return (
+        "Real matter: real case papers; a report may be relied on once a named reviewer "
+        "approves it, under a signed deployment authorisation"
+        if real
+        else "Practice matter (demonstration, training or testing): nothing in it is for "
+        "reliance, reviewed or not"
+    )
+
+
 # The tone a state is shown in: good, warn, bad, active or idle. One mapping for every front end.
 _TONES: dict[str, set[str]] = {
     "good": {
@@ -113,6 +140,7 @@ _TONES: dict[str, set[str]] = {
     "idle": {
         "pending", "skipped", "stopped", "excluded", "cancelled", "closed", "draft", "unknown",
         "organisational", "organisation", "inactive", "none", "not_applicable",
+        "practice_review_complete",
     },
 }  # fmt: skip
 TONE = {code: tone for tone, codes in _TONES.items() for code in codes}
@@ -628,6 +656,7 @@ def vocabulary() -> dict[str, object]:
     application), so it says things exactly as the others do."""
     return {
         "states": dict(_STATES),
+        "matter_kinds": {"real": matter_kind(True), "practice": matter_kind(False)},
         "tones": dict(TONE),
         "resolutions": dict(_RESOLUTIONS),
         "checks": {k: {"name": n, "meaning": m} for k, (n, m) in _CHECKS.items()},

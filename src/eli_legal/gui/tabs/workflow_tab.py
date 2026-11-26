@@ -264,9 +264,11 @@ class WorkflowTab(Tab):
         )
         self.runs.blockSignals(True)
         self.runs.clear()
+        real = self._real()
         for run in runs or []:
+            said = plain.run_state(run.status, real=real).lower()
             self.runs.addItem(
-                f"{run.created_at:%Y-%m-%d %H:%M}  ·  {run.status.value.replace('_', ' ')}  ·  {run.run_id[-8:]}",
+                f"{run.created_at:%Y-%m-%d %H:%M}  ·  {said}  ·  {run.run_id[-8:]}",
                 run.run_id,
             )
             if run.run_id == self.rid:
@@ -278,6 +280,10 @@ class WorkflowTab(Tab):
         self.restart.setEnabled(bool(self.rid) and not working)
         self.stop.setEnabled(bool(self.rid))
 
+    def _real(self) -> bool:
+        matter = self.session.matter
+        return bool(matter and matter.real)
+
     def _tick(self) -> None:
         steps = self._steps()
         self.dag.set_statuses({k: v.status.value for k, v in steps.items()})
@@ -286,7 +292,7 @@ class WorkflowTab(Tab):
             set_chip(self.state, "no run yet", theme.IDLE)
         else:
             holds = len(self.sv.ctx.holds.open_holds(self.mid, self.rid))
-            text = plain.state(run.status) + (
+            text = plain.run_state(run.status, real=self._real()) + (
                 f" · {plain.count(holds, 'hold')} open" if holds else ""
             )
             set_chip(self.state, text, theme.colour_for(run.status.value))
@@ -367,7 +373,9 @@ class WorkflowTab(Tab):
                 "papers. Lifting a hold does not move a returned report; a restart does."
             )
         else:
-            said = f"Not reached yet: the run is {plain.state(status).lower()}."
+            said = (
+                f"Not reached yet: the run is {plain.run_state(status, real=self._real()).lower()}."
+            )
         self.person_text.setText(said)
         reviewing = step_id == "human_review"
         self.to_decision.setVisible(reviewing)

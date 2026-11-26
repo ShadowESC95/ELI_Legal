@@ -688,13 +688,24 @@ class LegalReportBuilder:
         ]
         confirm = [w for w in warnings if w.startswith("framework_confirm:")]
         approved = bool(ctx.approved_by)
-        status = (
-            f"Approved for reliance by {ctx.approved_by}"
-            + (f" on {ctx.approved_at.date().isoformat()}" if ctx.approved_at else "")
-            + "."
-            if approved
-            else "Draft. Not to be relied on until a named reviewer approves it."
-        )
+        when = f" on {ctx.approved_at.date().isoformat()}" if ctx.approved_at else ""
+        # The same single status as the banner above: a practice matter is reviewed, never relied on.
+        practice = not ctx.matter.real
+        if practice:
+            status = (
+                f"Practice review complete: reviewed by {ctx.approved_by}{when}. Not for "
+                "reliance: a practice matter."
+                if approved
+                else "Practice matter, draft. Not for reliance, reviewed or not."
+            )
+            kept = "- **Passed its checks (practice, not for reliance):** "
+        else:
+            status = (
+                f"Approved for reliance by {ctx.approved_by}{when}."
+                if approved
+                else "Draft. Not to be relied on until a named reviewer approves it."
+            )
+            kept = "- **May be relied on" + ("" if approved else " once approved") + ":** "
         out = [
             "## At a glance",
             "",
@@ -702,11 +713,7 @@ class LegalReportBuilder:
             f"- **Status:** {status}",
             f"- **Documents:** {read} of {len(docs)} read"
             + (f"; {len(docs) - read} not read (see section 2)." if read < len(docs) else "."),
-            "- **May be relied on"
-            + ("" if approved else " once approved")
-            + ":** "
-            + (", ".join(parts) if parts else "nothing")
-            + " (sections 3 to 5).",
+            kept + (", ".join(parts) if parts else "nothing") + " (sections 3 to 5).",
             f"- **Not to be relied on:** {plain.count(len(not_relied), 'finding')}, each with "
             "the reason (section 6).",
         ]

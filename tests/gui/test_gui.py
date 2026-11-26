@@ -946,6 +946,26 @@ def test_a_matter_is_opened_as_practice_unless_real_is_chosen_and_deployment_is_
     governance.refresh()
     assert governance.deployments.rowCount() == 0
 
+    # The open case says which kind it is, and an approved run on a practice case is shown as
+    # a practice review, never "approved for reliance": one status, as on its report.
+    from eli_legal.domain.enums import RunStatus
+    from eli_legal.gui.tabs.matter_tab import MatterTab
+
+    a = desk()
+    page = a.page(MatterTab)
+    page.refresh()
+    assert "Practice matter" in page.summary.text()
+    flow = a.page(WorkflowTab)
+    flow._start()
+    a.settle()
+    run = a.session.run
+    run.status = RunStatus.APPROVED_FOR_RELIANCE
+    a.sv.ctx.store.put(run)
+    flow.refresh()
+    assert "Practice review complete" in flow.state.text()
+    assert "approved" not in flow.state.text().lower()
+    assert "practice review complete" in flow.runs.currentText()
+
 
 def test_a_judge_starts_the_server_from_the_application_and_closing_it_stops_it(desk):
     """Settings → System: an administrator or a judge starts the server for everyone on a case,

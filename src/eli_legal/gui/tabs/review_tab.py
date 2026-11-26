@@ -351,7 +351,9 @@ class ReviewTab(Tab):
             )
             text, withheld = shown if shown else ("_The report could not be read._", False)
             self.report.setMarkdown(text)
-            state = plain.state(report["release_status"]).lower()
+            state = plain.run_state(
+                report["release_status"], real=bool(summary.get("real"))
+            ).lower()
             st = self.session.attempt(
                 self,
                 lambda: self.sv.reliance.standing(self.mid, self.rid, actor_id=self.actor),
@@ -404,10 +406,14 @@ class ReviewTab(Tab):
             "held": "It is on hold. See what is holding it under Holds and checks, deal with "
             "each, then restart it; a hold a person placed is lifted with Lift the hold.",
             "stopped": "It was stopped. Restart it to carry on, or start a new run.",
-            "approved_for_reliance": "It is approved. Release is on the Release tab.",
+            "approved_for_reliance": "It is approved. Release is on the Release tab."
+            if summary.get("real")
+            else "Its practice review is complete: a practice matter is never for reliance. "
+            "Release is on the Release tab.",
         }.get(status, "It cannot be approved in this state.")
         self.decision_note.setText(
-            f"The run is <b style='color:{colour}'>{plain.state(status).lower()}</b>. {ready}"
+            f"The run is <b style='color:{colour}'>"
+            f"{plain.run_state(status, real=bool(summary.get('real'))).lower()}</b>. {ready}"
         )
         reviewing = status == "awaiting_human_review"
         # Who may decide, by the rules the decision applies: never a greyed-out dead end.

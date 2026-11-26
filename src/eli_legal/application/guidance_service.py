@@ -292,7 +292,11 @@ class GuidanceService:
         stages["analysis"] = (
             ("current", "the analysis is running.")
             if status in (RunStatus.RUNNING, RunStatus.CREATED)
-            else ("done", f"Run of {run.created_at:%d %b %Y}: {plain.state(status).lower()}.")
+            else (
+                "done",
+                f"Run of {run.created_at:%d %b %Y}: "
+                f"{plain.run_state(status, real=matter.real).lower()}.",
+            )
         )
         holds = ctx.holds.open_holds(mid, run.run_id)
         tasks = ctx.store.list(
@@ -375,7 +379,11 @@ class GuidanceService:
                 )
             )
             return plan
-        stages["review"] = ("done", "The report is approved for reliance.")
+        stages["review"] = (
+            ("done", "The report is approved for reliance.")
+            if matter.real
+            else ("done", "The practice review is complete; a practice matter is not for reliance.")
+        )
         packages = ctx.store.list(ReleasePackage, mid, run_id=run.run_id)
         sent = [p for p in packages if p.status == "delivery_attempted"]
         prepared = [p for p in packages if p.status in ("prepared", "approved_for_delivery")]

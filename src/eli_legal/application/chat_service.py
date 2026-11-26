@@ -164,7 +164,8 @@ class ChatService:
         if command == "/status":
             answer.notes.append(
                 f"The latest run ({plain.short_id(rid)}) is "
-                f"{plain.state(run.status).lower()}, with {plain.count(len(holds), 'hold')} open."
+                f"{plain.run_state(run.status, real=matter.real).lower()}, with "
+                f"{plain.count(len(holds), 'hold')} open."
             )
             claims = self.ctx.store.list(Claim, mid, run_id=rid)
             tally: dict[str, int] = {}

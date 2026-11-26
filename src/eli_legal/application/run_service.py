@@ -291,6 +291,8 @@ class RunService:
         return {
             "run_id": run.run_id,
             "status": run.status.value,
+            # a practice matter's approved run is shown as a practice review, never for reliance
+            "real": matter.real,
             "started_by": run.initiated_by,
             "models": run.model_versions,
             "steps": [

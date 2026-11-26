@@ -56,8 +56,51 @@ def test_each_person_step_is_recorded_when_a_person_does_it(lifecycle):
     steps = {s["step"]: s for s in summary["steps"]}
     for step in PERSON_STEPS:
         assert steps[step]["status"] == "ok", step
-    assert "approved for reliance by arb.keane" in steps["human_review"]["detail"]
+    # The demonstration is a practice matter: reviewed, never "approved for reliance".
+    assert (
+        "practice review complete (not for reliance) by arb.keane"
+        in (steps["human_review"]["detail"])
+    )
     assert "nothing was sent" in steps["controlled_delivery"]["detail"]
+
+
+def test_a_practice_review_has_one_status_and_a_real_matter_is_approved_for_reliance(awaiting):
+    """The banner, the At a glance box, the step record and every front end's words agree: a
+    practice matter's approved run is a completed practice review, never "approved for
+    reliance". The same report on a real matter says, once, that it is approved for reliance."""
+    from eli_legal.domain import plain
+    from eli_legal.domain.models import Run, utcnow
+    from eli_legal.workflows.case_preparation import build_report
+    from tests.conftest import case_text
+
+    sv, mid, rid = awaiting
+    _approve(sv, mid, rid)
+    summary = sv.runs.summary(mid, rid, actor_id=A)
+    assert summary["real"] is False
+    text = case_text(sv, summary["report"]["path"])
+    glance = text.split("## At a glance")[1].split("## 1. Matter")[0]
+    assert "**Status:** Practice review complete: reviewed by Aoife Keane (arb.keane)" in glance
+    assert "Approved for reliance" not in glance and "May be relied on" not in glance
+    assert "- **Passed its checks (practice, not for reliance):**" in glance
+    assert "practice review complete" in _steps(sv, mid, rid)["human_review"].detail
+    for code in (summary["status"], summary["report"]["release_status"]):
+        assert plain.run_state(code, real=False) == "Practice review complete"
+        assert plain.run_state(code, real=True) == "Approved for reliance"
+    assert plain.run_state("awaiting_human_review", real=False) == "Waiting for review"
+    assert "practice" in plain.vocabulary()["matter_kinds"]["practice"].lower()
+
+    matter = sv.ctx.store.get_matter(mid)
+    matter.real = True
+    run = sv.ctx.store.get(Run, mid, rid)
+    real = build_report(
+        sv.ctx, matter, run, approved_by="Aoife Keane (arb.keane)", approved_at=utcnow()
+    ).markdown
+    assert "> **APPROVED FOR RELIANCE** by Aoife Keane (arb.keane)" in real
+    assert "**Status:** Approved for reliance by Aoife Keane (arb.keane)" in real
+    assert "- **May be relied on:**" in real and "PRACTICE REVIEW COMPLETE" not in real
+    draft = build_report(sv.ctx, matter, run).markdown
+    assert "**Status:** Draft. Not to be relied on until a named reviewer approves it." in draft
+    assert "- **May be relied on once approved:**" in draft
 
 
 def test_the_run_record_reconciles_with_the_person_steps(awaiting):

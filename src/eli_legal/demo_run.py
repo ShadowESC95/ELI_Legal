@@ -21,6 +21,7 @@ from eli_legal.demo import (
     DemoWorkspace,
     build_demo_workspace,
 )
+from eli_legal.domain import plain
 from eli_legal.domain.enums import (
     DocumentType,
     HoldScope,
@@ -370,5 +371,6 @@ def _run_demo(
     handed.write_bytes(sv.ctx.files.read(mid, final["report"]["path"]))
     result.report_path = str(handed)
     result.evidence_pack = str(pack)
-    say(f"\nRun finished: {final['status']}. Approved report: {result.report_path}")
+    said = plain.run_state(final["status"], real=bool(final.get("real"))).lower()
+    say(f"\nRun finished: {said}. Approved report: {result.report_path}")
     return result

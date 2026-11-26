@@ -182,6 +182,7 @@ class MatterTab(Tab):
         parties = "; ".join(f"{p.name} ({p.role})" for p in matter.parties) or "none recorded"
         issues = "".join(f"<li>{i}</li>" for i in matter.stated_issues) or "<li>none stated</li>"
         self.summary.setText(
+            f"<b>Kind:</b> {plain.matter_kind(matter.real)}<br>"
             f"<b>Purpose:</b> {matter.purpose}<br><b>Prepared for:</b> {spec.label}<br>"
             f"<b>Legal system / governing law:</b> {matter.jurisdiction} / {matter.governing_law or matter.jurisdiction}"
             f"<br><b>Forum:</b> {matter.forum or '—'} &nbsp; <b>Rules:</b> {matter.procedural_rules or '—'}"
