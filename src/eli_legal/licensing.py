@@ -1,9 +1,10 @@
 """Whether this copy of ELI Legal may run, and what it may do.
 
-A licence to ELI Legal is a key of its own or an ELI v3 key that includes it. Keys live in the
-folder every ELI product shares, so a key activated in ELI v3 counts here, and one activated here
-counts in ELI v3. They are checked offline against ELI's public key (eli-sdk), with the
-revocation lists ELI has published.
+ELI Legal opens only with an ELI Legal key, or an ELI v3 key sold with ELI Legal included (a
+bundle). Keys for any other ELI product open nothing here. Keys are kept in one folder on the
+computer that each ELI product reads for its own key, so an ELI v3 key with ELI Legal included
+works here wherever it was entered. They are checked offline against ELI's public key (eli-sdk),
+with the revocation lists ELI has published.
 
 Before a key is entered, an installed copy runs a **seven-day trial** from its first use. A
 trial covers **practice matters only**: a real matter (real people's papers, a report to be
@@ -52,7 +53,17 @@ def required() -> bool:
         return False
     if os.environ.get("ELI_LEGAL_REQUIRE_LICENCE", "").strip().lower() in _YES:
         return True
-    return bool(getattr(sys, "frozen", False))
+    return not _source_checkout()
+
+
+def _source_checkout() -> bool:
+    """Running from a git working copy of ELI Legal's source, as its developer does: never a
+    packaged build, and never a copy installed with pip (from a wheel or from the repository),
+    which is a copy someone may have paid for. Those all need a licence or the trial."""
+    if getattr(sys, "frozen", False):
+        return False
+    root = Path(__file__).resolve().parents[2]
+    return (root / ".git").exists() and (root / "pyproject.toml").is_file() and (root / "src").is_dir()
 
 
 def store() -> KeyStore:
@@ -191,17 +202,65 @@ def real_matter_refusal() -> str:
 
 # ── keys and buying ──────────────────────────────────────────────────────────
 def activate(key: str) -> License:
-    """Keep a key and confirm it licenses ELI Legal. An ELI v3 key that doesn't include ELI
-    Legal is still kept, for ELI v3, and the error says why it isn't enough here."""
-    lic = store().add(key, _public_key)
+    """Take a key in on this computer and confirm it licenses ELI Legal. A key bought to be
+    activated is activated with ELI's licence store first (the internet, once): the store counts
+    this computer against the licence's seats and returns its own key, which is what is kept. An
+    ELI v3 key that doesn't include ELI Legal is still kept, for ELI v3, and the error says why it
+    isn't enough here. Raises InvalidKey with a message written for the buyer."""
+    from eli_sdk.activation import ActivationError
+    from eli_sdk.activation import activate as take
+
+    try:
+        lic = take(key, store(), public_key=_public_key, store=STORE_URL)
+    except ActivationError as exc:
+        raise InvalidKey(str(exc)) from None
     got = status()
     if not got.granted:
         raise InvalidKey(got.reason)
     return lic
 
 
+def deactivate() -> bool:
+    """Give this computer's seat back to the licence and remove ELI Legal's key, so the licence
+    can be activated on another computer. A key activated online is removed only once the store
+    has freed its seat. Raises InvalidKey (with what to do) when it could not be freed."""
+    from eli_sdk.activation import ActivationError
+    from eli_sdk.activation import deactivate as give_back
+
+    try:
+        return give_back(PRODUCT, store(), public_key=_public_key, store=STORE_URL)
+    except ActivationError as exc:
+        raise InvalidKey(str(exc)) from None
+
+
 def remove() -> bool:
+    """Forget ELI Legal's key here without freeing its seat (deactivate frees it)."""
     return store().remove(PRODUCT)
+
+
+def activation_code() -> str:
+    """This computer's activation code, for activating it from another device."""
+    from eli_sdk.activation import activation_code as code
+
+    return code()
+
+
+def refresh_online() -> None:
+    """When the store can be reached: its newest revocation lists, and (before a licence) the trial
+    held to the store's record of this computer's trial, so deleting the trial's records here does
+    not restart it. Run in the background at launch; never raises, never waits long."""
+    try:
+        refresh_revocations()
+    except Exception:
+        pass
+    if not required() or status().granted:
+        return
+    try:
+        from eli_sdk.activation import anchor_trial
+
+        anchor_trial(trial(), store(), public_key=_public_key, store=STORE_URL)
+    except Exception:
+        pass
 
 
 def buy_link(claim: str | None = None, *, offering: str | None = None) -> str:
@@ -216,7 +275,7 @@ def collect(claim: str) -> list[License]:
     done = []
     for key in eli_store.collect(claim, store=STORE_URL):
         try:
-            done.append(store().add(key, _public_key))
+            done.append(activate(key))  # a key bought to be activated is activated here
         except InvalidKey:
             continue
     return done

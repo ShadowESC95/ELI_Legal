@@ -1,6 +1,10 @@
 """The licence window: where this copy stands (licensed, on trial, or neither), and the two ways
 to a licence: **Buy a licence…**, which opens the store (the key is emailed when payment completes,
-and activated here by itself where the store can do so), and **Enter a key…** for any key.
+and activated here by itself where the store can do so), and **Enter a key…** for any key. A key
+bought to be activated is activated with the store the first time it is entered on a computer
+(that computer takes one of the licence's seats); **Deactivate this computer** gives the seat back
+so the licence can move to another computer. The computer's activation code is shown for
+activating it from another device when this one cannot go online.
 
 Opening the store is the only time ELI Legal reaches the licence store, and only when a person
 asks: the address is let through the network guard for that request alone, and recorded. With
@@ -15,7 +19,7 @@ from contextlib import AbstractContextManager, nullcontext
 from typing import Any
 from urllib.parse import urlparse
 
-from PySide6.QtCore import QObject, QTimer, QUrl, Signal
+from PySide6.QtCore import QObject, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QDialog,
@@ -71,19 +75,30 @@ class LicenceDialog(QDialog):
             "you, and activated here by itself where the store can do so."
         )
         self.enter = QPushButton("Enter a key…")
+        self.deactivate_button = QPushButton("Deactivate this computer")
+        self.deactivate_button.setToolTip(
+            "Give this computer's seat back, so the licence can be activated on another computer"
+        )
+        self.code = QLabel()
+        self.code.setWordWrap(True)
+        self.code.setProperty("class", "muted")
+        self.code.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.close_button = QPushButton("Quit" if blocking else "Close")
         self.buy.clicked.connect(self._buy)
         self.enter.clicked.connect(self._enter)
+        self.deactivate_button.clicked.connect(self._deactivate)
         self.close_button.clicked.connect(self.reject)
 
         buttons = QHBoxLayout()
         buttons.addWidget(self.buy)
         buttons.addWidget(self.enter)
+        buttons.addWidget(self.deactivate_button)
         buttons.addStretch(1)
         buttons.addWidget(self.close_button)
         layout = QVBoxLayout(self)
         layout.addWidget(self.state)
         layout.addWidget(self.waiting)
+        layout.addWidget(self.code)
         layout.addLayout(buttons)
 
         self._collected = _Collected()
@@ -109,16 +124,39 @@ class LicenceDialog(QDialog):
             )
         self.state.setText("<br><br>".join(lines))
         self.buy.setEnabled(not self.offline and not self.timer.isActive())
+        paid = st.granted and not st.on_trial and st.licence is not None
+        self.deactivate_button.setVisible(paid and licensing.required())
+        from eli_sdk.store import activate_page
+
+        self.code.setText(
+            f"This computer's activation code: <code>{licensing.activation_code()}</code><br>"
+            f"A key is activated with the licence store the first time it is entered on a computer "
+            f"(the internet, once). If this computer cannot go online, activate it at "
+            f"{activate_page(licensing.STORE_URL)} from any other device."
+        )
 
     # ── buying ──────────────────────────────────────────────────────────────
-    def _allowed(self) -> AbstractContextManager[Any]:
+    def _allowed(self, reason: str = "licence purchase, asked for by the user") -> AbstractContextManager[Any]:
         host = urlparse(licensing.STORE_URL).hostname or ""
         if self.network is None or not host:
             return nullcontext()
-        window: AbstractContextManager[Any] = self.network.allow(
-            host=host, reason="licence purchase, asked for by the user"
-        )
+        window: AbstractContextManager[Any] = self.network.allow(host=host, reason=reason)
         return window
+
+    def _through_store(self, act: Any, reason: str) -> Any:
+        """Run ``act`` with the store's address let through the network guard for it alone. Under
+        hard offline (or with the store not approved) it runs anyway with nothing let through: a key
+        already made for this computer needs no network, and one to be activated is refused with
+        how to activate this computer from another device."""
+        try:
+            window = self._allowed(reason)
+            window.__enter__()
+        except Exception:
+            return act()
+        try:
+            return act()
+        finally:
+            window.__exit__(None, None, None)
 
     def _buy(self) -> None:
         from eli_sdk import store as eli_store
@@ -184,7 +222,8 @@ class LicenceDialog(QDialog):
         if not ok or not key.strip():
             return
         try:
-            lic = licensing.activate(key)
+            lic = self._through_store(lambda: licensing.activate(key),
+                                      "licence activation, asked for by the user")
         except InvalidKey as exc:
             QMessageBox.warning(self, "Key not activated", f"That key was not activated: {exc}")
             return
@@ -192,6 +231,27 @@ class LicenceDialog(QDialog):
             f"Activated: {lic.label} {lic.major_version}.x, {lic.tier}, {lic.seats} seat(s)."
         )
         self._licensed_now()
+
+    def _deactivate(self) -> None:
+        from eli_sdk import InvalidKey
+
+        answer = QMessageBox.question(
+            self,
+            "Deactivate this computer",
+            "Give this computer's seat back to the licence? ELI Legal will need a key, or the "
+            "licence activated again, to run here.",
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            done = self._through_store(licensing.deactivate, "licence deactivation, asked for by the user")
+        except InvalidKey as exc:
+            QMessageBox.warning(self, "Not deactivated", str(exc))
+            return
+        self.waiting.setText("Deactivated: this computer's seat is free for another computer."
+                             if done else "There was no key on this computer to deactivate.")
+        self.licensed = False
+        self.refresh()
 
     def _licensed_now(self) -> None:
         self.refresh()

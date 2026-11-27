@@ -1460,6 +1460,26 @@ def cmd_licence(args: argparse.Namespace) -> int:
             return 2
         print(f"activated: {lic.label} {lic.major_version}.x, {lic.tier}, {lic.seats} seat(s)")
         return 0
+    if args.licence_cmd == "deactivate":
+        try:
+            done = licensing.deactivate()
+        except InvalidKey as exc:
+            print(f"Not deactivated: {exc}", file=sys.stderr)
+            return 2
+        print("Deactivated: this computer's seat is free for another computer."
+              if done else "There was no key on this computer to deactivate.")
+        return 0
+    if args.licence_cmd == "code":
+        from eli_sdk.store import activate_page, manage_page
+
+        print(f"This computer's activation code:\n  {licensing.activation_code()}")
+        print(f"No internet here? Activate it from any other device at {activate_page(licensing.STORE_URL)}")
+        print(f"Your computers, and releasing one you no longer have: {manage_page(licensing.STORE_URL)}")
+        return 0
+    if args.licence_cmd == "refresh":
+        licensing.refresh_online()
+        print(licensing.standing().describe())
+        return 0
     if args.licence_cmd == "remove":
         print(
             "removed this machine's ELI Legal key"
@@ -2254,7 +2274,10 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_parser("activate").add_argument(
         "key", help="an ELI Legal key, or an ELI v3 key that includes it"
     )
-    s.add_parser("remove")
+    s.add_parser("remove", help="forget the key here, without giving its seat back (deactivate does)")
+    s.add_parser("deactivate", help="give this computer's seat back, so the licence can move to another")
+    s.add_parser("code", help="this computer's activation code, for activating it from another device")
+    s.add_parser("refresh", help="when online: the newest revocation lists, and the trial held to the store's")
     b = s.add_parser(
         "buy", help="open the store; the key is emailed (and activated here where it can be)"
     )

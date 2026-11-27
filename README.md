@@ -315,3 +315,13 @@ reserved. It is licensed only under the ELI End User Licence Agreement and the E
 Schedule, set out in full in [LICENSE](LICENSE) and shipped with every build: a licence to ELI Legal
 bought on its own, or an ELI v3 licence that includes it. Third-party components keep their own
 licences ([THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).
+
+Only an ELI Legal key, or an ELI v3 key sold with ELI Legal included, opens ELI Legal. A key bought
+from the store is **activated once**, the first time it is entered on a computer (Help → Licence… →
+Enter a key, or `eli-legal licence activate`): ELI Legal sends the key and the computer's
+activation code (a one-way code from the operating system's install id) to ELI's licence server,
+which counts the computer against the licence's seats. That is the only time ELI Legal contacts it,
+and only when you ask; nothing about your matters is ever sent. Moving to a new computer: Deactivate
+this computer in the licence window (or `eli-legal licence deactivate`). With hard offline on, or no
+internet, activate from any other device at https://licences.geteli.tech/activate with the code the
+licence window shows (`eli-legal licence code`).
