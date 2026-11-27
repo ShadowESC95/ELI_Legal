@@ -1297,13 +1297,10 @@ def test_a_report_you_cannot_decide_says_who_can_and_offers_the_way_to_them(desk
     assert review.who_card.isHidden()
 
 
-def test_the_licence_window_takes_a_key_or_activates_a_purchase_by_itself(qt, monkeypatch):
-    """Help → Licence…: a key entered, or a purchase in the browser that activates itself here;
-    with hard offline on, nothing is sent. On a trial the window and the status bar say so."""
-    import time
-    from contextlib import contextmanager
-
-    from PySide6.QtWidgets import QInputDialog
+def test_the_licence_window_takes_this_computers_key_and_sends_nothing(qt, monkeypatch):
+    """Help → Licence…: this computer's key entered; its activation code shown; Buy opens geteli.tech
+    in the browser; a licence that is not this computer's key says how to get it. Nothing goes online."""
+    from PySide6.QtWidgets import QInputDialog, QMessageBox
 
     from eli_legal import licensing
     from eli_legal.gui import licence_dialog
@@ -1318,6 +1315,18 @@ def test_the_licence_window_takes_a_key_or_activates_a_purchase_by_itself(qt, mo
 
     blocking = LicenceDialog(None, blocking=True)
     assert "not licensed" in blocking.state.text() and blocking.close_button.text() == "Quit"
+    assert licensing.activation_code() in blocking.code.text()
+
+    warned: list[str] = []
+    monkeypatch.setattr(QMessageBox, "warning", lambda _p, _t, text: warned.append(text))
+    monkeypatch.setattr(
+        QInputDialog,
+        "getMultiLineText",
+        lambda *a, **k: (issuer.key(product="legal", version=3), True),
+    )
+    blocking._enter()  # a licence, not this computer's key
+    assert warned and "not this computer's key" in warned[0] and not blocking.licensed
+
     monkeypatch.setattr(
         QInputDialog, "getMultiLineText", lambda *a, **k: (issuer.key(product="legal"), True)
     )
@@ -1329,30 +1338,76 @@ def test_the_licence_window_takes_a_key_or_activates_a_purchase_by_itself(qt, mo
     monkeypatch.setattr(
         licence_dialog.QDesktopServices, "openUrl", lambda url: opened.append(url.toString())
     )
-    let_through: list[str] = []
-
-    class Guard:
-        @contextmanager
-        def allow(self, *, host, reason):
-            let_through.append(host)
-            yield
-
-    bought = issuer.key(product="legal", license_id="bought")
-    monkeypatch.setattr(
-        licensing, "collect", lambda claim: [licensing.store().add(bought, issuer.public)]
-    )
-    window = LicenceDialog(None, network=Guard())
+    window = LicenceDialog(None)
     window._buy()
-    assert opened and "claim=" in opened[0] and not window.buy.isEnabled()
-    window._poll()
-    deadline = time.monotonic() + 5
-    while window._busy and time.monotonic() < deadline:
-        qt.processEvents()
-        time.sleep(0.01)
-    qt.processEvents()
-    assert "Activated" in window.waiting.text() and window.licensed
-    assert let_through == ["licences.geteli.tech"], "the store let through for that request alone"
-    licensing.remove()
+    assert opened == ["https://geteli.tech"] and "activation code" in window.waiting.text()
 
     offline = LicenceDialog(None, offline=True)
     assert not offline.buy.isEnabled() and "Hard offline is on" in offline.state.text()
+
+
+def test_the_training_page_gives_each_step_to_the_person_it_belongs_to(desk, monkeypatch):
+    """Step by step: the compliance officer sets the policy, the case's lead allows the case, the
+    technical side trains and checks, and nobody else's buttons are theirs."""
+    from PySide6.QtWidgets import QDialog
+
+    from eli_legal.gui.tabs.training_tab import PolicyDialog, TrainingTab
+
+    lead = desk(ARBITRATOR)
+    page = lead.page(TrainingTab)
+    page.refresh()
+    assert page.steps.count() == 7 and "Training is off" in page.headline.text()
+    assert not page.policy_button.isEnabled(), "a case's lead does not set the policy"
+    assert not page.build_button.isEnabled() and not page.train_button.isEnabled()
+    assert "Only a lawyer" in page.example_view.toPlainText()
+    lead.window.close()
+
+    officer = desk(GOVERNANCE)
+    page = officer.page(TrainingTab)
+    page.refresh()
+    assert page.policy_button.isEnabled() and page.approve_button.isEnabled()
+    assert not page.train_button.isEnabled(), "the compliance officer does not train"
+    monkeypatch.setattr(PolicyDialog, "exec", lambda self: QDialog.DialogCode.Accepted)
+    monkeypatch.setattr(
+        PolicyDialog,
+        "values",
+        lambda self: {
+            "enabled": True,
+            "mode": "human",
+            "scope": "practice",
+            "cross_matter_acknowledged": False,
+            "dpia_reference": "DPIA-2026-07",
+            "legal_basis": "Practice matters with invented papers only.",
+            "provider_acknowledged": True,
+            "omit": ["amounts", "dates", "references", "addresses"],
+            "keep_reason": "",
+            "max_matter_share": 25,
+            "min_examples": 40,
+            "heldout_percent": 10,
+        },
+    )
+    page._set_policy()
+    assert officer.warnings == []
+    assert (
+        officer.sv.training.policy().enabled
+        and officer.sv.training.policy().updated_by == GOVERNANCE
+    )
+    officer.window.close()
+
+    lead = desk(ARBITRATOR)
+    page = lead.page(TrainingTab)
+    lead.session.set_matter(lead.mid)
+    page.refresh()
+    assert "Training is on" in page.headline.text() and page.allow_button.isEnabled()
+    page._allow(True)
+    assert lead.warnings == []
+    assert lead.sv.ctx.store.get_matter(lead.mid).training_use
+    lead.window.close()
+
+    admin = desk(ADMIN)  # the legal and system administrator: examples and training both
+    page = admin.page(TrainingTab)
+    page.refresh()
+    assert page.build_button.isEnabled() and page.train_button.isEnabled()
+    assert not page.policy_button.isEnabled() and not page.approve_button.isEnabled()
+    assert "Training would use" in page.machine.text()
+    assert "PyTorch" in page.plan_text.toPlainText()

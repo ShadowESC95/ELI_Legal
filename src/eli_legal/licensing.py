@@ -26,15 +26,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from eli_sdk import Entitlement, InvalidKey, KeyStore, License, LocalTrial, TrialStatus
-from eli_sdk import store as eli_store
+from eli_sdk import Entitlement, InvalidKey, KeyStore, License, LocalTrial, TrialStatus, read_key
 
 from eli_legal import __version__
 
 PRODUCT = "legal"
 OFFERING = "legal-pro"
-STORE_URL = eli_store.STORE_URL
-BUY = f"{STORE_URL}/?product={PRODUCT}"
+# Where to buy: the website, opened in the browser when the person asks. Nothing in this
+# program ever goes online for its licence.
+BUY = "https://geteli.tech"
 TRIAL_SCOPE = "practice matters only"
 
 _YES = {"1", "true", "yes", "on"}
@@ -202,20 +202,23 @@ def real_matter_refusal() -> str:
     )
 
 
-# ── keys and buying ──────────────────────────────────────────────────────────
-def activate(key: str) -> License:
-    """Take a key in on this computer and confirm it licenses ELI Legal. A key bought to be
-    activated is activated with ELI's licence store first (the internet, once): the store counts
-    this computer against the licence's seats and returns its own key, which is what is kept. An
-    ELI v3 key that doesn't include ELI Legal is still kept, for ELI v3, and the error says why it
-    isn't enough here. Raises InvalidKey with a message written for the buyer."""
-    from eli_sdk.activation import ActivationError
-    from eli_sdk.activation import activate as take
+# ── keys ─────────────────────────────────────────────────────────────────────
+def ask_the_seller() -> str:
+    """What to do with a licence that still needs this computer's key: the same in every ELI product."""
+    return (
+        "This is the ELI Legal licence, not this computer's key. Send the seller your licence number and "
+        f"this computer's activation code:\n  {activation_code()}\nand enter the key you get back. It "
+        "works on this computer, with no internet needed."
+    )
 
-    try:
-        lic = take(key, store(), public_key=_public_key, store=STORE_URL)
-    except ActivationError as exc:
-        raise InvalidKey(str(exc)) from None
+
+def activate(key: str) -> License:
+    """Keep this computer's key and confirm it licenses ELI Legal. Nothing is sent anywhere. An ELI v3
+    key that doesn't include ELI Legal is still kept, for ELI v3, and the error says why it isn't
+    enough here; a licence that is not this computer's key says how to get it (ask_the_seller)."""
+    if read_key(key, _public_key).needs_activation:
+        raise InvalidKey(ask_the_seller())
+    lic = store().add(key, _public_key)
     got = status()
     if not got.granted:
         raise InvalidKey(got.reason)
@@ -223,84 +226,30 @@ def activate(key: str) -> License:
 
 
 def deactivate() -> bool:
-    """Give this computer's seat back to the licence and remove ELI Legal's key, so the licence
-    can be activated on another computer. A key activated online is removed only once the store
-    has freed its seat. Raises InvalidKey (with what to do) when it could not be freed."""
-    from eli_sdk.activation import ActivationError
-    from eli_sdk.activation import deactivate as give_back
-
-    try:
-        return give_back(PRODUCT, store(), public_key=_public_key, store=STORE_URL)
-    except ActivationError as exc:
-        raise InvalidKey(str(exc)) from None
+    """Remove ELI Legal's key from this computer (then tell the seller, who frees its seat for another
+    computer). Nothing is sent anywhere."""
+    return store().remove(PRODUCT)
 
 
 def remove() -> bool:
-    """Forget ELI Legal's key here without freeing its seat (deactivate frees it)."""
+    """The same as deactivate."""
     return store().remove(PRODUCT)
 
 
 def activation_code() -> str:
-    """This computer's activation code, for activating it from another device."""
+    """This computer's activation code: what the seller needs to make this computer's key."""
     from eli_sdk.activation import activation_code as code
 
     return code()
-
-
-def refresh_online() -> None:
-    """When the store can be reached: its newest revocation lists, and (before a licence) the trial
-    held to the store's record of this computer's trial, so deleting the trial's records here does
-    not restart it. Run in the background at launch; never raises, never waits long."""
-    try:
-        refresh_revocations()
-    except Exception:
-        pass
-    if not required() or status().granted:
-        return
-    try:
-        from eli_sdk.activation import anchor_trial
-
-        anchor_trial(trial(), store(), public_key=_public_key, store=STORE_URL)
-    except Exception:
-        pass
-
-
-def buy_link(claim: str | None = None, *, offering: str | None = None) -> str:
-    """The store's ELI Legal page (or one offering's), carrying the claim the key is collected by."""
-    if offering:
-        return eli_store.buy_url(offering, claim, store=STORE_URL)
-    return eli_store.shop_url(PRODUCT, claim, store=STORE_URL)
-
-
-def collect(claim: str) -> list[License]:
-    """Activate whatever was bought under this claim; [] while payment is still completing."""
-    done = []
-    for key in eli_store.collect(claim, store=STORE_URL):
-        try:
-            done.append(activate(key))  # a key bought to be activated is activated here
-        except InvalidKey:
-            continue
-    return done
-
-
-def refresh_revocations() -> int:
-    """Bring the store's latest revocation lists (when online). Returns how many changed."""
-    changed = 0
-    for token in eli_store.fetch_revocations(store=STORE_URL):
-        try:
-            changed += store().add_revocations(token, _public_key)
-        except InvalidKey:
-            continue
-    return changed
 
 
 def explain() -> str:
     st = standing()
     return (
         f"ELI Legal needs a licence: {st.reason}.\n"
-        "Activate an ELI Legal key, or an ELI v3 key that includes ELI Legal:\n"
+        "Enter this computer's ELI Legal key (or an ELI v3 key sold with ELI Legal included):\n"
         "    eli-legal licence activate YOUR-KEY\n"
-        "Or buy one and have it activated here automatically:\n"
-        "    eli-legal licence buy\n"
-        f"Buy online: {BUY}"
+        "Each computer has its own key: send the seller your licence number and this computer's\n"
+        f"activation code ({activation_code()}).\n"
+        f"Buy one (eli-legal licence buy, or {BUY})"
     )

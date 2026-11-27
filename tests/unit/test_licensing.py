@@ -161,19 +161,25 @@ def test_a_trial_covers_practice_matters_only(issuer, monkeypatch, demo):
     assert "practice matters only" in why_not(sv.ctx, matter)[0]
 
 
-def test_buying_from_the_command_line_activates_the_key_by_itself(issuer, monkeypatch, capsys):
+def test_buying_from_the_command_line_opens_the_website_and_sends_nothing(
+    issuer, monkeypatch, capsys
+):
     import webbrowser
-
-    from eli_sdk import store as eli_store
 
     opened: list[str] = []
     monkeypatch.setattr(webbrowser, "open", opened.append)
-    key = issuer.key(product="legal", license_id="bought")
-    monkeypatch.setattr(eli_store, "collect", lambda claim, store=None: [key])
     assert cli.main(["licence", "buy"]) == 0
-    assert opened and "/?product=legal&claim=" in opened[0]
-    assert "activated: ELI Legal " in capsys.readouterr().out
-    assert licensing.status().license.license_id == "bought"
+    out = capsys.readouterr().out
+    assert opened == ["https://geteli.tech"] and licensing.activation_code() in out
+
+
+def test_a_licence_is_not_this_computers_key(issuer, capsys):
+    from eli_sdk import InvalidKey
+
+    with pytest.raises(InvalidKey, match="not this computer's key"):
+        licensing.activate(issuer.key(product="legal", version=3))
+    assert cli.main(["licence", "code"]) == 0
+    assert licensing.activation_code() in capsys.readouterr().out
 
 
 def test_the_licence_commands_work_without_one(issuer, monkeypatch, capsys):
