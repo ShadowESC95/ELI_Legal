@@ -14,6 +14,10 @@ A model is optional. Without one, facts are selected by rule and no arguments ar
 Choose in Settings, Model; at the first administrator sign-in; or with `eli-legal model use`.
 Changing the model is a decision recorded under your name.
 
+A model the organisation trained itself ([Training your own model](15_training_your_own_model.md))
+is a GGUF file like any other, but it can be chosen only once the compliance officer has approved
+it, while its file is unchanged and every matter it learnt from may still teach.
+
 ## Where GGUF models are found
 
 ELI Legal's own `models` folder; `ELI_LEGAL_MODELS_DIR` and `ELI_MODELS_DIR`; ELI v3's and ELI v2's

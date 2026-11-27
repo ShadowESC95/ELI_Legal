@@ -109,6 +109,7 @@ PAGES: dict[str, tuple[str, str]] = {
     "released": ("Released to me", "Approved reports released to you, to read or save"),
     "sources": ("Legal sources", "Where the law comes from"),
     "laws": ("Laws and standards", "The rules applied to each kind of case"),
+    "training": ("Train your own model", "Teach the AI model from your approved work, lawfully"),
     "settings": ("Settings", "People, the AI model, the network and more"),
 }
 

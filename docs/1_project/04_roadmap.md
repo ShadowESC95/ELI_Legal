@@ -32,4 +32,5 @@ against code.
 - A vulnerability-disclosure contact and a declared support period.
 
 **Deliberately not planned.** Drafting decisions or awards; contacting parties; training on
-matter data; exposing decisions through a conversational assistant.
+matter data by default or without the organisation's own policy (D-38); exposing decisions
+through a conversational assistant.

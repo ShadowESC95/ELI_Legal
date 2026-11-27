@@ -125,3 +125,9 @@ ignore_missing_imports = true
 module = ["llama_cpp", "llama_cpp.*", "numpy", "numpy.*"]
 ignore_missing_imports = true
 follow_imports = "skip"
+
+# The trainer runs in the training environment (PyTorch, transformers, peft), never inside ELI
+# Legal, which does not install them: it is checked by running it (tests/integration/test_training.py).
+[[tool.mypy.overrides]]
+module = ["eli_legal.training.worker"]
+ignore_errors = true

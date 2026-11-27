@@ -98,6 +98,9 @@ class LegalModel:
     def __init__(self, inference: InferencePort | None, compliance: str = "") -> None:
         self.inference = inference
         self.stats = LlmStats()
+        # Told of each answered call (training.records.CallRecorder during a run), so a run a
+        # reviewer approves can later teach the organisation's own model.
+        self.recorder: Callable[[dict[str, Any]], None] | None = None
         # The law and standards that apply to the matter, compiled from its packages. It is
         # appended to the fixed rules, never put in their place.
         self.compliance = compliance
@@ -165,6 +168,19 @@ class LegalModel:
         if parsed is None:
             self.stats.failures += 1
             self.stats.notes.append(f"{task}: response was not a JSON object")
+        if self.recorder is not None:
+            self.recorder(
+                {
+                    "task": task,
+                    "prompt_version": PROMPT_VERSIONS.get(task, task),
+                    "system_version": PROMPT_VERSIONS["system"],
+                    "system": self.system,
+                    "prompt": prompt,
+                    "raw": raw,
+                    "parsed": parsed,
+                    "model": self.model_id,
+                }
+            )
         return parsed
 
 

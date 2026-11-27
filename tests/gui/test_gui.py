@@ -13,7 +13,14 @@ from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox  # noqa: E4
 from eli_legal.application.matter_service import hash_passphrase  # noqa: E402
 from eli_legal.application.services import build_services  # noqa: E402
 from eli_legal.demo import build_demo_workspace  # noqa: E402
-from eli_legal.demo_run import ADMIN, ARBITRATOR, SECRETARY, demo_settings, setup_demo  # noqa: E402
+from eli_legal.demo_run import (  # noqa: E402
+    ADMIN,
+    ARBITRATOR,
+    GOVERNANCE,
+    SECRETARY,
+    demo_settings,
+    setup_demo,
+)
 from eli_legal.domain.enums import ReviewDecision  # noqa: E402
 from eli_legal.domain.errors import AuthenticationFailed, SecondFactorRequired  # noqa: E402
 from eli_legal.governance.registers import load_register  # noqa: E402
@@ -44,6 +51,7 @@ PHRASE = {
     ARBITRATOR: "arbitrator passphrase",
     SECRETARY: "secretary passphrase",
     ADMIN: "administrator passphrase",
+    GOVERNANCE: "compliance officer passphrase",
 }
 
 
@@ -132,12 +140,13 @@ def test_the_application_has_the_specialised_tabs_and_nothing_else(desk):
         "Released to me",
         "Sources",
         "Laws & Standards",
+        "Training",
         "Settings",
         "How to use",
         "Start a new case",
     ):
         assert any(wanted in t for t in titles), wanted
-    assert len(titles) == 16
+    assert len(titles) == 17
     for unwanted in (
         "Images",
         "Screen",

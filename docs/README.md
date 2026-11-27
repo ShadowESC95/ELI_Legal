@@ -89,6 +89,7 @@ protection together), a classification assessment, a change assessment and an in
 | [12 Models](6_manuals/12_models.md) | GGUF files, model servers, ELI v3's model |
 | [13 Compliance and routine checks](6_manuals/13_compliance_and_routine_checks.md) | Where each legal requirement stands, the organisation's actions, and the daily checks that keep everything current |
 | [14 Using the command line](6_manuals/14_command_line_guide.md) | Opening a terminal and calling the program on each system and installer; the commands most people need |
+| [15 Training your own model](6_manuals/15_training_your_own_model.md) | Teaching the model from your approved work: who decides, what is installed, what is never learnt, the checks before use, the law |
 
 ## Keeping these documents true
 

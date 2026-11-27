@@ -37,6 +37,7 @@ from eli_legal.domain.models import (
     Report,
     Run,
     RunStep,
+    TrainingExample,
     User,
     VerificationResult,
     VerificationTask,
@@ -82,6 +83,9 @@ _SPECS: dict[type, _Spec] = {
     PreservationHold: _Spec("preservation_holds", "hold_id", None, "scope", "status", "opened_at"),
     Notification: _Spec(
         "notifications", "notification_id", "run_id", "kind", "status", "created_at"
+    ),
+    TrainingExample: _Spec(
+        "training_examples", "example_id", "run_id", "task", "status", "created_at"
     ),
 }
 

@@ -51,6 +51,7 @@ from eli_legal.gui.tabs.released_tab import ReleasedTab
 from eli_legal.gui.tabs.review_tab import ReviewTab
 from eli_legal.gui.tabs.settings_tab import SettingsTab
 from eli_legal.gui.tabs.sources_tab import SourcesTab
+from eli_legal.gui.tabs.training_tab import TrainingTab
 from eli_legal.gui.tabs.workflow_tab import WorkflowTab
 from eli_legal.gui.widgets import FlowLayout, chip, label, set_chip
 
@@ -181,6 +182,7 @@ class MainWindow(QMainWindow):
             ReleasedTab(session),
             SourcesTab(session),
             FrameworksTab(session),
+            TrainingTab(session),
             SettingsTab(session, self.sign_out),
             HelpTab(session, self.go),
             NewCaseTab(session, self.go),
@@ -262,7 +264,7 @@ class MainWindow(QMainWindow):
              "ReviewTab"),
         ),
         ("CHECKING AND RECORDS", ("AuditTab", "GovernanceTab", "ReleasedTab")),
-        ("SET-UP", ("SourcesTab", "FrameworksTab", "SettingsTab")),
+        ("SET-UP", ("SourcesTab", "FrameworksTab", "TrainingTab", "SettingsTab")),
     )  # fmt: skip
     _PAGE_KEYS = {
         "start": "NewCaseTab",
@@ -280,6 +282,7 @@ class MainWindow(QMainWindow):
         "released": "ReleasedTab",
         "sources": "SourcesTab",
         "laws": "FrameworksTab",
+        "training": "TrainingTab",
         "settings": "SettingsTab",
     }
     _NAV_WIDTH = 270

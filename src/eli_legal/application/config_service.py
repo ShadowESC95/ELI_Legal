@@ -214,6 +214,20 @@ class ConfigService:
                 "layers on the graphics card: -1 as many as fit, 0 none, or a number"
             )
         url = url or s.inference_url
+        if backend == "gguf":  # a model the organisation trained is used only once approved
+            from eli_legal.application.training_service import TrainingService
+
+            training = TrainingService(self.ctx)
+            for chosen in (model, verifier_model):
+                if (
+                    chosen
+                    and _trained_here(self.ctx, chosen)
+                    and not training.is_approved_file(chosen)
+                ):
+                    raise InvalidInput(
+                        "that is a model trained here that has not been approved (or has changed, "
+                        "or was trained on matters since erased): approve it on the Training page"
+                    )
         generator = self._build(backend, url, model, n_ctx=n_ctx, gpu=gpu, threads=threads)
         verifier = self._build(backend, url, verifier_model, n_ctx=n_ctx, gpu=gpu, threads=threads)
         before = self.ctx.model.model_id
@@ -355,3 +369,13 @@ def _update_env_file(path: Path, values: dict[str, str]) -> None:
             out.append(line)
     out.extend(f"{key}={value}" for key, value in remaining.items())
     path.write_text("\n".join(out) + "\n", encoding="utf-8")
+
+
+def _trained_here(ctx: Any, path: str) -> bool:
+    """Whether a model file is one this installation trained (under training/models)."""
+    root = (Path(ctx.settings.artifacts_dir).parent / "training" / "models").resolve()
+    try:
+        Path(path).resolve().relative_to(root)
+    except ValueError:
+        return False
+    return True

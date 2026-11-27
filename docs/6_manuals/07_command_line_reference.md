@@ -78,6 +78,24 @@ AppImage), see the [command-line guide](14_command_line_guide.md).
 | `eli-legal incident aware <matter> <incident> --aware-at --basis --aware-by --occurred-at` | when the provider or deployer became aware (Art. 73 counts from it) |
 | `eli-legal incident assign <matter> <incident> --owner --backup` | the incident's owner and a different stand-in |
 | `eli-legal incident report <matter> <incident> --reportable --reason --kind --reported-on --reference` | decide whether a serious incident is reportable (Art. 73) |
+| `eli-legal training` | train the organisation's own model, step by step |
+| `eli-legal training status` | the policy, the examples and the models |
+| `eli-legal training policy --off --mode --scope --acknowledge-cross-matter --dpia --legal-basis --acknowledge-provider --keep --keep-reason --max-matter-share --min-examples --heldout-percent` | the compliance officer's training policy |
+| `eli-legal training allow <matter> --basis --consent --stop` | a matter's lead: allow its approved work to teach, or stop it |
+| `eli-legal training build` | take examples from approved runs |
+| `eli-legal training examples --status --task --full` | the examples (a lawyer) |
+| `eli-legal training decide <example> <decision> --reason --answer-file` | a lawyer approves, corrects or rejects an example |
+| `eli-legal training machine` | this machine, and what setting up would install |
+| `eli-legal training setup` | install the training components (downloads 3–6 GB once) |
+| `eli-legal training instruct --base --recipe --quantize` | what autonomous runs use (the technical officer) |
+| `eli-legal training train --name --base --recipe --four-bit --quantize --python --wait` | train on the approved examples (the technical officer) |
+| `eli-legal training cancel <model>` | stop a run |
+| `eli-legal training evaluate <model>` | check a trained model |
+| `eli-legal training show <model>` | a model's record, checks and datasheet |
+| `eli-legal training use <model>` | put an approved model into use |
+| `eli-legal training approve <model> --reasons` | the compliance officer approves a model (not their own) |
+| `eli-legal training retire <model> --reason` | retire a model |
+| `eli-legal training auto --python` | autonomous mode's step (for a schedule); never approves |
 | `eli-legal deployment` | approve the use of ELI Legal on real matters |
 | `eli-legal deployment list` |  |
 | `eli-legal deployment propose --intended-use --provider --deployer --jurisdiction --profile --effective-from --expires-on --evidence --data-class` | set out what is to be approved, with its evidence |
@@ -141,7 +159,10 @@ AppImage), see the [command-line guide](14_command_line_guide.md).
 | `eli-legal licence` | this copy's licence: show it, activate a key, remove it |
 | `eli-legal licence status` |  |
 | `eli-legal licence activate <key>` |  |
-| `eli-legal licence remove` |  |
+| `eli-legal licence deactivate` | remove the key from this computer (then tell the seller) |
+| `eli-legal licence remove` | the same as deactivate |
+| `eli-legal licence code` | this computer's activation code: what the seller needs for its key |
+| `eli-legal licence buy` | open geteli.tech to buy a licence |
 | `eli-legal model` | show, find or choose the model |
 | `eli-legal model show` |  |
 | `eli-legal model list` | GGUF models found on this machine, and a model server's models |

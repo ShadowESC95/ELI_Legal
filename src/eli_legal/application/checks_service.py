@@ -181,6 +181,7 @@ class ChecksService:
             self._originals,
             self._compliance,
             self._people,
+            self._training,
             self._retention,
             self._open_work,
         ):
@@ -640,6 +641,64 @@ class ChecksService:
                 CheckItem(f"{a.action.action_id} {a.action.title}: {a.detail}")
                 for a in sorted(outstanding, key=lambda a: (a not in due, a.action.action_id))
             ],
+        )
+
+    def _training(self, actor_id: str, today: date) -> CheckResult:
+        """The organisation's own models: any that may no longer be used, any waiting for a
+        person, and autonomous mode's step (it trains and checks; a person approves)."""
+        from eli_legal.application.training_service import TrainingService
+        from eli_legal.domain.errors import InvalidState
+
+        training = TrainingService(self.ctx)
+        policy = training.policy()
+        if not policy.enabled and not training.models():
+            return CheckResult(
+                "training", "Training the organisation's model", "ok", "Training is off."
+            )
+        acted: list[str] = []
+        if policy.enabled and policy.mode == "autonomous":
+            step = training.autonomous_step()
+            acted += [str(d) for d in step.get("did") or []]
+        items: list[CheckItem] = []
+        in_use = str(self.ctx.settings.inference_model or "")
+        for m in training.models():
+            if m.status in ("approved", "candidate"):
+                try:
+                    training._sources_allowed(m)
+                    blocked = (
+                        "trained on cases since erased or withdrawn" if m.erased_sources else ""
+                    )
+                except InvalidState as exc:
+                    blocked = str(exc)
+                if blocked:
+                    using = " It is in use: choose another model in Settings." if (
+                        in_use and m.gguf_path and Path(in_use).resolve() == Path(m.gguf_path).resolve()
+                    ) else ""  # fmt: skip
+                    items.append(CheckItem(
+                        f"{m.name} ({m.model_id}) may no longer be used: {blocked}. Retire it.{using}"
+                    ))  # fmt: skip
+                    continue
+            if m.status == "candidate":
+                verdict = "its checks support approval" if (m.evaluation or {}).get(
+                    "supports_approval") else "its checks do not support approval"  # fmt: skip
+                items.append(CheckItem(
+                    f"{m.name} ({m.model_id}) is waiting for the compliance officer: {verdict}."
+                ))  # fmt: skip
+        waiting = sum(v for k, v in training.counts().items() if k.startswith("candidate"))
+        if waiting:
+            items.append(CheckItem(f"{waiting} training examples are waiting for a lawyer."))
+        summary = (
+            f"Training is {'on (' + policy.mode + ')' if policy.enabled else 'off'}; "
+            f"{len(training.models())} model(s) trained."
+        )
+        return CheckResult(
+            "training",
+            "Training the organisation's model",
+            "attention" if items else "ok",
+            summary,
+            "Open Set-up → Train your own model." if items else "",
+            items,
+            acted,
         )
 
     def _people(self, actor_id: str, today: date) -> CheckResult:

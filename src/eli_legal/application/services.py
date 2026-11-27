@@ -29,6 +29,7 @@ from eli_legal.application.reliance_service import RelianceService
 from eli_legal.application.review_service import ReviewService
 from eli_legal.application.run_service import RunService
 from eli_legal.application.source_service import SourceService
+from eli_legal.application.training_service import TrainingService
 from eli_legal.application.verification_service import HoldService, VerificationService
 from eli_legal.domain.models import HumanReview, RunStep, VerificationResult
 from eli_legal.governance.completeness import CompletenessReport, check_run_completeness
@@ -58,6 +59,7 @@ class Services:
     reliance: RelianceService
     preservation: PreservationService
     deployment: DeploymentService
+    training: TrainingService
     monitoring: MonitoringService
     chat: ChatService
     frameworks: FrameworkService
@@ -148,6 +150,7 @@ def build_services(
         reliance=RelianceService(ctx),
         preservation=PreservationService(ctx),
         deployment=DeploymentService(ctx),
+        training=TrainingService(ctx),
         monitoring=MonitoringService(ctx),
         chat=ChatService(ctx),
         frameworks=FrameworkService(ctx),

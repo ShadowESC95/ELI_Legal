@@ -1191,6 +1191,113 @@ def cmd_deployment(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_training(args: argparse.Namespace) -> int:
+    """Training the organisation's own model, each step by the person it belongs to."""
+    from eli_legal.adapters.inference.hardware import detect
+    from eli_legal.persistence.codec import to_jsonable
+
+    def _out(value: Any) -> None:  # the records, as JSON
+        print(
+            json.dumps(
+                to_jsonable(value), indent=2, sort_keys=True, default=str, ensure_ascii=False
+            )
+        )
+
+    sv = _services(args)
+    t = sv.training
+    c = args.training_cmd
+    if c == "auto":  # from the daily checks' timer or a schedule: what the policy allows, no more
+        _out(t.autonomous_step(python=args.python))
+        return 0
+    actor = _actor(args)
+    if c == "status":
+        policy = t.policy()
+        _out({"policy": policy, "examples": t.counts(), "models": [
+            {"model_id": m.model_id, "name": m.name, "status": m.status, "trained_by": m.trained_by,
+             "approved_by": m.approved_by, "erased_sources": m.erased_sources,
+             "supports_approval": (m.evaluation or {}).get("supports_approval")}
+            for m in t.models()]})  # fmt: skip
+    elif c == "policy":
+        with _confirmed(args, "change how the organisation trains its model"):
+            _out(t.set_policy(
+                actor_id=actor, enabled=not args.off, mode=args.mode, scope=args.scope,
+                cross_matter_acknowledged=args.acknowledge_cross_matter,
+                dpia_reference=args.dpia or "", legal_basis=args.legal_basis or "",
+                provider_acknowledged=args.acknowledge_provider,
+                omit=[k for k in ("amounts", "dates", "references", "addresses")
+                      if k not in (args.keep or [])],
+                keep_reason=args.keep_reason or "", max_matter_share=args.max_matter_share,
+                min_examples=args.min_examples, heldout_percent=args.heldout_percent))  # fmt: skip
+    elif c == "allow":
+        with _confirmed(args, "change whether a matter may train the model"):
+            m = t.allow_matter(args.matter, actor_id=actor, allow=not args.stop,
+                               basis=args.basis or "", consent=args.consent or "")  # fmt: skip
+        print(f"{m.matter_id}: {'may teach' if m.training_use else 'does not teach'}")
+    elif c == "build":
+        _out(t.build(actor_id=actor))
+    elif c == "examples":
+        for e in t.examples(actor_id=actor, status=args.status, task=args.task):
+            print(
+                f"{e.example_id}  {e.status:9s} {e.split:7s} {e.task:16s} {e.matter_id}  {e.source}"
+            )
+            if args.full:
+                print(f"    asked: {e.prompt}\n    answer: {e.answer}")
+    elif c == "decide":
+        answer = Path(args.answer_file).read_text(encoding="utf-8") if args.answer_file else None
+        e = t.decide(args.example, actor_id=actor, decision=args.decision, reason=args.reason or "",
+                     answer=answer)  # fmt: skip
+        print(f"{e.example_id}: {e.status}")
+    elif c == "machine":
+        hw = detect()
+        plan = t.setup_plan(actor_id=actor, hw=hw)
+        print(hw.describe())
+        print(f"Training would use: {plan.accelerator.label}")
+        for n, step in enumerate(plan.steps, 1):
+            print(f"{n}. {step.label}: {step.why}\n   {' '.join(step.argv)}")
+        for problem in plan.problems:
+            print(f"problem: {problem}")
+        _out(t.environment_status(actor_id=actor))
+    elif c == "setup":
+        found = t.set_up(actor_id=actor, hw=detect(), on_line=print)
+        _out(found)
+        return 0 if found.get("ready") else 1
+    elif c == "instruct":
+        with _confirmed(args, "set what autonomous training uses"):
+            _out(t.set_standing_instruction(actor_id=actor, base=args.base, recipe=args.recipe,
+                                            quantize=args.quantize))  # fmt: skip
+    elif c == "train":
+        with _confirmed(args, "train the organisation's model"):
+            m = t.start(actor_id=actor, name=args.name, base=args.base, recipe=args.recipe,
+                        four_bit=args.four_bit, quantize=args.quantize, python=args.python)  # fmt: skip
+        print(m.model_id)
+        if args.wait:
+            from eli_legal.training import jobs
+
+            jobs.wait(m.model_id)
+            m = t.refresh(m.model_id)
+            print(f"{m.model_id}: {m.status} {m.failure}")
+            return 0 if m.status == "trained" else 1
+    elif c == "cancel":
+        print("asked to stop" if t.cancel(args.model, actor_id=actor) else "no such run")
+    elif c == "evaluate":
+        m = t.evaluate(args.model, actor_id=actor)
+        _out(m.evaluation)
+    elif c == "show":
+        _out(t.refresh(args.model))
+    elif c == "approve":
+        with _confirmed(args, "approve a trained model"):
+            m = t.approve(args.model, actor_id=actor, reasons=args.reasons)
+        print(f"{m.model_id}: {m.status}")
+    elif c == "use":
+        with _confirmed(args, "put a trained model into use"):
+            _out(t.activate(args.model, actor_id=actor))
+    elif c == "retire":
+        with _confirmed(args, "retire a trained model"):
+            m = t.retire(args.model, actor_id=actor, reason=args.reason)
+        print(f"{m.model_id}: {m.status}")
+    return 0
+
+
 def cmd_preserve(args: argparse.Namespace) -> int:
     """Preservation holds: nothing they cover is deleted until released."""
     sv = _services(args)
@@ -2007,6 +2114,67 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--kind", default="general", choices=["general", "death", "widespread"])
     a.add_argument("--reported-on", help="the date it was reported, if it was")
     a.add_argument("--reference", default="")
+
+    p = add("training", cmd_training, "train the organisation's own model, step by step")
+    s = p.add_subparsers(dest="training_cmd", required=True)
+    s.add_parser("status", help="the policy, the examples and the models")
+    a = s.add_parser("policy", help="the compliance officer's training policy")
+    a.add_argument("--off", action="store_true", help="switch training off")
+    a.add_argument("--mode", choices=["human", "autonomous"], default="human")
+    a.add_argument("--scope", choices=["practice", "consented"], default="practice")
+    a.add_argument("--acknowledge-cross-matter", action="store_true",
+                   help="one model can repeat one client's material in another's work")  # fmt: skip
+    a.add_argument("--dpia", help="the impact assessment that covers training (GDPR Art. 35)")
+    a.add_argument("--legal-basis", help="the legal basis for training on case material")
+    a.add_argument("--acknowledge-provider", action="store_true",
+                   help="training may make the organisation the provider (AI Act Art. 25)")  # fmt: skip
+    a.add_argument("--keep", action="append", choices=["amounts", "dates", "references", "addresses"],
+                   help="keep this in the examples (needs --keep-reason); repeat")  # fmt: skip
+    a.add_argument("--keep-reason")
+    a.add_argument("--max-matter-share", type=int)
+    a.add_argument("--min-examples", type=int)
+    a.add_argument("--heldout-percent", type=int)
+    a = s.add_parser("allow", help="a matter's lead: allow its approved work to teach, or stop it")
+    a.add_argument("matter")
+    a.add_argument("--basis")
+    a.add_argument("--consent", help="where and when the client consented (real matters)")
+    a.add_argument("--stop", action="store_true", help="stop it teaching; its examples are deleted")
+    s.add_parser("build", help="take examples from approved runs")
+    a = s.add_parser("examples", help="the examples (a lawyer)")
+    a.add_argument("--status", choices=["candidate", "approved", "rejected"])
+    a.add_argument("--task")
+    a.add_argument("--full", action="store_true", help="show what each asks and answers")
+    a = s.add_parser("decide", help="a lawyer approves, corrects or rejects an example")
+    a.add_argument("example")
+    a.add_argument("decision", choices=["approve", "correct", "reject"])
+    a.add_argument("--reason")
+    a.add_argument("--answer-file", help="the corrected answer (JSON), for correct")
+    s.add_parser("machine", help="this machine, and what setting up would install")
+    s.add_parser("setup", help="install the training components (downloads 3–6 GB once)")
+    a = s.add_parser("instruct", help="what autonomous runs use (the technical officer)")
+    a.add_argument("--base", required=True)
+    a.add_argument("--recipe", choices=["light", "standard", "thorough"], default="standard")
+    a.add_argument("--quantize", choices=["q4_k_m", "q5_k_m", "q8_0", "f16"], default="q4_k_m")
+    a = s.add_parser("train", help="train on the approved examples (the technical officer)")
+    a.add_argument("--name", required=True)
+    a.add_argument("--base", required=True, help="the base model's folder (Hugging Face form)")
+    a.add_argument("--recipe", choices=["light", "standard", "thorough"], default="standard")
+    a.add_argument("--four-bit", action="store_true", help="4-bit training (NVIDIA)")
+    a.add_argument("--quantize", choices=["q4_k_m", "q5_k_m", "q8_0", "f16"], default="q4_k_m")
+    a.add_argument("--python", help="a Python that already has PyTorch, transformers and peft")
+    a.add_argument("--wait", action="store_true", help="wait for the run to end")
+    for name, text in (("cancel", "stop a run"), ("evaluate", "check a trained model"),
+                       ("show", "a model's record, checks and datasheet"),
+                       ("use", "put an approved model into use")):  # fmt: skip
+        s.add_parser(name, help=text).add_argument("model")
+    a = s.add_parser("approve", help="the compliance officer approves a model (not their own)")
+    a.add_argument("model")
+    a.add_argument("--reasons", required=True)
+    a = s.add_parser("retire", help="retire a model")
+    a.add_argument("model")
+    a.add_argument("--reason", required=True)
+    a = s.add_parser("auto", help="autonomous mode's step (for a schedule); never approves")
+    a.add_argument("--python")
 
     p = add("deployment", cmd_deployment, "approve the use of ELI Legal on real matters")
     s = p.add_subparsers(dest="deployment_cmd", required=True)

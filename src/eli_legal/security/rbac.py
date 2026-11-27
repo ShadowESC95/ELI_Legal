@@ -57,6 +57,17 @@ PARTY_ACTIONS = frozenset({"filing.read", "filing.add", "hold.respond"})
 # Starting the server from the desktop, so everyone on a case can sign in: administrators and
 # the people who decide cases (judges, tribunal members, arbitrators), nobody else.
 _SERVER = {"server.manage"}
+# Training the organisation's own model, divided as the law expects it to be:
+#   training.data     approve, correct or reject training examples: a lawyer's judgement of
+#                     case material (supervising solicitor, legal administrator)
+#   training.run      set up the training environment and run training: technical work that
+#                     never shows case content (system administrator, legal administrator)
+#   training.approve  switch training on for the organisation (with its impact assessment and
+#                     legal basis), and approve or retire each trained model: the compliance
+#                     officer (governance officer). Never the person who trained the model.
+TRAINING_DATA = "training.data"
+TRAINING_RUN = "training.run"
+TRAINING_APPROVE = "training.approve"
 
 # The person who decides: operates, verifies, reviews, releases and can stop the system.
 _DECISION_MAKER = (
@@ -87,7 +98,7 @@ DEFAULT_ROLE_ACTIONS: dict[str, set[str]] = {
     ROLE_TRIBUNAL_SECRETARY: _READ
     | _OPERATE
     | {"matter.create", "workflow.hold", "workflow.stop", "report.export"},
-    ROLE_SUPERVISING_SOLICITOR: _DECISION_MAKER | PARTY_ACTIONS,
+    ROLE_SUPERVISING_SOLICITOR: _DECISION_MAKER | PARTY_ACTIONS | {TRAINING_DATA},
     ROLE_IN_HOUSE_COUNSEL: _DECISION_MAKER | PARTY_ACTIONS,
     ROLE_SOLICITOR: _READ
     | _OPERATE
@@ -129,6 +140,8 @@ DEFAULT_ROLE_ACTIONS: dict[str, set[str]] = {
         "framework.manage",
         "compliance.manage",
         "checks.run",
+        TRAINING_DATA,
+        TRAINING_RUN,
     },
     ROLE_GOVERNANCE: {
         "matter.read",
@@ -142,11 +155,13 @@ DEFAULT_ROLE_ACTIONS: dict[str, set[str]] = {
         "framework.manage",
         "compliance.manage",
         "checks.run",
+        TRAINING_APPROVE,
     }
     | _AUDIT,
     ROLE_AUDITOR: set(_AUDIT),
     # Technical administration is deliberately not equivalent to legal-matter access.
-    ROLE_SYSTEM_ADMIN: {"audit.verify", "user.manage", "config.manage", "checks.run"} | _SERVER,
+    ROLE_SYSTEM_ADMIN: {"audit.verify", "user.manage", "config.manage", "checks.run", TRAINING_RUN}
+    | _SERVER,
     ROLE_READ_ONLY: set(_READ),
 }
 

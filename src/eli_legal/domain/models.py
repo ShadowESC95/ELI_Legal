@@ -100,6 +100,15 @@ class Matter:
     # When its content was sealed into an encrypted archive and taken out of the working
     # database (None: not archived). Reopening the matter restores it.
     archived_at: datetime | None = None
+    # Whether this matter's approved work may train the organisation's own model, and on what
+    # basis (the clients' consent, a practice matter, the organisation's policy), set by its lead.
+    # Off unless chosen; turning it off removes the matter's training examples.
+    training_use: bool = False
+    training_basis: str = ""
+    # A real matter trains only with its client's consent on record (where and when given).
+    training_consent: str = ""
+    training_set_by: str | None = None
+    training_set_at: datetime | None = None
 
 
 @dataclass(slots=True)
@@ -567,6 +576,118 @@ class DeploymentAuthorisation:
     revoked_by: str = ""
     revoked_at: datetime | None = None
     revoke_reason: str = ""
+
+
+@dataclass(slots=True)
+class TrainingExample:
+    """One supervised example for the organisation's own model: a model call made during a run a
+    named reviewer approved, with the parties' names and contact details replaced, and the answer
+    a person approved. Kept with its matter, so it is erased with the matter's content."""
+
+    matter_id: str
+    run_id: str
+    task: str
+    prompt_version: str
+    system: str
+    prompt: str
+    answer: str  # the answer to train on: JSON text
+    model_answer: str  # what the model answered at the time
+    example_id: str = field(default_factory=lambda: new_id("tex"))
+    # candidate (waiting for a person) | approved | rejected
+    status: str = "candidate"
+    # Where its answer comes from: "reviewer_unchanged" (the run's reviewer approved what was
+    # built from it, nothing taken out), "reviewer_corrected" (a reviewer took findings out: a
+    # person must check the answer), "edited" (a person rewrote it).
+    source: str = ""
+    reviewed_by: str | None = None
+    reviewed_at: datetime | None = None
+    review_note: str = ""
+    # train | heldout: examples kept back to evaluate a trained model, never trained on.
+    split: str = "train"
+    content_hash: str = ""
+    # What was taken out of it before it was kept, by kind: {"name": 3, "amount": 1, ...}.
+    omitted: dict[str, int] = field(default_factory=dict)
+    created_at: datetime = field(default_factory=utcnow)
+
+
+@dataclass(slots=True)
+class TrainingPolicy:
+    """How this organisation trains its own model."""
+
+    # human: a person approves each example. autonomous: examples a reviewer accepted unchanged
+    # are approved by that review, and training and evaluation start by themselves; switching a
+    # trained model on always needs a second person.
+    mode: str = "human"
+    min_examples: int = 40
+    heldout_percent: int = 10
+    # Training is off until the compliance officer switches it on, recording the data protection
+    # impact assessment (GDPR Art. 35), the legal basis for using case material to train, and
+    # that the organisation has been told training may make it the provider of the system it
+    # changes (EU AI Act Art. 25(1)(b)).
+    enabled: bool = False
+    dpia_reference: str = ""
+    legal_basis: str = ""
+    provider_acknowledged: bool = False
+    # Which matters may teach: "practice" (practice matters only, the default) or "consented"
+    # (real matters too, each with its client's consent on record). One model learns from every
+    # matter it is trained on and can repeat what it learnt in another client's work: consented
+    # scope needs the compliance officer to acknowledge that, and every model is tested for it.
+    scope: str = "practice"
+    cross_matter_acknowledged: bool = False
+    # What is taken out of every example besides names, contact details and identifying numbers
+    # (always): amounts, dates, references, addresses. Keeping any needs a reason on record.
+    omit: list[str] = field(default_factory=lambda: ["amounts", "dates", "references", "addresses"])
+    keep_reason: str = ""
+    # No real matter gives more than this share of what a model trains on.
+    max_matter_share: int = 25
+    updated_by: str = ""
+    updated_at: datetime | None = None
+    # Autonomous mode's standing instruction, set by the technical officer: the base model, the
+    # recipe and the GGUF form an automatic run uses. Its runs are trained in their name.
+    auto_base: str = ""
+    auto_recipe: str = "standard"
+    auto_quantize: str = "q4_k_m"
+    auto_set_by: str = ""
+    auto_set_at: datetime | None = None
+
+
+@dataclass(slots=True)
+class TrainedModel:
+    """A model the organisation trained, with what went into it and who decided what."""
+
+    name: str
+    base_model: str  # the folder of the base model trained from
+    base_digest: str  # SHA-256 over the base model's weight files
+    trained_by: str
+    model_id: str = field(default_factory=lambda: new_id("tmd"))
+    # training | failed | candidate (trained, evaluated, waiting) | approved | retired
+    status: str = "training"
+    recipe: dict[str, Any] = field(default_factory=dict)
+    example_ids: list[str] = field(default_factory=list)
+    heldout_ids: list[str] = field(default_factory=list)
+    matter_ids: list[str] = field(default_factory=list)
+    dataset_digest: str = ""
+    folder: str = ""  # where its adapter, merged weights, GGUF and log are kept
+    gguf_path: str = ""
+    gguf_sha256: str = ""
+    started_at: datetime = field(default_factory=utcnow)
+    finished_at: datetime | None = None
+    failure: str = ""
+    evaluation: dict[str, Any] = field(default_factory=dict)
+    evaluated_at: datetime | None = None
+    approved_by: str = ""
+    approved_at: datetime | None = None
+    approval_reasons: str = ""
+    retired_by: str = ""
+    retired_at: datetime | None = None
+    retire_reason: str = ""
+    # Matters whose examples trained it and whose content has since been erased: its weights may
+    # still carry what it learnt from them.
+    erased_sources: list[str] = field(default_factory=list)
+    # What it was trained on, described for the technical documentation (EU AI Act Art. 10(2),
+    # Annex IV 2(d); ISO/IEC 42001 A.7): provenance, what was left out, the gaps.
+    datasheet: dict[str, Any] = field(default_factory=dict)
+    autonomous: bool = False  # started by autonomous mode's standing instruction
 
 
 @dataclass(slots=True)

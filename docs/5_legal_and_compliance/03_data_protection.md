@@ -10,7 +10,7 @@ the end. Not legal advice: a deploying organisation must do its own assessment.
 
 | Article | What it requires | How the system is built to it | Requirement |
 |---|---|---|---|
-| **Art. 5** Principles | Lawfulness, fairness and transparency; purpose limitation; minimisation; accuracy; storage limitation; integrity and confidentiality; accountability | One matter, one purpose, no memory across matters and no training on matter data; the audit ledger holds identifiers and hashes, never text; facts are quoted word for word with their location; closing a matter can delete its content; access by role and matter | GDPR-05 |
+| **Art. 5** Principles | Lawfulness, fairness and transparency; purpose limitation; minimisation; accuracy; storage limitation; integrity and confidentiality; accountability | One matter, one purpose, no memory across matters, and no training on matter data unless the organisation's own policy allows it (§10a); the audit ledger holds identifiers and hashes, never text; facts are quoted word for word with their location; closing a matter can delete its content; access by role and matter | GDPR-05 |
 | **Art. 25** Data protection by design and by default | Measures built into the processing itself, with the protective setting as the default | Network denied by default; a model must run on the same machine; matter isolation enforced in the store, not left to the caller; the least access by default (an administrator sees no matter); logs minimised by a guard that refuses content | GDPR-25 |
 | **Art. 32** Security of processing | Measures appropriate to the risk | Proven identity, lock-out and a second factor; a decision needs the passphrase again; a hardened server over TLS; originals stored read-only under their hash; a tamper-evident ledger; the databases and case files encrypted at rest. **Full-disk encryption, backup and patching are the deployer's** | GDPR-32 |
 
@@ -65,7 +65,7 @@ watch that figure.
 | Principle (Article 5) | What the system does | What the deployer must do |
 |---|---|---|
 | Lawfulness, fairness, transparency | States what it is and what it relied on | Tell data subjects, where the law requires (see 6) |
-| Purpose limitation | One matter, one purpose; no memory across matters; no reuse of data to train anything | Do not repurpose a matter's data |
+| Purpose limitation | One matter, one purpose; no memory across matters; no reuse of data to train anything unless the compliance officer switches training on with its basis and impact assessment (§10a) | Do not repurpose a matter's data without a basis |
 | Data minimisation | The audit ledger holds identifiers and hashes, not text; chat history is not kept | File only what the matter needs |
 | Accuracy | Facts are quoted word for word with their location | Correct the source record if a document is wrong |
 | Storage limitation | Each kind of a closed matter's content (papers, analysis, reports, evidence packs) is kept for its own period and then deleted, or its archive's key destroyed, by the routine checks; the decision record goes last | Set the periods for each kind (Compliance, OA-09); apply them |
@@ -124,6 +124,25 @@ A model that runs locally receives matter text and returns text; it keeps nothin
 remain for the deployer: whether the model was lawfully developed (the European Data Protection
 Board's Opinion 28/2024 addresses when a model can be treated as anonymous and the consequences
 of unlawful training), and whether the model's licence permits the use.
+
+## 10a. Training the organisation's own model
+
+Training reuses case material for a new purpose, and what a model learns cannot be taken out of
+it. ELI Legal therefore makes it off by default and puts each decision with the person who must
+take it ([Training your own model](../6_manuals/15_training_your_own_model.md)):
+
+| GDPR | What ELI Legal does | What the organisation decides |
+|---|---|---|
+| Art. 6, 6(4) (basis, a new purpose) | Training cannot be switched on without a legal basis on record; a real matter teaches only with its client's consent on record | The basis, and the consent wording |
+| Art. 35 (impact assessment) | Training cannot be switched on without naming the assessment that covers it (OA-28) | The assessment |
+| Art. 5(1)(c), Art. 25 (minimisation, by design) | Names, contact details and identifying numbers always taken out; amounts, dates, references and addresses too unless kept with a reason; a lawyer reads each example (human mode) | Whether anything optional is kept |
+| Arts. 9, 10 (special categories, offences) | A model call about health, origin, beliefs, union membership, genetic or biometric data, sex life, criminal offences or a child is never kept | Keep human mode for real matters: word detection can miss a mention |
+| Arts. 17, 21 (erasure, objection) | Examples are erased with their matter; an erased or withdrawn matter flags each model trained on it, which may then not be approved or used | Retire the model; train another without the matter |
+| Art. 5(1)(f), confidentiality | Practice matters only by default; no real matter gives more than its share; every model is tested for repeating one matter's wording or anyone's name | Whether real matters may teach at all |
+
+A trained model is not anonymous while its training data can be drawn back out of it (EDPB
+Opinion 28/2024); the recall test is a sample, not a proof. Its datasheet records what it learnt
+from and what was left out, for the records of processing and for a data subject's request.
 
 ## 11. United Kingdom
 

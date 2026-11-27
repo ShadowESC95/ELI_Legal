@@ -156,4 +156,7 @@ MIGRATIONS: list[str] = [
     # 8 — work waiting for a named person (holds to clear, a report to review), shown to each
     # person who can act on it. Deleted with a matter's content.
     _record_table("notifications"),
+    # 9 — examples for training the organisation's own model, taken from approved runs of matters
+    # whose lead allowed it. Deleted with a matter's content.
+    _record_table("training_examples"),
 ]

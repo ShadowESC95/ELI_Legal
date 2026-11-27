@@ -81,6 +81,7 @@ from eli_legal.legal.proposition_verifier import PropositionVerifier
 from eli_legal.legal.provenance import ProvenanceVerifier
 from eli_legal.legal.report_builder import BuiltReport, LegalReportBuilder, ReportContext
 from eli_legal.security.redaction import normalise_ws, quote_hash
+from eli_legal.training.records import CallRecorder
 from eli_legal.workflows.runner import StepContext, StepHandler
 
 _LEGAL_KINDS = (ClaimKind.LEGAL_PROPOSITION, ClaimKind.PARTY_AUTHORITY)
@@ -147,6 +148,9 @@ class CasePreparation:
         def run(c: StepContext) -> Mapping[str, Any] | None:
             if name != "scope":
                 self._brief(c)
+            # Each answered model call is kept with the run (sealed), for training later.
+            recorder = CallRecorder(self.ctx, c.matter.matter_id, c.run.run_id, name)
+            self.model.recorder = self.verifier.recorder = recorder
             return step(c)
 
         return run

@@ -30,7 +30,8 @@ rules of law, and ships unvalidated.
 change how treatments are weighed (civil-law packs treat a contrary later decision as a conflict
 for a person, not a failure).
 
-**D-12 No training on matter data.**
+**D-12 No training on matter data.** Superseded by D-38: matter data trains a model only under
+the organisation's own policy, and never by default.
 
 **D-13 One profile per matter.** Tribunal-side and party-side use are different deployments with
 different users, outputs and regulatory posture.
@@ -182,3 +183,15 @@ Packs exported elsewhere are named in the receipt as beyond the application's co
 text may be an exhibit; with OCR it is read and marked as read from the image, and without OCR
 it is a review task on a real matter. A deployment authorisation binds to its evidence
 documents by hash and to the whole configuration it was approved for.
+
+**D-38 An organisation may train its own model, under the people the law expects to decide.**
+Organisations asked to teach the model from their own approved work, as ELI v2 and v3 allow.
+Training is off until the compliance officer switches it on, naming the impact assessment and
+the legal basis and acknowledging that the organisation may become the provider (AI Act
+Art. 25). By default only practice matters teach; real ones need the compliance officer's
+consent to mixing clients and each client's consent. Names, contact details and identifying
+numbers are always taken out, special categories never kept, a lawyer approves each example,
+and every model is tested for repeating what it learnt before the compliance officer (never its
+trainer) may approve it. Training runs in an environment of its own, apart from ELI Legal, so
+the application carries no training stack; the trained model is a GGUF file ELI Legal runs like
+any other. See [Training your own model](../6_manuals/15_training_your_own_model.md).

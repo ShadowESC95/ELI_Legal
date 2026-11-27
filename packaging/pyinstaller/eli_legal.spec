@@ -27,7 +27,12 @@ for name in ("THIRD_PARTY_NOTICES.md", "LICENSE", "NOTICE", "README.md"):
     if (ROOT / name).is_file():
         datas.append((str(ROOT / name), "."))
 
-hidden = collect_submodules("eli_legal") + collect_submodules("uvicorn")
+# The trainer (eli_legal/training/worker.py) is not part of the application: it ships as a file
+# (above) and runs in the training environment's own Python, with PyTorch. Analysing it would pull
+# PyTorch into the bundle wherever the build machine has it, so it and the training stack are left
+# out of the analysis.
+hidden = [m for m in collect_submodules("eli_legal") if m != "eli_legal.training.worker"]
+hidden += collect_submodules("uvicorn")
 hidden += ["pypdf", "cryptography", "PySide6.QtCore", "PySide6.QtGui", "PySide6.QtWidgets"]
 # SQLCipher: the databases are encrypted with it (its OpenSSL is built into the extension).
 hidden += ["sqlcipher3", "sqlcipher3.dbapi2", "sqlcipher3._sqlite3"]
@@ -40,6 +45,7 @@ excluded = [
     "PySide6.QtCharts", "PySide6.QtDataVisualization", "PySide6.QtBluetooth", "PySide6.QtNfc", "PySide6.QtSensors",
     "PySide6.QtSerialPort", "PySide6.QtPositioning", "PySide6.QtLocation", "PySide6.QtTest", "PySide6.QtSql",
     "tkinter", "pytest", "mypy", "ruff", "IPython", "matplotlib", "PyInstaller",
+    "eli_legal.training.worker", "torch", "transformers", "peft", "accelerate", "bitsandbytes",
 ]
 
 # GGUF models run in process through llama.cpp when it is installed in the build environment.

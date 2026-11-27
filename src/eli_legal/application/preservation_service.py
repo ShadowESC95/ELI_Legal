@@ -92,6 +92,14 @@ def dispose(
     )
     if papers:  # the originals, and their key with them unless some are kept
         counts["vault_files"] = ctx.vault.purge_matter(mid, keep={d.sha256 for d in kept})
+    if any("training_examples" in k.tables for k in chosen):
+        # A model trained on this matter keeps what it learnt: it says so, and cannot be
+        # approved or put into use again.
+        from eli_legal.application.training_service import TrainingService
+
+        counts["trained_models_flagged"] = len(
+            TrainingService(ctx).matter_erased(mid, actor_id=actor_id)
+        )
     counts["preserved_documents"] = len(kept)
     deleted = sorted({d.sha256 for d in going} - {d.sha256 for d in kept})
     # What the application made from the matter: reports, outbox copies, evidence packs in its

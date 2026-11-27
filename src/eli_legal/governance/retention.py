@@ -43,8 +43,9 @@ CONTENT: tuple[Kind, ...] = (
     Kind(
         "analysis",
         "The analysis",
-        "findings, checks and their results, verification tasks, the steps of each run and "
-        "notices about the matter",
+        "findings, checks and their results, verification tasks, the steps of each run, "
+        "notices about the matter, and the examples taken from its approved runs to train the "
+        "organisation's own model",
         "it quotes the papers, so it is kept as long as they are unless set otherwise",
         None,
         tables=(
@@ -54,12 +55,14 @@ CONTENT: tuple[Kind, ...] = (
             "tasks",
             "run_steps",
             "notifications",
+            "training_examples",
         ),
     ),
     Kind(
         "reports",
         "Reports",
-        "each version of the report, the approved one and its released copies",
+        "each version of the report, the approved one and its released copies, and the record "
+        "of the model calls each run made",
         "what was relied on; it may need to be kept longer than the papers it quotes",
         None,
         tables=("reports",),
