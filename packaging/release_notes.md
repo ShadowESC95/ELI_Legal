@@ -4,10 +4,11 @@ Governed legal case preparation: it takes the papers in a dispute, establishes w
 
 ## New in this version
 
-- **A bought key works on as many computers as it has seats.** A key bought from the licence store from now on is activated the first time it is entered on a computer (**Help → Licence… → Enter a key**, or `eli-legal licence activate`): ELI Legal sends the key and the computer's activation code (a one-way code made from the operating system's install id, nothing about you or your matters) to ELI's licence server, which counts the computer against the licence's seats. That happens only when you ask, through the network guard; once activated, the key is checked offline. **0.8.20 and earlier cannot activate these keys: update to 0.8.21.** Keys issued before keep working.
-- **Moving to a new computer:** **Deactivate this computer** in the licence window (or `eli-legal licence deactivate`) gives the seat back. A computer that cannot go online, or with hard offline on: activate it from any other device at https://licences.geteli.tech/activate with the code the licence window shows (`eli-legal licence code`).
+- **Fully offline, licence included.** ELI Legal never goes online for its licence: no licence server, no activation online, nothing sent, ever. A licence covers a number of computers, each with its own key: send the seller your licence number and this computer's activation code (**Help → Licence…** shows it, or `eli-legal licence code`; a one-way code made from the operating system's install id), and enter the key you get back. It works on that computer only.
+- **Moving to a new computer:** **Deactivate this computer** in the licence window (or `eli-legal licence deactivate`) removes the key here; tell the seller, who frees its seat.
+- **Buy a licence…** opens https://geteli.tech in your browser; nothing else is opened or sent.
 - **A licence is needed wherever ELI Legal is installed,** including a copy installed with pip; only a developer's git checkout of the source runs without one.
-- Only an ELI Legal key, or an ELI v3 key sold with ELI Legal included, opens ELI Legal. eli-sdk 1.3.0.
+- Only an ELI Legal key, or an ELI v3 key sold with ELI Legal included, opens ELI Legal. eli-sdk 1.3.0. (0.8.21 was not published.)
 
 ## Still to know
 
