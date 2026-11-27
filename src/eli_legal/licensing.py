@@ -63,7 +63,9 @@ def _source_checkout() -> bool:
     if getattr(sys, "frozen", False):
         return False
     root = Path(__file__).resolve().parents[2]
-    return (root / ".git").exists() and (root / "pyproject.toml").is_file() and (root / "src").is_dir()
+    return (
+        (root / ".git").exists() and (root / "pyproject.toml").is_file() and (root / "src").is_dir()
+    )
 
 
 def store() -> KeyStore:

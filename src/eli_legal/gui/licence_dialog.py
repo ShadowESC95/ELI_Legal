@@ -136,7 +136,9 @@ class LicenceDialog(QDialog):
         )
 
     # ── buying ──────────────────────────────────────────────────────────────
-    def _allowed(self, reason: str = "licence purchase, asked for by the user") -> AbstractContextManager[Any]:
+    def _allowed(
+        self, reason: str = "licence purchase, asked for by the user"
+    ) -> AbstractContextManager[Any]:
         host = urlparse(licensing.STORE_URL).hostname or ""
         if self.network is None or not host:
             return nullcontext()
@@ -222,8 +224,9 @@ class LicenceDialog(QDialog):
         if not ok or not key.strip():
             return
         try:
-            lic = self._through_store(lambda: licensing.activate(key),
-                                      "licence activation, asked for by the user")
+            lic = self._through_store(
+                lambda: licensing.activate(key), "licence activation, asked for by the user"
+            )
         except InvalidKey as exc:
             QMessageBox.warning(self, "Key not activated", f"That key was not activated: {exc}")
             return
@@ -244,12 +247,17 @@ class LicenceDialog(QDialog):
         if answer != QMessageBox.StandardButton.Yes:
             return
         try:
-            done = self._through_store(licensing.deactivate, "licence deactivation, asked for by the user")
+            done = self._through_store(
+                licensing.deactivate, "licence deactivation, asked for by the user"
+            )
         except InvalidKey as exc:
             QMessageBox.warning(self, "Not deactivated", str(exc))
             return
-        self.waiting.setText("Deactivated: this computer's seat is free for another computer."
-                             if done else "There was no key on this computer to deactivate.")
+        self.waiting.setText(
+            "Deactivated: this computer's seat is free for another computer."
+            if done
+            else "There was no key on this computer to deactivate."
+        )
         self.licensed = False
         self.refresh()
 
