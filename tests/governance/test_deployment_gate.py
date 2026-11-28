@@ -94,11 +94,13 @@ def test_a_real_matter_is_refused_until_an_authorisation_covers_it(demo, monkeyp
         sv.runs.create(matter.matter_id, actor_id=A)
     _validated(monkeypatch)
     assert sv.runs.create(matter.matter_id, actor_id=A).run_id
+    version = deployment_service.__version__
     monkeypatch.setattr(deployment_service, "__version__", "9.9.9")
     with pytest.raises(NotAuthorised, match="different version"):
         sv.runs.create(matter.matter_id, actor_id=A)
-    monkeypatch.undo()
-    _validated(monkeypatch)
+    # only the version put back: monkeypatch.undo() also undid the test's own key folder and trial
+    # records, and the rest of the test read this account's real ones
+    monkeypatch.setattr(deployment_service, "__version__", version)
     sv.deployment.revoke(approved.authorisation_id, actor_id=G, reason="Security finding open.")
     with pytest.raises(NotAuthorised, match="no deployment authorisation"):
         sv.runs.create(matter.matter_id, actor_id=A)

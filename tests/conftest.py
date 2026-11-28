@@ -65,13 +65,17 @@ def make_key(path: Path) -> Path:
 
 
 @pytest.fixture(autouse=True)
-def _licence_checked_by_the_host(monkeypatch: pytest.MonkeyPatch) -> None:
+def _licence_checked_by_the_host() -> Iterator[None]:
     """Every copy of ELI Legal needs a licence, a source checkout too. The tests run as a copy ELI
     v3 opened, having checked the licence itself, so no test starts a trial in the account's own
-    folders; the licensing tests set this back (licensing._hosted = False) and check for real."""
+    folders; the licensing tests set this back (licensing._hosted = False) and check for real. Set
+    here, not with monkeypatch, so a test's monkeypatch.undo() cannot take it away."""
     from eli_legal import licensing
 
-    monkeypatch.setattr(licensing, "_hosted", True)
+    before = licensing._hosted
+    licensing._hosted = True
+    yield
+    licensing._hosted = before
 
 
 @pytest.fixture(autouse=True)

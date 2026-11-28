@@ -825,7 +825,7 @@ def test_the_pack_an_installer_ships_is_the_built_in_llama_cpp_s_version_and_is_
         assert named and named.group(1) == "vulkan" and named.group(2) == version
         assert len(pack["sha256"]) == 64 and int(pack["sha256"], 16) >= 0
     workflow = (root / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
-    pinned = 'pip install "llama-cpp-python==$(python scripts/fetch_gpu_pack.py --version)"'
+    pinned = 'pip install -c requirements.lock.txt "llama-cpp-python==$(python scripts/fetch_gpu_pack.py --version)"'
     assert workflow.count(pinned) == 3 and "llama-cpp-python>=" not in workflow
     assert workflow.count("- run: python scripts/fetch_gpu_pack.py\n") == 2, "Linux and Windows"
     spec = (root / "packaging" / "pyinstaller" / "eli_legal.spec").read_text(encoding="utf-8")
