@@ -30,16 +30,8 @@ coverage==7.16.2 ; python_full_version < '3.11'
     # via pytest-cov
 coverage==7.17.5 ; python_full_version >= '3.11'
     # via pytest-cov
-cryptography==48.0.1 ; platform_machine == 'x86_64' and sys_platform == 'darwin'
+cryptography==50.0.2
     # via
-    #   -r scripts/lock_dependencies.py (FLOOR)
-    #   -r scripts/lock_dependencies.py (HOLD)
-    #   eli-legal (pyproject.toml)
-    #   eli-sdk
-cryptography==50.0.2 ; platform_machine != 'x86_64' or sys_platform != 'darwin'
-    # via
-    #   -r scripts/lock_dependencies.py (FLOOR)
-    #   -r scripts/lock_dependencies.py (HOLD)
     #   eli-legal (pyproject.toml)
     #   eli-sdk
 diskcache==5.6.3

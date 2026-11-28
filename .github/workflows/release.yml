@@ -173,15 +173,25 @@ jobs:
         with:
           python-version: "3.12"
       # cryptography (for the licence check) as a published wheel, which carries its own OpenSSL.
-      # From 49 there is none for Intel Macs: built here it links the runner's OpenSSL, which the
-      # bundle does not carry, and the program cannot check its licence (0.8.0).
+      # From 49 there is none for Intel Macs, and 48 has known vulnerabilities (PYSEC-2026-3552,
+      # -3553, -3554): on Intel it is built here at the locked version with OpenSSL linked into it, so
+      # it needs no libssl of the system's or the bundle's. (Built linking the runner's OpenSSL, the
+      # program could not check its licence: 0.8.0.)
       # eli-sdk is private: its wheel is fetched with a read-only token and checked against
       # its pinned SHA-256, and every pip install in this job finds it (PIP_FIND_LINKS).
       - name: eli-sdk, from its private release
         run: python scripts/fetch_eli_sdk.py "${{ runner.temp }}/wheels"
         env:
           ELI_SDK_TOKEN: ${{ secrets.ELI_SDK_TOKEN }}
-      # the lock holds cryptography below 49 on Intel Macs (no wheel from 49; see scripts/lock_dependencies.py)
+      - name: cryptography with OpenSSL inside it (Intel Macs)
+        if: runner.arch == 'X64'
+        run: |
+          brew list openssl@3 >/dev/null 2>&1 || brew install openssl@3
+          CRYPTO=$(grep -E '^cryptography==' requirements.lock.txt | sed -E 's/ *;.*//' | head -1)
+          OPENSSL_DIR="$(brew --prefix openssl@3)" OPENSSL_STATIC=1 python -m pip install -c requirements.lock.txt --no-binary cryptography "$CRYPTO"
+          lib=$(python -c "import cryptography.hazmat.bindings._rust as r; print(r.__file__)")
+          if otool -L "$lib" | grep -E 'libssl|libcrypto'; then echo "::error::cryptography links a shared OpenSSL"; exit 1; fi
+          python -c "from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey as K; k = K.generate(); k.public_key().verify(k.sign(b'x'), b'x'); print('cryptography signs and verifies')"
       - run: python -m pip install -c requirements.lock.txt -e ".[all,build]" --only-binary cryptography
       # GGUF support. Built for any x86-64 or ARM processor of its kind, not just this runner's,
       # and left out (with a note in the build log) if it will not build here.
@@ -198,6 +208,11 @@ jobs:
           test -n "$ELI_LEGAL_CI_KEY" || { echo "::error::ELI_LEGAL_CI_KEY is not set: add an ELI Legal key as an Actions secret"; exit 1; }
           echo "ELI_KEYS_DIR=$RUNNER_TEMP/eli-keys" >> "$GITHUB_ENV"
           ELI_KEYS_DIR="$RUNNER_TEMP/eli-keys" eli-legal licence activate "$ELI_LEGAL_CI_KEY" > /dev/null
+      - name: The bundled cryptography carries its own OpenSSL
+        run: |
+          found=$(find "build/dist/ELI Legal.app" -name '_rust*.so' | head -1)
+          test -n "$found" && otool -L "$found"
+          if otool -L "$found" | grep -E 'libssl|libcrypto'; then echo "::error::the bundled cryptography links a shared OpenSSL"; exit 1; fi
       - name: The frozen program runs the demonstration
         run: '"build/dist/ELI Legal.app/Contents/MacOS/eli-legal" demo'
       - name: The machine report runs (the built-in llama.cpp uses the card through Metal)

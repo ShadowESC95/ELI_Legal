@@ -38,25 +38,14 @@ HEADER = """\
 # CI, the release build and the source installers install under it: pip install -c requirements.lock.txt
 """
 _NAME = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)")
-INTEL_MAC = "sys_platform == 'darwin' and platform_machine == 'x86_64'"
 # Held below what the newest would be, each with its reason.
-HOLD = (
-    # From 49 there is no wheel for Intel Macs; built from source it links the build machine's
-    # OpenSSL, the bundle's libssl lacks SSL_get0_group_name, and the licence check fails.
-    f"cryptography<49 ; {INTEL_MAC}",
-)
-# Kept at or above a version everywhere it can be, each with its reason.
+HOLD: tuple[str, ...] = ()
 # llama.cpp for Python at the version the graphics packs are built at (packaging/gpu_packs.json):
 # two versions' libraries in one process crash.
 PACKS = json.loads((ROOT / "packaging" / "gpu_packs.json").read_text(encoding="utf-8"))[
     "llama_cpp_python"
 ]
-FLOOR = (
-    f"llama-cpp-python=={PACKS}",
-    # 49 and 50 fix PYSEC-2026-3552, -3553 and -3554; without this floor the one version that
-    # suits Intel Macs too (48) would be chosen for every system, and the release audit refuses it.
-    "cryptography>=50 ; sys_platform != 'darwin' or platform_machine != 'x86_64'",
-)
+FLOOR = (f"llama-cpp-python=={PACKS}",)
 
 
 def key(name: str) -> str:
