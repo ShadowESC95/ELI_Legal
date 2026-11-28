@@ -354,8 +354,10 @@ sources, and your licences to use them, are your responsibility.
 
 5.1 ELI Legal processes your matters on your own machines and sends nothing to us.
 
-5.2 It does not encrypt data at rest. You must store matter data on an encrypted volume and control
-who can reach the machine.
+5.2 It encrypts its databases (SQLCipher) and every case file it keeps (AES-256-GCM) at rest. The
+keys are kept on the same machine, so this does not protect matter data from anyone who can use that
+machine or its account: you must still store matter data on an encrypted volume and control who can
+reach the machine.
 
 5.3 You are responsible for client confidentiality and privilege, and for data protection
 obligations as the controller of the personal data in your matters.

@@ -2450,7 +2450,10 @@ def main(argv: list[str] | None = None) -> int:
         from eli_legal import bundle
 
         bundle.refresh_registration()  # ELI v3 opens the newest copy on this machine
-    if args.command not in _UNLICENSED_COMMANDS:
+    # the graphics pack probe is this program testing a pack in a process of its own, for the copy
+    # that started it (which has passed its own check): it offers nothing of ELI Legal itself
+    internal = args.command == "gpu" and getattr(args, "gpu_cmd", "") == "probe"
+    if args.command not in _UNLICENSED_COMMANDS and not internal:
         from eli_legal import licensing
 
         if not licensing.allowed():

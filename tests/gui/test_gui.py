@@ -1319,7 +1319,6 @@ def test_the_licence_window_takes_this_computers_key_and_sends_nothing(qt, monke
     issuer = _Issuer()
     monkeypatch.setattr(licensing, "_public_key", issuer.public)
     monkeypatch.setattr(licensing, "_hosted", False)
-    monkeypatch.setenv("ELI_LEGAL_REQUIRE_LICENCE", "1")
     monkeypatch.setattr(licensing, "_used_before", lambda: True)  # no trial left here
 
     blocking = LicenceDialog(None, blocking=True)

@@ -6,6 +6,7 @@ from __future__ import annotations
 import base64
 import json
 import sys
+from pathlib import Path
 
 import pytest
 from cryptography.hazmat.primitives import serialization
@@ -42,12 +43,15 @@ def issuer(tmp_path, monkeypatch) -> _Issuer:
     monkeypatch.setattr(licensing, "_public_key", made.public)
     monkeypatch.setattr(licensing, "_hosted", False)
     monkeypatch.setenv("ELI_KEYS_DIR", str(tmp_path / "keys"))
-    monkeypatch.delenv("ELI_LEGAL_REQUIRE_LICENCE", raising=False)
     return made
 
 
-def test_an_installed_copy_needs_a_licence_and_a_checkout_does_not(issuer, monkeypatch):
-    assert licensing.required() is False
+def test_every_copy_needs_a_licence_a_git_checkout_too(issuer, monkeypatch):
+    """A git clone of the repository was a free copy of ELI Legal: it never checked a licence."""
+    assert (Path(licensing.__file__).resolve().parents[2] / ".git").exists(), (
+        "this test runs from the source"
+    )
+    assert licensing.required() is True
     monkeypatch.setattr(sys, "frozen", True, raising=False)
     assert licensing.required() is True
     licensing.hosted_by_eli()
@@ -85,7 +89,6 @@ def test_removing_it(issuer):
 def test_the_command_line_will_not_run_unlicensed_once_the_trial_is_spent(
     issuer, monkeypatch, capsys
 ):
-    monkeypatch.setenv("ELI_LEGAL_REQUIRE_LICENCE", "1")
     monkeypatch.setattr(cli, "cmd_matter", lambda args: 0)
     monkeypatch.setattr(licensing, "_used_before", lambda: True)  # used here, trial record gone
     assert cli.main(["matter", "list"]) == 3
@@ -100,7 +103,6 @@ def test_the_command_line_will_not_run_unlicensed_once_the_trial_is_spent(
 
 
 def test_an_installed_copy_runs_a_seven_day_trial_and_takes_a_key_any_time(issuer, monkeypatch):
-    monkeypatch.setenv("ELI_LEGAL_REQUIRE_LICENCE", "1")
     assert licensing.standing().granted is False, "nothing is started by looking"
     assert licensing.allowed(), "first use starts the trial"
     st = licensing.standing()
@@ -113,7 +115,6 @@ def test_an_installed_copy_runs_a_seven_day_trial_and_takes_a_key_any_time(issue
 
 
 def test_deleting_the_trial_record_does_not_restart_it(issuer, monkeypatch, tmp_path):
-    monkeypatch.setenv("ELI_LEGAL_REQUIRE_LICENCE", "1")
     assert licensing.allowed()
     data = tmp_path / "home" / "data" / "eli-legal" / "data"
     data.mkdir(parents=True)
@@ -128,7 +129,6 @@ def test_deleting_the_trial_record_does_not_restart_it(issuer, monkeypatch, tmp_
 
 
 def test_a_trial_key_that_ended_starts_no_second_trial(issuer, monkeypatch):
-    monkeypatch.setenv("ELI_LEGAL_REQUIRE_LICENCE", "1")
     keys = licensing.store().directory
     keys.mkdir(parents=True, exist_ok=True)
     (keys / "legal.key").write_text(
@@ -144,7 +144,6 @@ def test_a_trial_covers_practice_matters_only(issuer, monkeypatch, demo):
     from eli_legal.domain.errors import PolicyDenied
 
     sv, mid = demo
-    monkeypatch.setenv("ELI_LEGAL_REQUIRE_LICENCE", "1")
     assert licensing.allowed() and licensing.standing().on_trial
     with pytest.raises(PolicyDenied, match="practice matters only"):
         sv.matters.create(
@@ -183,7 +182,6 @@ def test_a_licence_is_not_this_computers_key(issuer, capsys):
 
 
 def test_the_licence_commands_work_without_one(issuer, monkeypatch, capsys):
-    monkeypatch.setenv("ELI_LEGAL_REQUIRE_LICENCE", "1")
     assert cli.main(["licence"]) == 0
     shown = json.loads(capsys.readouterr().out)
     assert shown["licensed"] is False and shown["required"] is True

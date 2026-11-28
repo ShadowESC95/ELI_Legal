@@ -49,23 +49,10 @@ def hosted_by_eli() -> None:
 
 
 def required() -> bool:
-    if _hosted:
-        return False
-    if os.environ.get("ELI_LEGAL_REQUIRE_LICENCE", "").strip().lower() in _YES:
-        return True
-    return not _source_checkout()
-
-
-def _source_checkout() -> bool:
-    """Running from a git working copy of ELI Legal's source, as its developer does: never a
-    packaged build, and never a copy installed with pip (from a wheel or from the repository),
-    which is a copy someone may have paid for. Those all need a licence or the trial."""
-    if getattr(sys, "frozen", False):
-        return False
-    root = Path(__file__).resolve().parents[2]
-    return (
-        (root / ".git").exists() and (root / "pyproject.toml").is_file() and (root / "src").is_dir()
-    )
+    """Every copy needs a licence or the trial: installed, packaged, or run from its source (a git
+    clone of the repository is a copy like any other). Only a copy that an ELI v3 opened, having
+    checked ELI Legal's licence itself, does not check it again."""
+    return not _hosted
 
 
 def store() -> KeyStore:
