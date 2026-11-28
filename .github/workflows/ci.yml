@@ -36,7 +36,9 @@ jobs:
         env:
           ELI_SDK_TOKEN: ${{ secrets.ELI_SDK_TOKEN }}
       # packs: what a graphics pack imports (Jinja among it, which fills in chat templates)
-      - run: python -m pip install -e ".[dev,all,packs]"
+      # every package at the version in requirements.lock.txt: a new upstream release changes nothing here
+      - run: python -m pip install -c requirements.lock.txt -e ".[dev,all,packs]"
+      - run: python scripts/lock_dependencies.py --check
       - run: python -m pytest
         env:
           QT_QPA_PLATFORM: offscreen

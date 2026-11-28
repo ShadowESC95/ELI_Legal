@@ -52,7 +52,7 @@ echo "Creating a private Python environment in $PREFIX ..."
 "$PY" -m venv "$PREFIX/venv"
 "$PREFIX/venv/bin/python" -m pip install --quiet --upgrade pip
 echo "Installing ELI Legal and what it needs ..."
-"$PREFIX/venv/bin/python" -m pip install --quiet "$ROOT[$EXTRAS,packs]"
+"$PREFIX/venv/bin/python" -m pip install --quiet -c "$ROOT/requirements.lock.txt" "$ROOT[$EXTRAS,packs]"
 
 # Qt needs a few libraries that belong to the system (OpenGL, X11 and Wayland pieces). A desktop
 # has them; a minimal system does not, and the desktop application would not start. All of them
@@ -82,7 +82,7 @@ fi
 if [ "$MODELS" = 1 ]; then
   LLAMA="llama-cpp-python==$("$PREFIX/venv/bin/python" "$ROOT/scripts/fetch_gpu_pack.py" --version)"
   echo "Adding llama.cpp to run GGUF model files (compiled here when there is no ready-made build; that takes some minutes) ..."
-  if "$PREFIX/venv/bin/python" -m pip install --quiet --log "$PREFIX/llama-build.log" "$LLAMA"; then
+  if "$PREFIX/venv/bin/python" -m pip install --quiet --log "$PREFIX/llama-build.log" -c "$ROOT/requirements.lock.txt" "$LLAMA"; then
     rm -f "$PREFIX/llama-build.log"
   else
     case "$(uname -s)" in
@@ -96,7 +96,7 @@ if [ "$MODELS" = 1 ]; then
     echo
     echo "llama.cpp could not be built here, so GGUF model files will not run in process yet."
     echo "  It needs a C and C++ compiler:  $NEEDS"
-    echo "  Then:                           \"$PREFIX/venv/bin/python\" -m pip install '$LLAMA'"
+    echo "  Then:                           \"$PREFIX/venv/bin/python\" -m pip install -c '$ROOT/requirements.lock.txt' '$LLAMA'"
     echo "  What the build said:            $PREFIX/llama-build.log"
     echo "  Without it: a graphics pack (eli-legal gpu install FILE) is a complete llama.cpp and"
     echo "  needs no compiler, and a model server on this machine works as it is."

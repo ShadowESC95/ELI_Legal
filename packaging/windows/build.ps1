@@ -10,7 +10,7 @@ $Root = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 Set-Location $Root
 
 $Py = if ($env:PYTHON) { $env:PYTHON } elseif (Test-Path ".venv\Scripts\python.exe") { ".venv\Scripts\python.exe" } else { "python" }
-& $Py -m pip install --quiet -e ".[all,build]"
+& $Py -m pip install --quiet -c requirements.lock.txt -e ".[all,build]"
 if ($LASTEXITCODE -ne 0) { throw "pip install failed" }
 $env:ELI_LEGAL_VERSION = (& $Py -c "import eli_legal; print(eli_legal.__version__)").Trim()
 

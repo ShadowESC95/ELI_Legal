@@ -36,7 +36,12 @@ dev = [
 ]
 
 gui = [
-  "PySide6>=6.6",
+  # PySide6 6.12.0 drops a reference to None on every call to a Qt method that returns nothing,
+  # under Python 3.10 and 3.11 (from 3.12 None is immortal and nothing is lost); a window that
+  # paints for long enough then aborts ("deallocating None"). Kept off those Pythons until fixed;
+  # tests/gui/test_gui.py checks the Qt installed keeps its references.
+  "PySide6>=6.6; python_version >= '3.12'",
+  "PySide6>=6.6,!=6.12.0; python_version < '3.12'",
 ]
 # Runs GGUF model files in process with llama.cpp, as ELI v2 and v3 do. It is compiled on
 # install where no prebuilt wheel exists, which needs CMake and a C/C++ compiler.
@@ -56,7 +61,8 @@ server = [
 ]
 # What an installed copy ships with.
 all = [
-  "PySide6>=6.6",
+  "PySide6>=6.6; python_version >= '3.12'",
+  "PySide6>=6.6,!=6.12.0; python_version < '3.12'",
   "cryptography>=42",
 ]
 build = [

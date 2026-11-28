@@ -1,0 +1,225 @@
+# The exact versions ELI Legal is built, tested and installed with, on every system and
+# Python it supports. Made by: python scripts/lock_dependencies.py (never by hand).
+# CI, the release build and the source installers install under it: pip install -c requirements.lock.txt
+altgraph==0.17.5
+    # via
+    #   macholib
+    #   pyinstaller
+annotated-doc==0.0.6 ; python_full_version < '3.11'
+    # via fastapi
+annotated-doc==0.0.7 ; python_full_version >= '3.11'
+    # via fastapi
+annotated-types==0.8.0
+    # via pydantic
+anyio==4.16.0
+    # via
+    #   fastapi
+    #   httpx
+    #   starlette
+certifi==2026.11.20
+    # via
+    #   httpcore
+    #   httpx
+cffi==2.1.1 ; platform_python_implementation != 'PyPy'
+    # via cryptography
+click==8.5.1
+    # via uvicorn
+colorama==0.4.6 ; sys_platform == 'win32'
+    # via pytest
+coverage==7.16.2 ; python_full_version < '3.11'
+    # via pytest-cov
+coverage==7.17.5 ; python_full_version >= '3.11'
+    # via pytest-cov
+cryptography==48.0.1 ; platform_machine == 'x86_64' and sys_platform == 'darwin'
+    # via
+    #   -r scripts/lock_dependencies.py (FLOOR)
+    #   -r scripts/lock_dependencies.py (HOLD)
+    #   eli-legal (pyproject.toml)
+    #   eli-sdk
+cryptography==50.0.2 ; platform_machine != 'x86_64' or sys_platform != 'darwin'
+    # via
+    #   -r scripts/lock_dependencies.py (FLOOR)
+    #   -r scripts/lock_dependencies.py (HOLD)
+    #   eli-legal (pyproject.toml)
+    #   eli-sdk
+diskcache==5.6.3
+    # via
+    #   eli-legal (pyproject.toml)
+    #   llama-cpp-python
+eli-sdk==1.3.0
+    # via eli-legal (pyproject.toml)
+exceptiongroup==1.3.2 ; python_full_version < '3.11'
+    # via
+    #   anyio
+    #   pytest
+fastapi==0.162.5 ; python_full_version < '3.11'
+    # via eli-legal (pyproject.toml)
+fastapi==0.165.0 ; python_full_version >= '3.11'
+    # via eli-legal (pyproject.toml)
+h11==0.16.0
+    # via
+    #   httpcore
+    #   uvicorn
+httpcore==1.0.9
+    # via httpx
+httpx==0.29.0
+    # via eli-legal (pyproject.toml)
+idna==3.20
+    # via
+    #   anyio
+    #   httpx
+iniconfig==2.3.1
+    # via pytest
+jinja2==3.1.6
+    # via
+    #   eli-legal (pyproject.toml)
+    #   llama-cpp-python
+librt==0.17.0 ; platform_python_implementation != 'PyPy'
+    # via mypy
+llama-cpp-python==0.3.35
+    # via
+    #   -r scripts/lock_dependencies.py (FLOOR)
+    #   eli-legal (pyproject.toml)
+macholib==1.16.4 ; sys_platform == 'darwin'
+    # via pyinstaller
+markupsafe==3.0.4
+    # via jinja2
+mypy==1.20.2
+    # via eli-legal (pyproject.toml)
+mypy-extensions==1.2.0
+    # via
+    #   librt
+    #   mypy
+numpy==2.2.6 ; python_full_version < '3.11'
+    # via
+    #   eli-legal (pyproject.toml)
+    #   llama-cpp-python
+numpy==2.4.6 ; python_full_version == '3.11.*'
+    # via
+    #   eli-legal (pyproject.toml)
+    #   llama-cpp-python
+numpy==2.5.5 ; python_full_version >= '3.12'
+    # via
+    #   eli-legal (pyproject.toml)
+    #   llama-cpp-python
+opentelemetry-api==1.45.2
+    # via
+    #   eli-legal (pyproject.toml)
+    #   fastapi
+packaging==26.4
+    # via
+    #   pyinstaller
+    #   pyinstaller-hooks-contrib
+    #   pytest
+pathspec==1.1.1
+    # via mypy
+pefile==2024.8.26 ; sys_platform == 'win32'
+    # via pyinstaller
+pluggy==1.7.0
+    # via
+    #   pytest
+    #   pytest-cov
+pycparser==3.11 ; python_full_version < '3.11' and implementation_name != 'PyPy' and platform_python_implementation != 'PyPy'
+    # via cffi
+pycparser==3.12 ; python_full_version >= '3.11' and implementation_name != 'PyPy' and platform_python_implementation != 'PyPy'
+    # via cffi
+pydantic==2.14.4
+    # via
+    #   eli-legal (pyproject.toml)
+    #   fastapi
+    #   pydantic-settings
+pydantic-core==2.50.5
+    # via pydantic
+pydantic-settings==2.15.0 ; python_full_version < '3.11'
+    # via eli-legal (pyproject.toml)
+pydantic-settings==2.16.3 ; python_full_version >= '3.11'
+    # via eli-legal (pyproject.toml)
+pygments==2.21.0
+    # via pytest
+pyinstaller==6.22.3
+    # via eli-legal (pyproject.toml)
+pyinstaller-hooks-contrib==2026.10
+    # via pyinstaller
+pypdf==6.21.4
+    # via eli-legal (pyproject.toml)
+pyside6==6.11.3 ; python_full_version < '3.12'
+    # via eli-legal (pyproject.toml)
+pyside6==6.12.0 ; python_full_version >= '3.12'
+    # via eli-legal (pyproject.toml)
+pyside6-addons==6.11.3 ; python_full_version < '3.12'
+    # via pyside6
+pyside6-addons==6.12.0 ; python_full_version >= '3.12'
+    # via
+    #   pyside6
+    #   pyside6-webengine
+pyside6-essentials==6.11.3 ; python_full_version < '3.12'
+    # via
+    #   pyside6
+    #   pyside6-addons
+pyside6-essentials==6.12.0 ; python_full_version >= '3.12'
+    # via
+    #   pyside6
+    #   pyside6-addons
+    #   pyside6-pdf
+pyside6-pdf==6.12.0.140 ; python_full_version >= '3.12'
+    # via pyside6
+pyside6-webengine==6.12.0.140 ; python_full_version >= '3.12'
+    # via pyside6
+pytest==8.4.2
+    # via
+    #   eli-legal (pyproject.toml)
+    #   pytest-cov
+pytest-cov==6.3.0
+    # via eli-legal (pyproject.toml)
+python-dotenv==1.2.4
+    # via pydantic-settings
+pywin32-ctypes==0.2.3 ; sys_platform == 'win32'
+    # via pyinstaller
+ruff==0.17.6
+    # via eli-legal (pyproject.toml)
+setuptools==84.2.1
+    # via pyinstaller
+shiboken6==6.11.3 ; python_full_version < '3.12'
+    # via
+    #   pyside6
+    #   pyside6-addons
+    #   pyside6-essentials
+shiboken6==6.12.0 ; python_full_version >= '3.12'
+    # via pyside6-essentials
+sqlcipher3-wheels==0.5.7
+    # via eli-legal (pyproject.toml)
+starlette==1.7.0 ; python_full_version < '3.11'
+    # via fastapi
+starlette==1.10.0 ; python_full_version >= '3.11'
+    # via fastapi
+tomli==2.5.0 ; python_full_version < '3.11'
+    # via
+    #   coverage
+    #   mypy
+    #   pyside6
+    #   pytest
+typing-extensions==4.16.0
+    # via
+    #   anyio
+    #   cryptography
+    #   exceptiongroup
+    #   fastapi
+    #   llama-cpp-python
+    #   mypy
+    #   opentelemetry-api
+    #   pydantic
+    #   pydantic-core
+    #   pydantic-settings
+    #   pypdf
+    #   starlette
+    #   typing-inspection
+    #   uvicorn
+typing-inspection==0.4.5
+    # via
+    #   fastapi
+    #   pydantic
+    #   pydantic-settings
+uvicorn==0.54.0 ; python_full_version < '3.11'
+    # via eli-legal (pyproject.toml)
+uvicorn==0.55.0 ; python_full_version >= '3.11'
+    # via eli-legal (pyproject.toml)

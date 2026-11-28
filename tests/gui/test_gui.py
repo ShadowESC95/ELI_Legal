@@ -2,6 +2,7 @@
 real person would, so every action is checked exactly as it is in use."""
 
 import os
+import sys
 
 import pytest
 
@@ -1419,3 +1420,25 @@ def test_the_training_page_gives_each_step_to_the_person_it_belongs_to(desk, mon
     assert not page.policy_button.isEnabled() and not page.approve_button.isEnabled()
     assert "Training would use" in page.machine.text()
     assert "PyTorch" in page.plan_text.toPlainText()
+
+
+@pytest.mark.skipif(
+    sys.version_info >= (3, 12),
+    reason="from Python 3.12 None is immortal: a lost reference is harmless",
+)
+def test_qt_keeps_its_references_to_none(qt):
+    """PySide6 6.12.0 drops a reference to None on each call to a Qt method that returns nothing, under
+    Python 3.10 and 3.11; a window that paints long enough then aborts ("deallocating None").
+    pyproject keeps that version off those Pythons; this finds any other that does the same."""
+    from PySide6.QtCore import QLineF
+    from PySide6.QtGui import QColor, QImage, QPainter
+
+    image = QImage(64, 64, QImage.Format.Format_ARGB32)
+    painter = QPainter(image)
+    before = sys.getrefcount(None)
+    for _ in range(500):
+        painter.drawLine(QLineF(0, 0, 10, 10))
+        painter.setPen(QColor(1, 2, 3))
+    after = sys.getrefcount(None)
+    painter.end()
+    assert after > before - 100, f"Qt lost {before - after} references to None in 1000 calls"

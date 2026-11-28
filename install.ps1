@@ -33,7 +33,7 @@ $VenvPy = Join-Path $Prefix "venv\Scripts\python.exe"
 & $VenvPy -m pip install --quiet --upgrade pip
 $Extras = if ($NoGui) { "server" } else { "all" }
 Write-Host "Installing ELI Legal and what it needs ..."
-& $VenvPy -m pip install --quiet "$Root[$Extras,packs]"
+& $VenvPy -m pip install --quiet -c (Join-Path $Root "requirements.lock.txt") "$Root[$Extras,packs]"
 if ($LASTEXITCODE -ne 0) { throw "installation failed" }
 
 # llama.cpp runs GGUF model files in process. At the version the graphics packs are built at:
@@ -43,14 +43,14 @@ if (-not $NoModels) {
     $Llama = "llama-cpp-python==" + (& $VenvPy (Join-Path $Root "scripts\fetch_gpu_pack.py") --version)
     $BuildLog = Join-Path $Prefix "llama-build.log"
     Write-Host "Adding llama.cpp to run GGUF model files (compiled here when there is no ready-made build; that takes some minutes) ..."
-    & $VenvPy -m pip install --quiet --log $BuildLog $Llama
+    & $VenvPy -m pip install --quiet --log $BuildLog -c (Join-Path $Root "requirements.lock.txt") $Llama
     if ($LASTEXITCODE -eq 0) {
         if (Test-Path $BuildLog) { Remove-Item -Force $BuildLog }
     } else {
         Write-Host ""
         Write-Host "llama.cpp could not be built here, so GGUF model files will not run in process yet."
         Write-Host "  It needs the C++ build tools:  https://visualstudio.microsoft.com/visual-cpp-build-tools/  (Desktop development with C++)"
-        Write-Host "  Then:                          `"$VenvPy`" -m pip install `"$Llama`""
+        Write-Host "  Then:                          `"$VenvPy`" -m pip install -c `"$Root\requirements.lock.txt`" `"$Llama`""
         Write-Host "  What the build said:           $BuildLog"
         Write-Host "  Without it: a graphics pack (eli-legal gpu install FILE) is a complete llama.cpp and"
         Write-Host "  needs no compiler, and a model server on this machine works as it is."
